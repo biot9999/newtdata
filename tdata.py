@@ -6604,16 +6604,12 @@ class ReauthorizationManager:
                         has_2fa = pwd_info.has_password
                         
                         if has_2fa:
-                            # 验证密码：尝试使用密码执行一个需要2FA的操作
-                            # 使用 check_password 来验证密码是否正确
+                            # 验证密码：尝试使用密码来获取密码设置
+                            # 如果密码错误会抛出PasswordHashInvalidError
                             try:
-                                from telethon.tl.functions.account import GetPasswordSettingsRequest
-                                
-                                # 计算密码哈希
-                                input_check = await old_client._compute_check(pwd_info, old_password)
-                                
-                                # 验证密码 - 如果密码错误会抛出异常
-                                await old_client(GetPasswordSettingsRequest(input_check))
+                                # 使用 check_password 方法验证密码
+                                # 这会在内部调用 _compute_check 并验证密码哈希
+                                await old_client.check_password(old_password)
                                 password_verified = True
                                 print(f"✅ 旧密码验证成功: {file_name}")
                             except PasswordHashInvalidError:
@@ -6641,7 +6637,8 @@ class ReauthorizationManager:
                     except Exception as e:
                         print(f"⚠️ 删除旧密码失败: {e}")
                         # 即使删除失败也继续流程
-                elif old_password and has_2fa and not password_verified:
+                elif old_password and has_2fa:
+                    # 密码未验证通过，跳过删除
                     print(f"ℹ️ 跳过删除旧密码（密码未验证通过）: {file_name}")
                 
                 # 9. 踢出所有其他设备
@@ -6752,8 +6749,9 @@ class ReauthorizationManager:
                     
                     # 14. 设置新密码
                     if new_password:
-                        # 如果旧密码已成功删除，则current_password为None
-                        # 如果旧密码未删除，则使用old_password
+                        # 确定当前密码参数：
+                        # - 如果旧密码已成功删除，账号当前无密码，使用None
+                        # - 如果旧密码未删除（验证失败或删除失败），账号仍有旧密码，使用old_password
                         current_password = None if password_deleted else old_password
                         password_set_success = False
                         
