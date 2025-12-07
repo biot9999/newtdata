@@ -8474,6 +8474,9 @@ class EnhancedBot:
                     InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
                 ],
                 [
+                    InlineKeyboardButton("🔄 重新授权", callback_data="reauth_start"),
+                ],
+                [
                     InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu"),
                     InlineKeyboardButton("ℹ️ 帮助", callback_data="help")
                 ]
@@ -14507,26 +14510,26 @@ class EnhancedBot:
         )
         
         text = """
-<b>🔄 账号重新授权</b>
+<b>🔄 账号重新授权（测试版）</b>
 
 <b>💡 功能说明</b>
-• 批量重新授权 Telegram 账号
-• 确保旧 session 完全失效
-• 生成新的授权 session
-• 支持 Session 和 TData 格式
+• 批量检查账号状态
+• 删除旧 2FA 密码
+• 踢出所有其他设备
+• 请求新的登录验证码
 
-<b>🔐 核心流程</b>
-1. 验证旧会话有效性
-2. 验证并删除旧密码
-3. 踢出所有其他设备
-4. 请求新的登录验证码
-5. 新会话登录（需要验证码）
-6. 设置新的 2FA 密码
-7. 旧会话登出
-8. 结果分类打包
+<b>⚠️ 重要提示</b>
+由于 Telegram 验证码需要手动接收，
+完整的重新授权流程需要逐个处理。
+
+当前版本提供准备工作：
+• 验证账号状态
+• 删除旧密码
+• 踢出其他设备
+• 请求验证码
 
 <b>📤 请上传 ZIP 文件</b>
-包含 Session 或 TData 账号文件
+包含 Session 格式的账号文件
 
 上传完成后将提示输入旧密码和新密码
         """
