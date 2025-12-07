@@ -6580,13 +6580,13 @@ class ReauthorizationManager:
                 # 6. 获取账号信息
                 try:
                     me = await asyncio.wait_for(old_client.get_me(), timeout=5)
-                    phone = me.phone if me.phone else "未知"
+                    phone = str(me.phone) if me.phone else None
                     user_info = f"ID:{me.id}"
                     if me.username:
                         user_info += f" @{me.username}"
                 except Exception as e:
                     user_info = "账号"
-                    phone = "未知"
+                    phone = None
                 
                 # 7. 验证旧密码（如果有）
                 if old_password:
@@ -6657,13 +6657,17 @@ class ReauthorizationManager:
                 
                 # 11. 请求验证码
                 try:
-                    if phone and phone != "未知":
-                        sent_code = await old_client.send_code_request(phone)
-                        print(f"✅ 已请求验证码: {file_name}")
-                    else:
+                    if not phone:
                         return 'connection_error', f"{user_info} | 无法获取手机号", None
+                    
+                    # 确保 phone 是字符串格式
+                    phone_str = str(phone) if not isinstance(phone, str) else phone
+                    sent_code = await old_client.send_code_request(phone_str)
+                    print(f"✅ 已请求验证码: {file_name}")
                 except Exception as e:
                     print(f"⚠️ 请求验证码失败: {e}")
+                    import traceback
+                    traceback.print_exc()
                     return 'connection_error', f"{user_info} | 请求验证码失败: {str(e)[:50]}", None
                 
                 # 12. 等待验证码（最多等待60秒）
@@ -6696,7 +6700,8 @@ class ReauthorizationManager:
                     
                     # 使用验证码登录
                     try:
-                        await new_client.sign_in(phone, verification_code, phone_code_hash=sent_code.phone_code_hash)
+                        phone_str = str(phone) if not isinstance(phone, str) else phone
+                        await new_client.sign_in(phone_str, verification_code, phone_code_hash=sent_code.phone_code_hash)
                         print(f"✅ 新会话登录成功: {file_name}")
                     except SessionPasswordNeededError:
                         # 需要2FA密码
