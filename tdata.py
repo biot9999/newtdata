@@ -6589,62 +6589,32 @@ class ReauthorizationManager:
                     user_info = "账号"
                     phone = None
                 
-                # 7. 验证旧密码并检查2FA状态（如果有密码）
-                password_verified = False
-                has_2fa = False
-                
+                # 7-8. 删除旧密码（如果有）
+                password_deleted = False
                 if old_password:
                     try:
+                        # 首先检查账号是否有2FA密码
                         from telethon.tl.functions.account import GetPasswordRequest
-                        pwd_info = await asyncio.wait_for(
-                            old_client(GetPasswordRequest()),
-                            timeout=10
-                        )
+                        pwd_info = await old_client(GetPasswordRequest())
                         
-                        has_2fa = pwd_info.has_password
-                        
-                        if has_2fa:
-                            # 验证密码：尝试使用密码来获取密码设置
-                            # 如果密码错误会抛出PasswordHashInvalidError
+                        if pwd_info.has_password:
+                            # 尝试删除旧密码来验证密码是否正确
+                            # 如果密码正确，删除成功；如果密码错误，会抛出异常
                             try:
-                                # 使用 edit_2fa 方法验证密码（尝试用相同密码更新）
-                                # 如果密码正确，这个操作不会改变任何东西
-                                # 如果密码错误会抛出PasswordHashInvalidError
-                                await old_client.edit_2fa(
-                                    current_password=old_password,
-                                    new_password=old_password
-                                )
-                                password_verified = True
-                                print(f"✅ 旧密码验证成功: {file_name}")
+                                await old_client.edit_2fa(current_password=old_password, new_password='')
+                                password_deleted = True
+                                print(f"✅ 已删除旧密码: {file_name}")
                             except PasswordHashInvalidError:
-                                print(f"⚠️ 旧密码不正确，将跳过密码删除: {file_name}")
-                                password_verified = False
+                                # 密码错误，无法继续重新授权流程
+                                return 'password_error', f"{user_info} | {proxy_used} | 旧密码错误，无法删除", None
                             except Exception as e:
-                                print(f"⚠️ 密码验证失败: {e}")
-                                password_verified = False
+                                # 其他错误，可能是网络问题或账号状态异常
+                                print(f"⚠️ 删除旧密码失败: {e}")
+                                # 继续流程，后续可能需要使用旧密码
                         else:
-                            print(f"ℹ️ 账号未设置2FA密码: {file_name}")
+                            print(f"ℹ️ 账号未设置2FA密码，跳过删除: {file_name}")
                     except Exception as e:
                         print(f"⚠️ 获取密码状态失败: {e}")
-                
-                # 8. 删除旧密码（仅当密码已验证成功时）
-                password_deleted = False
-                if old_password and has_2fa and password_verified:
-                    try:
-                        # 使用 edit_2fa 删除旧密码
-                        await old_client.edit_2fa(current_password=old_password, new_password='')
-                        password_deleted = True
-                        print(f"✅ 已删除旧密码: {file_name}")
-                    except PasswordHashInvalidError:
-                        print(f"⚠️ 删除旧密码失败：密码哈希无效（可能存在状态不一致）: {file_name}")
-                        # 密码在验证时有效但删除时失败，可能存在竞态条件或状态不一致
-                        # 继续流程，后续会尝试设置新密码
-                    except Exception as e:
-                        print(f"⚠️ 删除旧密码失败: {e}")
-                        # 即使删除失败也继续流程
-                elif old_password and has_2fa:
-                    # 密码未验证通过，跳过删除
-                    print(f"ℹ️ 跳过删除旧密码（密码未验证通过）: {file_name}")
                 
                 # 9. 踢出所有其他设备
                 try:
