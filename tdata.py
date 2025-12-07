@@ -6590,6 +6590,8 @@ class ReauthorizationManager:
                     phone = None
                 
                 # 7-8. 删除旧密码（如果有）
+                # 注意：删除操作同时用于验证密码正确性
+                # 这是重新授权流程的一部分，旧密码需要被移除以便设置新密码
                 password_deleted = False
                 if old_password:
                     try:
@@ -6598,15 +6600,15 @@ class ReauthorizationManager:
                         pwd_info = await old_client(GetPasswordRequest())
                         
                         if pwd_info.has_password:
-                            # 尝试删除旧密码来验证密码是否正确
-                            # 如果密码正确，删除成功；如果密码错误，会抛出异常
+                            # 尝试删除旧密码（同时验证密码正确性）
+                            # 如果密码正确，删除成功；如果密码错误，会抛出PasswordHashInvalidError
                             try:
                                 await old_client.edit_2fa(current_password=old_password, new_password='')
                                 password_deleted = True
                                 print(f"✅ 已删除旧密码: {file_name}")
                             except PasswordHashInvalidError:
                                 # 密码错误，无法继续重新授权流程
-                                return 'password_error', f"{user_info} | {proxy_used} | 旧密码错误，无法删除", None
+                                return 'password_error', f"{user_info} | {proxy_used} | 旧密码错误", None
                             except Exception as e:
                                 # 其他错误，可能是网络问题或账号状态异常
                                 print(f"⚠️ 删除旧密码失败: {e}")
