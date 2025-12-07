@@ -6639,18 +6639,17 @@ class ReauthorizationManager:
                 code_received = asyncio.Event()
                 received_code = {'value': None}
                 
-                def extract_code(text: str) -> Optional[str]:
+                def extract_code_local(text: str) -> Optional[str]:
                     """从消息文本中提取 5-6 位验证码"""
                     if not text:
                         return None
-                    import re
                     match = re.search(r'\b(\d{5,6})\b', text)
                     return match.group(1) if match else None
                 
                 # 设置事件处理器监听 777000 的消息
                 @old_client.on(events.NewMessage(from_users=777000))
                 async def code_handler(event):
-                    code = extract_code(event.raw_text or event.message.message)
+                    code = extract_code_local(event.raw_text or event.message.message)
                     if code:
                         received_code['value'] = code
                         code_received.set()
@@ -6668,14 +6667,15 @@ class ReauthorizationManager:
                     return 'connection_error', f"{user_info} | 请求验证码失败: {str(e)[:50]}", None
                 
                 # 12. 等待验证码（最多等待60秒）
+                code_timeout = 60  # 验证码等待超时时间（秒）
                 try:
-                    await asyncio.wait_for(code_received.wait(), timeout=self.DEFAULT_CODE_WAIT_TIMEOUT)
+                    await asyncio.wait_for(code_received.wait(), timeout=code_timeout)
                     verification_code = received_code['value']
                     if not verification_code:
                         return 'connection_error', f"{user_info} | {proxy_used} | 未收到验证码", None
                     print(f"✅ 验证码已接收: {file_name}")
                 except asyncio.TimeoutError:
-                    return 'connection_error', f"{user_info} | {proxy_used} | 等待验证码超时", None
+                    return 'connection_error', f"{user_info} | {proxy_used} | 等待验证码超时({code_timeout}秒)", None
                 
                 # 13. 创建新会话并登录
                 new_session_path = file_path.replace('.session', '_new.session') if file_path.endswith('.session') else file_path + '_new'
