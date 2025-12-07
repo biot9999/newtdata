@@ -6607,7 +6607,6 @@ class ReauthorizationManager:
                             # 验证密码：尝试使用密码执行一个需要2FA的操作
                             # 使用 check_password 来验证密码是否正确
                             try:
-                                from telethon import utils
                                 from telethon.tl.functions.account import GetPasswordSettingsRequest
                                 
                                 # 计算密码哈希
@@ -6753,20 +6752,26 @@ class ReauthorizationManager:
                     
                     # 14. 设置新密码
                     if new_password:
+                        # 如果旧密码已成功删除，则current_password为None
+                        # 如果旧密码未删除，则使用old_password
+                        current_password = None if password_deleted else old_password
+                        password_set_success = False
+                        
                         try:
-                            # 如果旧密码已成功删除，则current_password为None
-                            # 如果旧密码未删除，则使用old_password
-                            current_pwd = None if password_deleted else old_password
-                            
                             await new_client.edit_2fa(
-                                current_password=current_pwd,
+                                current_password=current_password,
                                 new_password=new_password,
                                 hint=f"Updated {datetime.now().strftime('%Y-%m-%d')}"
                             )
+                            password_set_success = True
                             print(f"✅ 已设置新密码: {file_name}")
                         except PasswordHashInvalidError:
-                            print(f"⚠️ 设置新密码失败：当前密码无效: {file_name}")
-                            # 如果失败，尝试不提供当前密码（可能账号没有密码）
+                            print(f"⚠️ 设置新密码失败：当前密码无效，尝试无密码重试: {file_name}")
+                        except Exception as e:
+                            print(f"⚠️ 设置新密码失败: {e}")
+                        
+                        # 如果第一次尝试失败，尝试不提供当前密码（可能账号没有密码）
+                        if not password_set_success and current_password is not None:
                             try:
                                 await new_client.edit_2fa(
                                     current_password=None,
@@ -6774,10 +6779,8 @@ class ReauthorizationManager:
                                     hint=f"Updated {datetime.now().strftime('%Y-%m-%d')}"
                                 )
                                 print(f"✅ 已设置新密码（无当前密码）: {file_name}")
-                            except Exception as e2:
-                                print(f"⚠️ 设置新密码失败（重试也失败）: {e2}")
-                        except Exception as e:
-                            print(f"⚠️ 设置新密码失败: {e}")
+                            except Exception as e:
+                                print(f"⚠️ 设置新密码失败（重试也失败）: {e}")
                     
                     # 15. 断开新会话
                     await new_client.disconnect()
