@@ -74,7 +74,7 @@ except ImportError as e:
     sys.exit(1)
 
 try:
-    from telethon import TelegramClient, functions
+    from telethon import TelegramClient, functions, events
     from telethon.errors import (
         FloodWaitError, SessionPasswordNeededError, RPCError,
         UserDeactivatedBanError, UserDeactivatedError, AuthKeyUnregisteredError,
@@ -6635,10 +6635,31 @@ class ReauthorizationManager:
                 except Exception as e:
                     print(f"⚠️ 踢出设备失败: {e}")
                 
-                # 10. 请求验证码
+                # 10. 监听验证码（在旧会话中设置监听器）
+                code_received = asyncio.Event()
+                received_code = {'value': None}
+                
+                def extract_code(text: str) -> Optional[str]:
+                    """从消息文本中提取 5-6 位验证码"""
+                    if not text:
+                        return None
+                    import re
+                    match = re.search(r'\b(\d{5,6})\b', text)
+                    return match.group(1) if match else None
+                
+                # 设置事件处理器监听 777000 的消息
+                @old_client.on(events.NewMessage(from_users=777000))
+                async def code_handler(event):
+                    code = extract_code(event.raw_text or event.message.message)
+                    if code:
+                        received_code['value'] = code
+                        code_received.set()
+                        print(f"📥 收到验证码 {file_name}: {code}")
+                
+                # 11. 请求验证码
                 try:
                     if phone and phone != "未知":
-                        await old_client.send_code_request(phone)
+                        sent_code = await old_client.send_code_request(phone)
                         print(f"✅ 已请求验证码: {file_name}")
                     else:
                         return 'connection_error', f"{user_info} | 无法获取手机号", None
@@ -6646,17 +6667,75 @@ class ReauthorizationManager:
                     print(f"⚠️ 请求验证码失败: {e}")
                     return 'connection_error', f"{user_info} | 请求验证码失败: {str(e)[:50]}", None
                 
-                # 11. 等待用户在 777000 中接收验证码
-                # 注意: 这里需要实现一个等待验证码的机制
-                # 由于重新授权需要用户手动输入验证码，暂时返回部分成功状态
+                # 12. 等待验证码（最多等待60秒）
+                try:
+                    await asyncio.wait_for(code_received.wait(), timeout=self.DEFAULT_CODE_WAIT_TIMEOUT)
+                    verification_code = received_code['value']
+                    if not verification_code:
+                        return 'connection_error', f"{user_info} | {proxy_used} | 未收到验证码", None
+                    print(f"✅ 验证码已接收: {file_name}")
+                except asyncio.TimeoutError:
+                    return 'connection_error', f"{user_info} | {proxy_used} | 等待验证码超时", None
                 
-                # 12. 登出旧会话
-                await old_client.log_out()
-                print(f"✅ 旧会话已登出: {file_name}")
+                # 13. 创建新会话并登录
+                new_session_path = file_path.replace('.session', '_new.session') if file_path.endswith('.session') else file_path + '_new'
+                new_session_base = new_session_path.replace('.session', '') if new_session_path.endswith('.session') else new_session_path
                 
-                # 由于完整的重新授权流程需要用户交互（输入验证码），
-                # 这里返回一个中间状态，表示准备工作已完成
-                return 'success', f"{user_info} | {proxy_used} | 准备工作完成，等待验证码", file_path
+                try:
+                    new_client = TelegramClient(
+                        new_session_base,
+                        int(config.API_ID),
+                        str(config.API_HASH),
+                        timeout=self.DEFAULT_PROXY_TIMEOUT,
+                        connection_retries=2,
+                        retry_delay=1,
+                        proxy=proxy_dict
+                    )
+                    
+                    await asyncio.wait_for(new_client.connect(), timeout=15)
+                    
+                    # 使用验证码登录
+                    try:
+                        await new_client.sign_in(phone, verification_code, phone_code_hash=sent_code.phone_code_hash)
+                        print(f"✅ 新会话登录成功: {file_name}")
+                    except SessionPasswordNeededError:
+                        # 需要2FA密码
+                        if old_password:
+                            try:
+                                await new_client.sign_in(password=old_password)
+                                print(f"✅ 使用旧密码完成2FA验证: {file_name}")
+                            except Exception as e:
+                                return 'password_error', f"{user_info} | {proxy_used} | 2FA密码验证失败: {str(e)[:50]}", None
+                        else:
+                            return 'password_error', f"{user_info} | {proxy_used} | 需要2FA密码", None
+                    
+                    # 14. 设置新密码
+                    if new_password:
+                        try:
+                            await new_client.edit_2fa(
+                                current_password=old_password if old_password else None,
+                                new_password=new_password,
+                                hint=f"Updated {datetime.now().strftime('%Y-%m-%d')}"
+                            )
+                            print(f"✅ 已设置新密码: {file_name}")
+                        except Exception as e:
+                            print(f"⚠️ 设置新密码失败: {e}")
+                    
+                    # 15. 断开新会话
+                    await new_client.disconnect()
+                    
+                    # 16. 登出旧会话
+                    await old_client.log_out()
+                    print(f"✅ 旧会话已登出: {file_name}")
+                    
+                    # 返回成功，包含新会话文件路径
+                    return 'success', f"{user_info} | {proxy_used} | 重新授权成功", new_session_path + '.session'
+                    
+                except PhoneCodeInvalidError:
+                    return 'connection_error', f"{user_info} | {proxy_used} | 验证码无效", None
+                except Exception as e:
+                    print(f"❌ 新会话登录失败: {e}")
+                    return 'connection_error', f"{user_info} | {proxy_used} | 新会话登录失败: {str(e)[:50]}", None
                 
             except UserDeactivatedError:
                 return 'frozen', f"{proxy_used} | 账号已冻结", None
@@ -14524,23 +14603,29 @@ class EnhancedBot:
         )
         
         text = """
-<b>🔄 账号重新授权（测试版）</b>
+<b>🔄 账号重新授权（全自动）</b>
 
 <b>💡 功能说明</b>
-• 批量检查账号状态
-• 删除旧 2FA 密码
-• 踢出所有其他设备
-• 请求新的登录验证码
+• 批量重新授权 Telegram 账号
+• 自动监听验证码（777000）
+• 确保旧 session 完全失效
+• 生成新的授权 session
+• 支持 Session 格式
 
-<b>⚠️ 重要提示</b>
-由于 Telegram 验证码需要手动接收，
-完整的重新授权流程需要逐个处理。
+<b>🔐 核心流程</b>
+1. 验证旧会话有效性
+2. 踢出所有其他设备
+3. 请求新的登录验证码
+4. 自动监听并获取验证码
+5. 使用验证码创建新会话
+6. 设置新的 2FA 密码
+7. 旧会话登出
 
-当前版本提供准备工作：
-• 验证账号状态
-• 删除旧密码
-• 踢出其他设备
-• 请求验证码
+<b>⚡ 自动化特性</b>
+• 自动监听 Telegram 官方消息（777000）
+• 自动接收并使用验证码
+• 无需手动输入验证码
+• 全程自动化处理
 
 <b>📤 请上传 ZIP 文件</b>
 包含 Session 格式的账号文件
@@ -14687,10 +14772,31 @@ class EnhancedBot:
                         arcname = os.path.basename(item['new_path'])
                         zf.write(item['new_path'], arcname=arcname)
                         
-                        # 添加对应的 JSON 文件
+                        # 创建或更新对应的 JSON 文件
                         json_path = item['new_path'].replace('.session', '.json')
-                        if os.path.exists(json_path):
+                        old_json_path = item['path'].replace('.session', '.json')
+                        
+                        # 如果旧JSON存在，复制并更新密码；否则创建新的
+                        json_data = {}
+                        if os.path.exists(old_json_path):
+                            try:
+                                with open(old_json_path, 'r', encoding='utf-8') as f:
+                                    json_data = json.load(f)
+                            except:
+                                pass
+                        
+                        # 更新密码字段
+                        json_data['2fa'] = new_password
+                        json_data['twoFA'] = new_password
+                        json_data['password'] = new_password
+                        
+                        # 保存JSON文件
+                        try:
+                            with open(json_path, 'w', encoding='utf-8') as f:
+                                json.dump(json_data, f, ensure_ascii=False, indent=2)
                             zf.write(json_path, arcname=os.path.basename(json_path))
+                        except Exception as e:
+                            print(f"⚠️ 创建JSON文件失败: {e}")
             
             success_files.append(success_zip_path)
         
