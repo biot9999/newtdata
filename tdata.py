@@ -6462,6 +6462,7 @@ class ReauthorizationManager:
         self.proxy_manager = proxy_manager
         self.db = db
         self.password_detector = PasswordDetector()
+        self.device_params_loader = DeviceParamsLoader()
         
         # 使用传入参数或默认值
         self.concurrent_limit = concurrent_limit if concurrent_limit is not None else self.DEFAULT_CONCURRENT_LIMIT
@@ -6619,12 +6620,12 @@ class ReauthorizationManager:
                 # 8. 删除旧密码（如果有）
                 if old_password:
                     try:
-                        # 删除2FA密码需要调用特定的API
-                        # 正确的方式是禁用2FA而不是设置空密码
-                        # 由于Telethon的限制和安全考虑，我们跳过密码删除，只踢出设备
-                        print(f"ℹ️ 跳过密码删除（保留原密码）: {file_name}")
+                        # 使用 edit_2fa 删除旧密码
+                        await old_client.edit_2fa(current_password=old_password, new_password='')
+                        print(f"✅ 已删除旧密码: {file_name}")
                     except Exception as e:
-                        print(f"⚠️ 处理密码失败: {e}")
+                        print(f"⚠️ 删除旧密码失败: {e}")
+                        # 即使删除失败也继续流程
                 
                 # 9. 踢出所有其他设备
                 try:
@@ -6686,16 +6687,30 @@ class ReauthorizationManager:
                 new_session_base = new_session_path.replace('.session', '') if new_session_path.endswith('.session') else new_session_path
                 
                 try:
+                    # 获取随机设备参数
+                    device_config = self.device_params_loader.get_random_device_config()
+                    
+                    # 使用随机 API 凭证（如果有），否则使用配置的
+                    api_id = device_config.get('api_id', int(config.API_ID))
+                    api_hash = str(device_config.get('api_hash', config.API_HASH))
+                    
                     new_client = TelegramClient(
                         new_session_base,
-                        int(config.API_ID),
-                        str(config.API_HASH),
+                        api_id,
+                        api_hash,
                         timeout=self.DEFAULT_PROXY_TIMEOUT,
                         connection_retries=2,
                         retry_delay=1,
-                        proxy=proxy_dict
+                        proxy=proxy_dict,
+                        # 设置设备参数
+                        device_model=device_config.get('device_model', 'PC 64bit'),
+                        system_version=device_config.get('system_version', 'Windows 10'),
+                        app_version=device_config.get('app_version', '4.12.2'),
+                        lang_code=device_config.get('lang_code', 'en'),
+                        system_lang_code=device_config.get('system_lang_code', 'en-US')
                     )
                     
+                    print(f"🎲 使用随机设备参数: {device_config.get('device_model')} | {device_config.get('app_version')}")
                     await asyncio.wait_for(new_client.connect(), timeout=15)
                     
                     # 使用验证码登录
@@ -14722,21 +14737,21 @@ class EnhancedBot:
         # 进度回调
         async def progress_callback(processed, total, success, failed, frozen, banned, connection_error):
             nonlocal progress_msg
-            text = f"""
-<b>🔄 重新授权处理中...</b>
-
-✅ 授权成功: {success}
-❌ 授权失败: {failed}
-🔒 冻结账户: {frozen}
-🚫 封禁账户: {banned}
-⚠️ 连接错误: {connection_error}
-
-处理进度: {processed} / {total}
-            """
+            text = f"<b>🔄 重新授权处理中...</b>\n\n处理进度: {processed} / {total}"
+            
+            # 使用按钮显示统计信息
+            buttons = [
+                [InlineKeyboardButton(f"✅ 授权成功: {success}", callback_data="noop")],
+                [InlineKeyboardButton(f"❌ 授权失败: {failed}", callback_data="noop")],
+                [InlineKeyboardButton(f"🔒 冻结账户: {frozen}", callback_data="noop")],
+                [InlineKeyboardButton(f"🚫 封禁账户: {banned}", callback_data="noop")],
+                [InlineKeyboardButton(f"⚠️ 连接错误: {connection_error}", callback_data="noop")]
+            ]
+            keyboard = InlineKeyboardMarkup(buttons)
             
             if progress_msg:
                 try:
-                    progress_msg.edit_text(text, parse_mode='HTML')
+                    progress_msg.edit_text(text, parse_mode='HTML', reply_markup=keyboard)
                 except:
                     pass
         
@@ -14825,7 +14840,21 @@ class EnhancedBot:
                     f.write("\n")
             
             with zipfile.ZipFile(failed_zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+                # 添加失败报告
                 zf.write(failed_report_path, arcname=os.path.basename(failed_report_path))
+                
+                # 添加失败的原始文件
+                all_failed = (results['password_error'] + results['frozen'] + 
+                             results['banned'] + results['connection_error'])
+                for item in all_failed:
+                    if item['path'] and os.path.exists(item['path']):
+                        arcname = os.path.basename(item['path'])
+                        zf.write(item['path'], arcname=arcname)
+                        
+                        # 如果有对应的 JSON 文件也打包
+                        json_path = item['path'].replace('.session', '.json')
+                        if os.path.exists(json_path):
+                            zf.write(json_path, arcname=os.path.basename(json_path))
             
             failed_files.append(failed_zip_path)
         
