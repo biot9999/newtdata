@@ -6620,11 +6620,18 @@ class ReauthorizationManager:
                 # 8. 删除旧密码（如果有）
                 if old_password:
                     try:
-                        # 使用 edit_2fa 删除旧密码
-                        await old_client.edit_2fa(current_password=old_password, new_password='')
-                        print(f"✅ 已删除旧密码: {file_name}")
+                        # 首先检查账号是否有2FA密码
+                        from telethon.tl.functions.account import GetPasswordRequest
+                        pwd_info = await old_client(GetPasswordRequest())
+                        
+                        if pwd_info.has_password:
+                            # 使用 edit_2fa 删除旧密码
+                            await old_client.edit_2fa(current_password=old_password, new_password='')
+                            print(f"✅ 已删除旧密码: {file_name}")
+                        else:
+                            print(f"ℹ️ 账号未设置2FA密码，跳过删除: {file_name}")
                     except Exception as e:
-                        print(f"⚠️ 删除旧密码失败: {e}")
+                        print(f"⚠️ 删除旧密码失败（密码可能不正确）: {e}")
                         # 即使删除失败也继续流程
                 
                 # 9. 踢出所有其他设备
@@ -6663,10 +6670,14 @@ class ReauthorizationManager:
                     
                     # 确保 phone 是字符串格式
                     phone_str = str(phone) if not isinstance(phone, str) else phone
+                    print(f"🔍 调试信息 - 电话: {phone_str}, 类型: {type(phone_str)}")
+                    print(f"🔍 客户端 API_ID 类型: {type(old_client.api_id)}, API_HASH 类型: {type(old_client.api_hash)}")
+                    
                     sent_code = await old_client.send_code_request(phone_str)
                     print(f"✅ 已请求验证码: {file_name}")
                 except Exception as e:
                     print(f"⚠️ 请求验证码失败: {e}")
+                    print(f"🔍 错误类型: {type(e)}")
                     import traceback
                     traceback.print_exc()
                     return 'connection_error', f"{user_info} | 请求验证码失败: {str(e)[:50]}", None
