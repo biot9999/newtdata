@@ -14659,28 +14659,12 @@ class EnhancedBot:
         try:
             document.get_file().download(file_path)
             
-            # 解压文件并检测类型
-            extract_dir = os.path.join(task['temp_dir'], 'extracted')
-            os.makedirs(extract_dir, exist_ok=True)
+            # 扫描文件 - 传入所有必需参数
+            files, extract_dir, file_type = self.processor.scan_zip_file(file_path, user_id, task['task_id'])
             
-            with zipfile.ZipFile(file_path, 'r') as zf:
-                zf.extractall(extract_dir)
-            
-            # 扫描文件
-            files = self.processor.scan_zip_file(file_path)
-            
-            if not files:
+            if not files or file_type == "error" or file_type == "none":
                 self.safe_send_message(update, "❌ ZIP 文件中没有找到有效的账号文件")
                 return
-            
-            # 检测文件类型
-            file_type = 'session'
-            for file_path_item, file_name in files:
-                if os.path.isdir(file_path_item):
-                    # 检查是否是 TData 目录
-                    if os.path.exists(os.path.join(file_path_item, 'D877F783D5D3EF8C')):
-                        file_type = 'tdata'
-                        break
             
             task['files'] = files
             task['file_type'] = file_type
