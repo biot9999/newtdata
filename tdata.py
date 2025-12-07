@@ -6682,14 +6682,11 @@ class ReauthorizationManager:
                     
                     # 确保 phone 是字符串格式
                     phone_str = str(phone) if not isinstance(phone, str) else phone
-                    print(f"🔍 调试信息 - 电话: {phone_str}, 类型: {type(phone_str)}")
-                    print(f"🔍 客户端 API_ID 类型: {type(old_client.api_id)}, API_HASH 类型: {type(old_client.api_hash)}")
                     
                     sent_code = await old_client.send_code_request(phone_str)
                     print(f"✅ 已请求验证码: {file_name}")
                 except Exception as e:
                     print(f"⚠️ 请求验证码失败: {e}")
-                    print(f"🔍 错误类型: {type(e)}")
                     import traceback
                     traceback.print_exc()
                     return 'connection_error', f"{user_info} | 请求验证码失败: {str(e)[:50]}", None
