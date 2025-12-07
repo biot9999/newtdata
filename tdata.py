@@ -6607,9 +6607,13 @@ class ReauthorizationManager:
                             # 验证密码：尝试使用密码来获取密码设置
                             # 如果密码错误会抛出PasswordHashInvalidError
                             try:
-                                # 使用 check_password 方法验证密码
-                                # 这会在内部调用 _compute_check 并验证密码哈希
-                                await old_client.check_password(old_password)
+                                # 使用 edit_2fa 方法验证密码（尝试用相同密码更新）
+                                # 如果密码正确，这个操作不会改变任何东西
+                                # 如果密码错误会抛出PasswordHashInvalidError
+                                await old_client.edit_2fa(
+                                    current_password=old_password,
+                                    new_password=old_password
+                                )
                                 password_verified = True
                                 print(f"✅ 旧密码验证成功: {file_name}")
                             except PasswordHashInvalidError:
@@ -6632,8 +6636,9 @@ class ReauthorizationManager:
                         password_deleted = True
                         print(f"✅ 已删除旧密码: {file_name}")
                     except PasswordHashInvalidError:
-                        print(f"⚠️ 删除旧密码失败：密码哈希无效: {file_name}")
-                        # 密码无效但继续流程，因为后续还会设置新密码
+                        print(f"⚠️ 删除旧密码失败：密码哈希无效（可能存在状态不一致）: {file_name}")
+                        # 密码在验证时有效但删除时失败，可能存在竞态条件或状态不一致
+                        # 继续流程，后续会尝试设置新密码
                     except Exception as e:
                         print(f"⚠️ 删除旧密码失败: {e}")
                         # 即使删除失败也继续流程
