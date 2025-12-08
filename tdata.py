@@ -8073,6 +8073,9 @@ class EnhancedBot:
             self.handle_cleanup_confirm(update, context, query)
         elif data == "cleanup_cancel":
             query.answer()
+            # Clean up any pending cleanup task
+            if user_id in self.pending_cleanup:
+                self.cleanup_cleanup_task(user_id)
             self.show_main_menu(update, user_id)
         elif query.data == "back_to_main":
             self.show_main_menu(update, user_id)
