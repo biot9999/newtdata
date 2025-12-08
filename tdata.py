@@ -752,6 +752,7 @@ class Config:
         
         # 一键清理功能配置
         self.ENABLE_ONE_CLICK_CLEANUP = os.getenv("ENABLE_ONE_CLICK_CLEANUP", "true").lower() == "true"
+        self.CLEANUP_ACCOUNT_CONCURRENCY = int(os.getenv("CLEANUP_ACCOUNT_CONCURRENCY", "3"))  # 同时处理的账户数
         self.CLEANUP_LEAVE_CONCURRENCY = int(os.getenv("CLEANUP_LEAVE_CONCURRENCY", "3"))
         self.CLEANUP_DELETE_HISTORY_CONCURRENCY = int(os.getenv("CLEANUP_DELETE_HISTORY_CONCURRENCY", "2"))
         self.CLEANUP_DELETE_CONTACTS_CONCURRENCY = int(os.getenv("CLEANUP_DELETE_CONTACTS_CONCURRENCY", "3"))
@@ -835,6 +836,7 @@ WEB_SERVER_PORT=8080
 ALLOW_PORT_SHIFT=true
 # 一键清理功能配置
 ENABLE_ONE_CLICK_CLEANUP=true
+CLEANUP_ACCOUNT_CONCURRENCY=3  # 同时处理的账户数量（提升清理速度）
 CLEANUP_LEAVE_CONCURRENCY=3
 CLEANUP_DELETE_HISTORY_CONCURRENCY=2
 CLEANUP_DELETE_CONTACTS_CONCURRENCY=3
@@ -14260,6 +14262,11 @@ class EnhancedBot:
             if temp_dir and os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir, ignore_errors=True)
     
+    def _is_frozen_error(self, error: Exception) -> bool:
+        """检查是否为冻结账户错误"""
+        error_str = str(error).upper()
+        return 'FROZEN_METHOD_INVALID' in error_str or 'FROZEN' in error_str
+    
     async def _cleanup_single_account(self, client, account_name: str, file_path: str, progress_callback=None) -> Dict[str, Any]:
         """清理单个账号"""
         start_time = time.time()
@@ -14275,6 +14282,9 @@ class EnhancedBot:
             'errors': 0,
             'skipped': 0
         }
+        
+        # 用于详细报告的错误列表
+        error_details = []
         
         try:
             # 0. 清理账号资料（头像、名字、简介）
@@ -14306,6 +14316,19 @@ class EnhancedBot:
                     profile_cleared = True
                 except Exception as e:
                     logger.warning(f"修改名字/简介失败: {e}")
+                    # 检查是否为冻结账户
+                    if self._is_frozen_error(e):
+                        error_details.append(f"❄️ 账户已冻结 (FROZEN): {str(e)}")
+                        logger.error(f"检测到冻结账户，终止清理: {account_name}")
+                        return {
+                            'success': False,
+                            'error': 'FROZEN_ACCOUNT',
+                            'error_message': f"账户已冻结: {str(e)}",
+                            'statistics': stats,
+                            'error_details': error_details,
+                            'is_frozen': True
+                        }
+                    error_details.append(f"修改资料失败: {str(e)}")
                 
                 # 删除所有头像
                 try:
@@ -14629,8 +14652,153 @@ class EnhancedBot:
         
         self.safe_edit_message(query, "🧹 <b>开始清理...</b>\n\n正在初始化清理服务...", 'HTML')
     
+    async def _process_single_account_full(self, file_info: tuple, file_type: str, progress_msg, all_files_count: int, completed_count: dict, lock: asyncio.Lock) -> dict:
+        """处理单个账户的完整流程（包含连接和清理）"""
+        file_path, file_name = file_info
+        result_data = {
+            'file_path': file_path,
+            'file_name': file_name,
+            'success': False,
+            'error': None,
+            'is_frozen': False,
+            'statistics': {},
+            'error_details': []
+        }
+        
+        client = None
+        try:
+            # 如果是TData，需要先转换为Session
+            if file_type == 'tdata':
+                try:
+                    from opentele.api import API, UseCurrentSession
+                    from opentele.td import TDesktop
+                    
+                    tdesk = TDesktop(file_path)
+                    session_path = file_path.replace('tdata', 'session').replace('.zip', '.session')
+                    
+                    client = await tdesk.ToTelethon(
+                        session=session_path,
+                        flag=UseCurrentSession,
+                        api=API.TelegramDesktop
+                    )
+                    await client.connect()
+                    
+                except Exception as e:
+                    logger.error(f"TData conversion failed for {file_name}: {e}")
+                    result_data['error'] = f"TData转换失败: {str(e)}"
+                    return result_data
+            else:
+                # 直接使用Session
+                session_path = os.path.splitext(file_path)[0]
+                
+                # 获取代理配置
+                proxy_dict = None
+                proxy_enabled = self.db.get_proxy_enabled() if self.db else True
+                use_proxy = config.USE_PROXY and proxy_enabled and self.proxy_manager.proxies
+                
+                if use_proxy:
+                    proxy_info = self.proxy_manager.get_next_proxy()
+                    if proxy_info:
+                        proxy_dict = self.checker.create_proxy_dict(proxy_info)
+                        logger.info(f"使用代理连接账号: {file_name}")
+                
+                try:
+                    client = TelegramClient(
+                        session_path,
+                        int(config.API_ID),
+                        str(config.API_HASH),
+                        proxy=proxy_dict
+                    )
+                    await client.connect()
+                    
+                    if not await client.is_user_authorized():
+                        logger.warning(f"Session not authorized: {file_name}")
+                        result_data['error'] = "Session未授权"
+                        await client.disconnect()
+                        return result_data
+                except Exception as e:
+                    logger.error(f"Session connection failed for {file_name}: {e}")
+                    result_data['error'] = f"连接失败: {str(e)}"
+                    return result_data
+            
+            # 创建进度回调函数
+            async def update_progress(status_text):
+                async with lock:
+                    current_idx = completed_count['value'] + 1
+                    if progress_msg:
+                        try:
+                            progress_percent = int((current_idx / all_files_count) * 100)
+                            filled = int(progress_percent / 10)
+                            empty = 10 - filled
+                            progress_bar = "█" * filled + "░" * empty
+                            
+                            status_display = status_text[:30] + '...' if len(status_text) > 30 else status_text
+                            
+                            message_text = (
+                                f"🧹 <b>并发清理中 (同时{config.CLEANUP_ACCOUNT_CONCURRENCY}个)</b>\n\n"
+                                f"📄 当前: {file_name}\n"
+                                f"📊 总进度: {current_idx}/{all_files_count} ({progress_percent}%)\n"
+                                f"[{progress_bar}]\n\n"
+                                f"🔄 状态: {status_text}"
+                            )
+                            
+                            keyboard = InlineKeyboardMarkup([
+                                [InlineKeyboardButton(
+                                    f"⚡ 并发: {config.CLEANUP_ACCOUNT_CONCURRENCY} | 进度: {progress_percent}%",
+                                    callback_data="progress_info"
+                                )],
+                                [InlineKeyboardButton(
+                                    f"🔄 {status_display}",
+                                    callback_data="status_info"
+                                )]
+                            ])
+                            
+                            progress_msg.edit_text(
+                                message_text,
+                                parse_mode='HTML',
+                                reply_markup=keyboard
+                            )
+                        except Exception:
+                            pass
+            
+            # 执行清理
+            cleanup_result = await self._cleanup_single_account(
+                client=client,
+                account_name=file_name,
+                file_path=file_path,
+                progress_callback=update_progress
+            )
+            
+            # 断开客户端
+            try:
+                await client.disconnect()
+            except:
+                pass
+            
+            # 更新完成计数
+            async with lock:
+                completed_count['value'] += 1
+            
+            # 合并结果
+            result_data.update(cleanup_result)
+            return result_data
+            
+        except Exception as e:
+            logger.error(f"处理账户失败 {file_name}: {e}")
+            import traceback
+            traceback.print_exc()
+            result_data['error'] = str(e)
+            
+            if client:
+                try:
+                    await client.disconnect()
+                except:
+                    pass
+            
+            return result_data
+    
     async def execute_cleanup(self, update, context, user_id: int):
-        """执行一键清理"""
+        """执行一键清理（并发版本）"""
         if user_id not in self.pending_cleanup:
             return
         
@@ -14644,220 +14812,149 @@ class EnhancedBot:
             'total': len(files),
             'success': 0,
             'failed': 0,
+            'frozen': 0,
             'reports': [],
-            'success_files': [],  # 成功清理的账户文件
-            'failed_files': []    # 失败的账户文件
+            'success_files': [],
+            'failed_files': [],
+            'frozen_files': [],
+            'detailed_results': []
         }
         
         try:
-            # 处理每个账号
-            for idx, (file_path, file_name) in enumerate(files, 1):
-                try:
-                    # 更新进度（使用内联按钮）
-                    if progress_msg:
-                        try:
-                            progress_percent = int((idx / len(files)) * 100)
-                            filled = int(progress_percent / 10)
-                            empty = 10 - filled
-                            progress_bar = "█" * filled + "░" * empty
-                            
-                            # 格式化文件名显示
-                            file_display = file_name[:25] + '...' if len(file_name) > 25 else file_name
-                            
-                            keyboard = InlineKeyboardMarkup([
-                                [InlineKeyboardButton(
-                                    f"⏳ 进度: {progress_percent}% ({idx}/{len(files)})",
-                                    callback_data="progress_info"
-                                )],
-                                [InlineKeyboardButton(
-                                    f"📄 {file_display}",
-                                    callback_data="file_info"
-                                )]
-                            ])
-                            
-                            progress_msg.edit_text(
-                                f"🧹 <b>正在清理账号</b>\n\n"
-                                f"📄 文件: {file_name}\n"
-                                f"📊 进度: {idx}/{len(files)} ({progress_percent}%)\n"
-                                f"[{progress_bar}]",
-                                parse_mode='HTML',
-                                reply_markup=keyboard
-                            )
-                        except:
-                            pass
-                    
-                    # 如果是TData，需要先转换为Session
-                    if file_type == 'tdata':
-                        # 转换TData到Session
-                        try:
-                            # Import at runtime to avoid circular dependencies
-                            from opentele.api import API, UseCurrentSession
-                            from opentele.td import TDesktop
-                            
-                            tdesk = TDesktop(file_path)
-                            session_path = file_path.replace('tdata', 'session').replace('.zip', '.session')
-                            
-                            client = await tdesk.ToTelethon(
-                                session=session_path,
-                                flag=UseCurrentSession,
-                                api=API.TelegramDesktop
-                            )
-                            await client.connect()
-                            
-                        except Exception as e:
-                            logger.error(f"TData conversion failed for {file_name}: {e}")
-                            results_summary['failed'] += 1
-                            continue
-                    else:
-                        # 直接使用Session
-                        session_path = os.path.splitext(file_path)[0]
-                        
-                        # 获取代理配置
-                        proxy_dict = None
-                        proxy_enabled = self.db.get_proxy_enabled() if self.db else True
-                        use_proxy = config.USE_PROXY and proxy_enabled and self.proxy_manager.proxies
-                        
-                        if use_proxy:
-                            proxy_info = self.proxy_manager.get_next_proxy()
-                            if proxy_info:
-                                proxy_dict = self.checker.create_proxy_dict(proxy_info)
-                                logger.info(f"使用代理连接账号: {file_name}")
-                        
-                        try:
-                            client = TelegramClient(
-                                session_path,
-                                int(config.API_ID),
-                                str(config.API_HASH),
-                                proxy=proxy_dict
-                            )
-                            await client.connect()
-                            
-                            if not await client.is_user_authorized():
-                                logger.warning(f"Session not authorized: {file_name}")
-                                results_summary['failed'] += 1
-                                results_summary['failed_files'].append((file_path, file_name))
-                                await client.disconnect()
-                                continue
-                        except Exception as e:
-                            logger.error(f"Session connection failed for {file_name}: {e}")
-                            results_summary['failed'] += 1
-                            results_summary['failed_files'].append((file_path, file_name))
-                            continue
-                    
-                    # 创建进度回调函数（使用内联按钮显示进度）
-                    # 使用默认参数捕获当前迭代的值，避免闭包问题
-                    async def update_progress(status_text, current_idx=idx, current_file=file_name):
-                        if progress_msg:
-                            try:
-                                # 计算进度百分比
-                                progress_percent = int((current_idx / len(files)) * 100)
-                                
-                                # 创建进度条
-                                filled = int(progress_percent / 10)
-                                empty = 10 - filled
-                                progress_bar = "█" * filled + "░" * empty
-                                
-                                # 格式化状态文本
-                                status_display = status_text[:30] + '...' if len(status_text) > 30 else status_text
-                                
-                                # 构建消息文本
-                                message_text = (
-                                    f"🧹 <b>正在清理账号</b>\n\n"
-                                    f"📄 当前: {current_file}\n"
-                                    f"📊 进度: {current_idx}/{len(files)} ({progress_percent}%)\n"
-                                    f"[{progress_bar}]\n\n"
-                                    f"🔄 状态: {status_text}"
-                                )
-                                
-                                # 创建内联按钮显示进度
-                                keyboard = InlineKeyboardMarkup([
-                                    [InlineKeyboardButton(
-                                        f"⏳ 进度: {progress_percent}% ({current_idx}/{len(files)})",
-                                        callback_data="progress_info"
-                                    )],
-                                    [InlineKeyboardButton(
-                                        f"🔄 {status_display}",
-                                        callback_data="status_info"
-                                    )]
-                                ])
-                                
-                                progress_msg.edit_text(
-                                    message_text,
-                                    parse_mode='HTML',
-                                    reply_markup=keyboard
-                                )
-                            except Exception:
-                                pass
-                    
-                    # 执行清理
-                    result = await self._cleanup_single_account(
-                        client=client,
-                        account_name=file_name,
-                        file_path=file_path,
-                        progress_callback=update_progress
-                    )
-                    
-                    # 断开客户端
-                    try:
-                        await client.disconnect()
-                    except:
-                        pass
-                    
-                    if result.get('success'):
-                        results_summary['success'] += 1
-                        if result.get('report_path'):
-                            results_summary['reports'].append(result['report_path'])
-                        # 保存成功清理的账户文件
-                        results_summary['success_files'].append((file_path, file_name))
-                    else:
-                        results_summary['failed'] += 1
-                        # 保存失败的账户文件
-                        results_summary['failed_files'].append((file_path, file_name))
-                    
-                except Exception as e:
-                    logger.error(f"Cleanup failed for {file_name}: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    results_summary['failed'] += 1
-                    # 保存失败的账户文件
-                    results_summary['failed_files'].append((file_path, file_name))
+            # 创建信号量控制并发数
+            semaphore = asyncio.Semaphore(config.CLEANUP_ACCOUNT_CONCURRENCY)
+            lock = asyncio.Lock()
+            completed_count = {'value': 0}
             
-            # 生成统一的TXT报告
+            async def process_with_semaphore(file_info):
+                async with semaphore:
+                    return await self._process_single_account_full(
+                        file_info, file_type, progress_msg, len(files), completed_count, lock
+                    )
+            
+            # 并发处理所有账户
+            logger.info(f"开始并发清理 {len(files)} 个账户，并发数: {config.CLEANUP_ACCOUNT_CONCURRENCY}")
+            tasks = [process_with_semaphore(file_info) for file_info in files]
+            all_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 汇总结果
+            for idx, result in enumerate(all_results, 1):
+                if isinstance(result, Exception):
+                    logger.error(f"处理异常: {result}")
+                    results_summary['failed'] += 1
+                    results_summary['failed_files'].append((files[idx-1][0], files[idx-1][1]))
+                    results_summary['detailed_results'].append({
+                        'file_name': files[idx-1][1],
+                        'status': 'failed',
+                        'error': str(result)
+                    })
+                    continue
+                
+                # 保存详细结果
+                results_summary['detailed_results'].append({
+                    'file_name': result['file_name'],
+                    'status': 'frozen' if result.get('is_frozen') else ('success' if result.get('success') else 'failed'),
+                    'error': result.get('error'),
+                    'error_details': result.get('error_details', []),
+                    'statistics': result.get('statistics', {})
+                })
+                
+                # 分类统计
+                if result.get('is_frozen'):
+                    results_summary['frozen'] += 1
+                    results_summary['frozen_files'].append((result['file_path'], result['file_name']))
+                    logger.info(f"❄️ 冻结账户: {result['file_name']}")
+                elif result.get('success'):
+                    results_summary['success'] += 1
+                    results_summary['success_files'].append((result['file_path'], result['file_name']))
+                    logger.info(f"✅ 清理成功: {result['file_name']}")
+                else:
+                    results_summary['failed'] += 1
+                    results_summary['failed_files'].append((result['file_path'], result['file_name']))
+                    logger.info(f"❌ 清理失败: {result['file_name']}")
+            
+            # 生成详细的TXT报告
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             summary_report_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleanup_summary_{timestamp}.txt")
             
             with open(summary_report_path, 'w', encoding='utf-8') as f:
-                f.write("=" * 70 + "\n")
-                f.write("           批量清理汇总报告 / Batch Cleanup Summary\n")
-                f.write("=" * 70 + "\n\n")
+                f.write("=" * 80 + "\n")
+                f.write("              批量清理详细报告 / Batch Cleanup Detailed Report\n")
+                f.write("=" * 80 + "\n\n")
                 
                 success_rate = (results_summary['success'] / results_summary['total'] * 100) if results_summary['total'] > 0 else 0
+                frozen_rate = (results_summary['frozen'] / results_summary['total'] * 100) if results_summary['total'] > 0 else 0
                 
                 f.write(f"清理时间 / Cleanup Time: {timestamp}\n")
+                f.write(f"并发数 / Concurrency: {config.CLEANUP_ACCOUNT_CONCURRENCY} 账户同时处理\n")
                 f.write(f"总账号数 / Total Accounts: {results_summary['total']}\n")
                 f.write(f"✅ 成功 / Success: {results_summary['success']} ({success_rate:.1f}%)\n")
+                f.write(f"❄️ 冻结 / Frozen: {results_summary['frozen']} ({frozen_rate:.1f}%)\n")
                 f.write(f"❌ 失败 / Failed: {results_summary['failed']}\n\n")
                 
+                # 详细结果
+                f.write("=" * 80 + "\n")
+                f.write("                    详细清理结果 / Detailed Results\n")
+                f.write("=" * 80 + "\n\n")
+                
+                for idx, detail in enumerate(results_summary['detailed_results'], 1):
+                    status_icon = "✅" if detail['status'] == 'success' else ("❄️" if detail['status'] == 'frozen' else "❌")
+                    status_text = "成功" if detail['status'] == 'success' else ("冻结" if detail['status'] == 'frozen' else "失败")
+                    
+                    f.write(f"{idx}. {status_icon} {detail['file_name']} - {status_text}\n")
+                    
+                    if detail.get('error'):
+                        f.write(f"   错误: {detail['error']}\n")
+                    
+                    if detail.get('error_details'):
+                        f.write("   详细错误信息:\n")
+                        for err in detail['error_details']:
+                            f.write(f"   - {err}\n")
+                    
+                    stats = detail.get('statistics', {})
+                    if stats:
+                        f.write(f"   统计: ")
+                        stat_parts = []
+                        if stats.get('profile_cleared'): stat_parts.append("资料已清理")
+                        if stats.get('groups_left'): stat_parts.append(f"退出{stats['groups_left']}个群组")
+                        if stats.get('channels_left'): stat_parts.append(f"退出{stats['channels_left']}个频道")
+                        if stats.get('histories_deleted'): stat_parts.append(f"删除{stats['histories_deleted']}个对话")
+                        if stats.get('contacts_deleted'): stat_parts.append(f"删除{stats['contacts_deleted']}个联系人")
+                        if stat_parts:
+                            f.write(", ".join(stat_parts))
+                        f.write("\n")
+                    
+                    f.write("\n")
+                
+                # 分类汇总
                 if results_summary['success_files']:
-                    f.write("-" * 70 + "\n")
+                    f.write("-" * 80 + "\n")
                     f.write(f"成功清理的账户 / Successfully Cleaned ({len(results_summary['success_files'])})\n")
-                    f.write("-" * 70 + "\n")
+                    f.write("-" * 80 + "\n")
                     for idx, (_, fname) in enumerate(results_summary['success_files'], 1):
                         f.write(f"{idx}. ✅ {fname}\n")
                     f.write("\n")
                 
+                if results_summary['frozen_files']:
+                    f.write("-" * 80 + "\n")
+                    f.write(f"冻结的账户 / Frozen Accounts ({len(results_summary['frozen_files'])})\n")
+                    f.write("-" * 80 + "\n")
+                    for idx, (_, fname) in enumerate(results_summary['frozen_files'], 1):
+                        f.write(f"{idx}. ❄️ {fname}\n")
+                    f.write("\n")
+                
                 if results_summary['failed_files']:
-                    f.write("-" * 70 + "\n")
+                    f.write("-" * 80 + "\n")
                     f.write(f"清理失败的账户 / Failed to Clean ({len(results_summary['failed_files'])})\n")
-                    f.write("-" * 70 + "\n")
+                    f.write("-" * 80 + "\n")
                     for idx, (_, fname) in enumerate(results_summary['failed_files'], 1):
                         f.write(f"{idx}. ❌ {fname}\n")
                     f.write("\n")
                 
-                f.write("=" * 70 + "\n")
-                f.write("详细报告请查看各账户对应的报告文件\n")
-                f.write("See individual account reports for details\n")
-                f.write("=" * 70 + "\n")
+                f.write("=" * 80 + "\n")
+                f.write(f"并发清理模式: 同时处理 {config.CLEANUP_ACCOUNT_CONCURRENCY} 个账户，提升处理速度\n")
+                f.write(f"Concurrent mode: Processing {config.CLEANUP_ACCOUNT_CONCURRENCY} accounts simultaneously\n")
+                f.write("=" * 80 + "\n")
             
             # 打包成功和失败的账户文件
             result_zips = []
@@ -14901,12 +14998,17 @@ class EnhancedBot:
                 result_zips.append(('failed', failed_zip_path, len(results_summary['failed_files'])))
             
             # 发送完成消息
+            frozen_rate = (results_summary['frozen'] / results_summary['total'] * 100) if results_summary['total'] > 0 else 0
             final_text = f"""
-✅ <b>清理完成！</b>
+✅ <b>并发清理完成！</b>
+
+<b>⚡ 并发模式</b>
+• 同时处理: {config.CLEANUP_ACCOUNT_CONCURRENCY} 个账户
 
 <b>📊 清理统计</b>
 • 总账号数: {results_summary['total']}
 • ✅ 成功: {results_summary['success']} ({success_rate:.1f}%)
+• ❄️ 冻结: {results_summary['frozen']} ({frozen_rate:.1f}%)
 • ❌ 失败: {results_summary['failed']}
 
 <b>📦 正在打包账户文件...</b>
