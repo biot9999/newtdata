@@ -31,7 +31,7 @@ import csv
 import traceback
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any, NamedTuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from io import BytesIO
 import threading
 import struct
@@ -14280,16 +14280,22 @@ class EnhancedBot:
                 # 获取当前账号信息
                 me = await client.get_me()
                 
-                # 清空名字和简介
+                # 随机修改名字和简介为符号字母
+                profile_cleared = False
                 try:
+                    # 生成随机符号字母组合
+                    random_chars = ''.join(random.choices(string.ascii_letters + string.digits + '._-', k=random.randint(3, 8)))
+                    random_bio = ''.join(random.choices(string.ascii_letters + string.digits + ' ._-', k=random.randint(5, 15)))
+                    
                     await client(UpdateProfileRequest(
-                        first_name='',  # 清空名字
-                        last_name='',   # 清空姓氏
-                        about=''        # 清空简介
+                        first_name=random_chars,  # 随机名字
+                        last_name='',              # 清空姓氏
+                        about=random_bio           # 随机简介
                     ))
-                    logger.info(f"已清空名字和简介")
+                    logger.info(f"已修改名字和简介为随机字符: {random_chars}")
+                    profile_cleared = True
                 except Exception as e:
-                    logger.warning(f"清空名字/简介失败: {e}")
+                    logger.warning(f"修改名字/简介失败: {e}")
                 
                 # 删除所有头像
                 try:
@@ -14304,7 +14310,8 @@ class EnhancedBot:
                         photo_ids = [photo for photo in photos.photos]
                         await client(DeletePhotosRequest(id=photo_ids))
                         logger.info(f"已删除 {len(photo_ids)} 个头像")
-                        stats['profile_cleared'] = 1
+                        if profile_cleared:
+                            stats['profile_cleared'] = 1
                 except Exception as e:
                     logger.warning(f"删除头像失败: {e}")
                 
@@ -14568,52 +14575,14 @@ class EnhancedBot:
             except Exception as e:
                 logger.error(f"归档对话错误: {e}")
             
-            # 生成报告
+            # 返回清理结果（不生成单独报告）
             elapsed_time = time.time() - start_time
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            # CSV报告
-            csv_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleanup_{account_name}_{timestamp}.csv")
-            try:
-                with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(['chat_id', 'title', 'type', 'actions_done', 'status', 'error', 'timestamp'])
-                    for action in actions:
-                        writer.writerow([
-                            action.chat_id,
-                            action.title,
-                            action.chat_type,
-                            ', '.join(action.actions_done),
-                            action.status,
-                            action.error or '',
-                            action.timestamp
-                        ])
-                logger.info(f"CSV报告已保存: {csv_path}")
-            except Exception as e:
-                logger.error(f"保存CSV报告错误: {e}")
-            
-            # JSON报告
-            json_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleanup_{account_name}_{timestamp}.json")
-            try:
-                report_data = {
-                    'account_name': account_name,
-                    'timestamp': timestamp,
-                    'elapsed_time_seconds': round(elapsed_time, 2),
-                    'statistics': stats,
-                    'actions': [asdict(action) for action in actions]
-                }
-                with open(json_path, 'w', encoding='utf-8') as f:
-                    json.dump(report_data, f, indent=2, ensure_ascii=False)
-                logger.info(f"JSON报告已保存: {json_path}")
-            except Exception as e:
-                logger.error(f"保存JSON报告错误: {e}")
             
             return {
                 'success': True,
                 'elapsed_time': elapsed_time,
                 'statistics': stats,
-                'report_path': json_path,
-                'csv_path': csv_path
+                'actions': actions  # 返回动作列表用于汇总报告
             }
             
         except Exception as e:
@@ -14712,22 +14681,36 @@ class EnhancedBot:
                         # 直接使用Session
                         session_path = os.path.splitext(file_path)[0]
                         
+                        # 获取代理配置
+                        proxy_dict = None
+                        proxy_enabled = self.db.get_proxy_enabled() if self.db else True
+                        use_proxy = config.USE_PROXY and proxy_enabled and self.proxy_manager.proxies
+                        
+                        if use_proxy:
+                            proxy_info = self.proxy_manager.get_next_proxy()
+                            if proxy_info:
+                                proxy_dict = self.checker.create_proxy_dict(proxy_info)
+                                logger.info(f"使用代理连接账号: {file_name}")
+                        
                         try:
                             client = TelegramClient(
                                 session_path,
                                 int(config.API_ID),
-                                str(config.API_HASH)
+                                str(config.API_HASH),
+                                proxy=proxy_dict
                             )
                             await client.connect()
                             
                             if not await client.is_user_authorized():
                                 logger.warning(f"Session not authorized: {file_name}")
                                 results_summary['failed'] += 1
+                                results_summary['failed_files'].append((file_path, file_name))
                                 await client.disconnect()
                                 continue
                         except Exception as e:
                             logger.error(f"Session connection failed for {file_name}: {e}")
                             results_summary['failed'] += 1
+                            results_summary['failed_files'].append((file_path, file_name))
                             continue
                     
                     # 创建进度回调函数
