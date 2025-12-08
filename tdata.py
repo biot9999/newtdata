@@ -6665,15 +6665,18 @@ class ReauthorizationManager:
                     # 验证 API 配置
                     if not old_client.api_id or old_client.api_id == 0:
                         return 'connection_error', f"{user_info} | API_ID 未配置", None
-                    if not old_client.api_hash or not isinstance(old_client.api_hash, str):
-                        return 'connection_error', f"{user_info} | API_HASH 配置错误，类型: {type(old_client.api_hash)}", None
+                    if not old_client.api_hash or not isinstance(old_client.api_hash, str) or old_client.api_hash == "None":
+                        api_hash_type = type(old_client.api_hash).__name__
+                        api_hash_value = repr(old_client.api_hash) if old_client.api_hash else "空"
+                        return 'connection_error', f"{user_info} | API_HASH 配置错误 (类型: {api_hash_type}, 值: {api_hash_value})", None
                     
                     sent_code = await old_client.send_code_request(phone_str)
                     print(f"✅ 已请求验证码: {file_name}")
                 except Exception as e:
                     print(f"⚠️ 请求验证码失败: {e}")
-                    print(f"🔍 调试信息 - phone类型: {type(phone)}, phone_str类型: {type(phone_str)}, phone_str值: {'<empty>' if not phone_str else '<set>'}")
-                    print(f"🔍 API配置 - api_id类型: {type(old_client.api_id)}, api_id有效: {bool(old_client.api_id and old_client.api_id != 0)}, api_hash类型: {type(old_client.api_hash)}, api_hash有效: {bool(old_client.api_hash)}")
+                    print(f"🔍 调试信息 - phone类型: {type(phone).__name__}, phone_str类型: {type(phone_str).__name__}, phone_str值: {repr(phone_str) if phone_str else '<empty>'}")
+                    api_hash_repr = repr(old_client.api_hash)[:20] if old_client.api_hash else '<None>'
+                    print(f"🔍 API配置 - api_id: {old_client.api_id} (类型: {type(old_client.api_id).__name__}), api_hash类型: {type(old_client.api_hash).__name__}, api_hash前缀: {api_hash_repr}")
                     import traceback
                     traceback.print_exc()
                     return 'connection_error', f"{user_info} | 请求验证码失败: {str(e)[:50]}", None
