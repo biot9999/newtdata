@@ -2534,8 +2534,8 @@ class FileProcessor:
                 if file_type == "session":
                     status, info, account_name = await self.checker.check_account_status(file_path, file_name, self.db)
                 else:  # tdata
-                    # 使用新的真实SpamBot检测方法
-                    status, info, account_name = await self.check_tdata_with_spambot(file_path, file_name)
+                    # 使用新的真实SpamBot检测方法（带代理支持）
+                    status, info, account_name = await self.check_tdata_with_spambot(file_path, file_name, self.db)
                 
                 # 将状态映射到正确的分类
                 mapped_status = status_mapping.get(status, status)
@@ -2614,38 +2614,158 @@ class FileProcessor:
         
         return result
     
-    async def check_tdata_with_spambot(self, tdata_path: str, tdata_name: str) -> Tuple[str, str, str]:
-        """基于opentele的真正TData SpamBot检测"""
+    async def check_tdata_with_spambot(self, tdata_path: str, tdata_name: str, db: 'Database') -> Tuple[str, str, str]:
+        """基于opentele的真正TData SpamBot检测（带代理支持）"""
+        if not OPENTELE_AVAILABLE:
+            return "连接错误", "opentele库未安装", tdata_name
+        
+        # 检查是否应使用代理
+        proxy_enabled = db.get_proxy_enabled() if db else True
+        use_proxy = config.USE_PROXY and proxy_enabled and self.proxy_manager.proxies
+        
+        # 确定重试次数
+        max_proxy_attempts = self.max_retries if use_proxy else 0
+        
+        # 尝试不同的代理
+        for proxy_attempt in range(max_proxy_attempts + 1):
+            proxy_info = None
+            
+            # 获取代理（如果启用）
+            if use_proxy and proxy_attempt < max_proxy_attempts:
+                proxy_info = self.proxy_manager.get_next_proxy()
+                if config.PROXY_DEBUG_VERBOSE and proxy_info:
+                    print(f"[#{proxy_attempt + 1}] 使用代理检测TData {tdata_name}")
+            
+            # 尝试检测
+            result = await self._single_tdata_check_with_proxy(
+                tdata_path, tdata_name, proxy_info, proxy_attempt
+            )
+            
+            # 如果成功或到达最后一次尝试，返回
+            if result[0] != "连接错误" or proxy_attempt >= max_proxy_attempts:
+                return result
+            
+            # 重试间隔延迟
+            if config.PROXY_DEBUG_VERBOSE:
+                print(f"TData连接失败 ({result[1][:50]}), 重试下一个代理...")
+            await asyncio.sleep(self.retry_delay)
+        
+        # 所有代理都失败，尝试本地连接
+        if use_proxy:
+            if config.PROXY_DEBUG_VERBOSE:
+                print(f"所有代理失败，回退到本地连接: {tdata_name}")
+            return await self._single_tdata_check_with_proxy(tdata_path, tdata_name, None, max_proxy_attempts)
+        
+        return "连接错误", f"检查失败 (重试{max_proxy_attempts}次): 多次尝试后仍然失败", tdata_name
+    
+    async def _single_tdata_check_with_proxy(self, tdata_path: str, tdata_name: str, 
+                                              proxy_info: Optional[Dict], attempt: int) -> Tuple[str, str, str]:
+        """带代理的单个TData检查（增强版）"""
         client = None
         session_name = None
         
+        # 构建代理描述字符串
+        if proxy_info:
+            proxy_type_display = "住宅代理" if proxy_info.get('is_residential', False) else "代理"
+            proxy_used = f"使用{proxy_type_display}"
+        else:
+            proxy_used = "本地连接"
+        
         try:
-            if not OPENTELE_AVAILABLE:
-                return "连接错误", "opentele库未安装", tdata_name
-            
             # 1. TData转Session（采用opentele方式）
             tdesk = TDesktop(tdata_path)
             
             if not tdesk.isLoaded():
-                return "连接错误", "TData未授权或无效", tdata_name
+                return "连接错误", f"{proxy_used} | TData未授权或无效", tdata_name
             
             # 临时session文件保存在sessions/temp目录
             os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
-            temp_session_name = f"temp_{int(time.time()*1000)}"
+            temp_session_name = f"temp_{int(time.time()*1000)}_{attempt}"
             session_name = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
-            client = await tdesk.ToTelethon(session=session_name, flag=UseCurrentSession, api=API.TelegramDesktop)
             
-            # 2. 快速连接测试
-            await asyncio.wait_for(client.connect(), timeout=6)
+            # 创建代理字典（如果提供了proxy_info）
+            proxy_dict = None
+            if proxy_info:
+                proxy_dict = self.create_proxy_dict(proxy_info)
+                if not proxy_dict:
+                    return "连接错误", f"{proxy_used} | 代理配置错误", tdata_name
             
-            # 3. 检查授权状态
-            if not await client.is_user_authorized():
-                return "封禁", "账号未授权", tdata_name
+            # 根据代理类型调整超时时间
+            if proxy_info and proxy_info.get('is_residential', False):
+                client_timeout = config.RESIDENTIAL_PROXY_TIMEOUT
+                connect_timeout = config.RESIDENTIAL_PROXY_TIMEOUT
+            else:
+                client_timeout = self.fast_timeout
+                connect_timeout = self.connection_timeout if proxy_dict else 6
             
-            # 4. 获取手机号
+            # 转换为Telethon客户端（带代理）
+            client = await tdesk.ToTelethon(
+                session=session_name, 
+                flag=UseCurrentSession, 
+                api=API.TelegramDesktop
+            )
+            
+            # 如果有代理，需要重新创建客户端以使用代理
+            if proxy_dict:
+                await client.disconnect()
+                client = TelegramClient(
+                    session_name,
+                    int(config.API_ID),
+                    str(config.API_HASH),
+                    timeout=client_timeout,
+                    connection_retries=2,
+                    retry_delay=1,
+                    proxy=proxy_dict
+                )
+            
+            # 2. 连接测试（带超时）
             try:
-                me = await client.get_me()
+                await asyncio.wait_for(client.connect(), timeout=connect_timeout)
+            except asyncio.TimeoutError:
+                return "连接错误", f"{proxy_used} | 连接超时", tdata_name
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "deactivated" in error_msg or "banned" in error_msg:
+                    return "冻结", f"{proxy_used} | 账号已被冻结/停用", tdata_name
+                
+                if "timeout" in error_msg:
+                    error_reason = "timeout"
+                elif "connection refused" in error_msg or "refused" in error_msg:
+                    error_reason = "connection_refused"
+                elif "auth" in error_msg or "authentication" in error_msg:
+                    error_reason = "auth_failed"
+                elif "resolve" in error_msg or "dns" in error_msg:
+                    error_reason = "dns_error"
+                else:
+                    error_reason = "network_error"
+                
+                if config.PROXY_SHOW_FAILURE_REASON:
+                    return "连接错误", f"{proxy_used} | {error_reason}", tdata_name
+                else:
+                    return "连接错误", f"{proxy_used} | 连接失败", tdata_name
+            
+            # 3. 检查授权状态（带超时）
+            try:
+                is_authorized = await asyncio.wait_for(client.is_user_authorized(), timeout=15)
+                if not is_authorized:
+                    return "封禁", f"{proxy_used} | 账号未授权", tdata_name
+            except asyncio.TimeoutError:
+                return "连接错误", f"{proxy_used} | 授权检查超时", tdata_name
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "deactivated" in error_msg or "banned" in error_msg or "deleted" in error_msg:
+                    return "冻结", f"{proxy_used} | 账号已被冻结/删除", tdata_name
+                if "auth key" in error_msg or "unregistered" in error_msg:
+                    return "封禁", f"{proxy_used} | 会话密钥无效", tdata_name
+                return "连接错误", f"{proxy_used} | 授权检查失败: {str(e)[:30]}", tdata_name
+            
+            # 4. 获取手机号（带超时）
+            try:
+                me = await asyncio.wait_for(client.get_me(), timeout=15)
                 phone = me.phone if me.phone else "未知号码"
+            except asyncio.TimeoutError:
+                phone = "未知号码"
+                logger.warning(f"获取手机号超时: {tdata_name}")
             except Exception:
                 phone = "未知号码"
             
@@ -2655,31 +2775,30 @@ class FileProcessor:
                 from telethon.tl.types import InputPrivacyKeyPhoneNumber
                 
                 privacy_key = InputPrivacyKeyPhoneNumber()
-                await asyncio.wait_for(client(GetPrivacyRequest(key=privacy_key)), timeout=3)
+                await asyncio.wait_for(client(GetPrivacyRequest(key=privacy_key)), timeout=5)
             except Exception as e:
                 error_str = str(e).lower()
                 if 'flood' in error_str:
-                    return "冻结", f"手机号:{phone} | 账号冻结", tdata_name
+                    return "冻结", f"手机号:{phone} | {proxy_used} | 账号冻结", tdata_name
             
-            # 6. SpamBot检测
+            # 6. SpamBot检测（带超时）
             try:
-                await asyncio.wait_for(client.send_message('SpamBot', '/start'), timeout=3)
-                await asyncio.sleep(0.1)  # 快速等待
+                await asyncio.wait_for(client.send_message('SpamBot', '/start'), timeout=5)
+                await asyncio.sleep(config.SPAMBOT_WAIT_TIME if not config.PROXY_FAST_MODE else 0.1)
                 
                 entity = await client.get_entity(178220800)  # SpamBot固定ID
                 async for message in client.iter_messages(entity, limit=1):
                     text = message.raw_text.lower()
                     
                     # 智能翻译和状态判断
-                    english_text = self.translate_spambot_reply(text)
+                    english_text = self.checker.translate_to_english(text) if hasattr(self, 'checker') else text
                     
                     # 1. 首先检查地理限制（判定为无限制）- 最高优先级
-                    # "some phone numbers may trigger a harsh response" 是地理限制提示，不是双向限制
                     if any(keyword in english_text for keyword in [
                         'some phone numbers may trigger a harsh response',
                         'phone numbers may trigger'
                     ]):
-                        return "无限制", f"手机号:{phone} | 正常无限制（地理限制提示）", tdata_name
+                        return "无限制", f"手机号:{phone} | {proxy_used} | 正常无限制（地理限制提示）", tdata_name
                     
                     # 2. 检查临时限制（垃圾邮件）
                     if any(keyword in english_text for keyword in [
@@ -2688,10 +2807,9 @@ class FileProcessor:
                         'will be automatically released', 'limitations will last longer next time',
                         'while the account is limited', 'account was limited',
                         'you will not be able to send messages',
-                        # 注意："actions can trigger" 表示账号行为触发了限制，是真正的限制
                         'actions can trigger a harsh response'
                     ]):
-                        return "垃圾邮件", f"手机号:{phone} | 垃圾邮件限制", tdata_name
+                        return "垃圾邮件", f"手机号:{phone} | {proxy_used} | 垃圾邮件限制", tdata_name
                     
                     # 3. 然后检查永久冻结
                     elif any(keyword in english_text for keyword in [
@@ -2700,35 +2818,37 @@ class FileProcessor:
                         'blocked for violations', 'terms of service', 'violations of the telegram',
                         'account was blocked', 'banned', 'suspended'
                     ]):
-                        return "冻结", f"手机号:{phone} | 账号被冻结/封禁", tdata_name
+                        return "冻结", f"手机号:{phone} | {proxy_used} | 账号被冻结/封禁", tdata_name
                     
                     # 4. 检查无限制状态
                     elif any(keyword in english_text for keyword in [
                         'no limits', 'free as a bird', 'no restrictions', 'good news'
                     ]):
-                        return "无限制", f"手机号:{phone} | 正常无限制", tdata_name
+                        return "无限制", f"手机号:{phone} | {proxy_used} | 正常无限制", tdata_name
                     
                     # 5. 默认返回无限制
                     else:
-                        return "无限制", f"手机号:{phone} | 正常无限制", tdata_name
+                        return "无限制", f"手机号:{phone} | {proxy_used} | 正常无限制", tdata_name
                 
                 # 如果没有消息回复
-                return "封禁", f"手机号:{phone} | SpamBot无回复", tdata_name
+                return "封禁", f"手机号:{phone} | {proxy_used} | SpamBot无回复", tdata_name
         
+            except asyncio.TimeoutError:
+                return "连接错误", f"手机号:{phone} | {proxy_used} | SpamBot检测超时", tdata_name
             except Exception as e:
                 error_str = str(e).lower()
                 if any(word in error_str for word in ['restricted', 'banned', 'blocked']):
-                    return "封禁", f"手机号:{phone} | 账号受限", tdata_name
-                return "封禁", f"手机号:{phone} | SpamBot检测失败", tdata_name
+                    return "封禁", f"手机号:{phone} | {proxy_used} | 账号受限", tdata_name
+                return "封禁", f"手机号:{phone} | {proxy_used} | SpamBot检测失败: {str(e)[:30]}", tdata_name
                 
         except Exception as e:
             error_str = str(e).lower()
             if 'database is locked' in error_str:
-                return "连接错误", f"TData文件被占用", tdata_name
+                return "连接错误", f"{proxy_used} | TData文件被占用", tdata_name
             elif 'timeout' in error_str or 'connection' in error_str:
-                return "连接错误", f"连接超时", tdata_name
+                return "连接错误", f"{proxy_used} | 连接超时", tdata_name
             else:
-                return "封禁", f"连接失败: {str(e)[:30]}", tdata_name
+                return "连接错误", f"{proxy_used} | 连接失败: {str(e)[:30]}", tdata_name
         finally:
             # 清理资源
             if client:
@@ -2736,7 +2856,7 @@ class FileProcessor:
                     await client.disconnect()
                 except:
                     pass
-            # 清理临时session文件（session_name现在包含完整路径）
+            # 清理临时session文件
             if session_name:
                 try:
                     session_file = f"{session_name}.session"
