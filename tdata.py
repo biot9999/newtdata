@@ -6672,8 +6672,8 @@ class ReauthorizationManager:
                     print(f"✅ 已请求验证码: {file_name}")
                 except Exception as e:
                     print(f"⚠️ 请求验证码失败: {e}")
-                    print(f"🔍 调试信息 - 电话类型: {type(phone)}, phone_str类型: {type(phone_str) if 'phone_str' in locals() else 'undefined'}")
-                    print(f"🔍 API配置 - api_id: {old_client.api_id} (类型: {type(old_client.api_id)}), api_hash类型: {type(old_client.api_hash)}")
+                    print(f"🔍 调试信息 - phone类型: {type(phone)}, phone_str类型: {type(phone_str)}, phone_str值: {'<empty>' if not phone_str else '<set>'}")
+                    print(f"🔍 API配置 - api_id类型: {type(old_client.api_id)}, api_id有效: {bool(old_client.api_id and old_client.api_id != 0)}, api_hash类型: {type(old_client.api_hash)}, api_hash有效: {bool(old_client.api_hash)}")
                     import traceback
                     traceback.print_exc()
                     return 'connection_error', f"{user_info} | 请求验证码失败: {str(e)[:50]}", None
