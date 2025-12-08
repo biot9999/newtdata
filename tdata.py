@@ -731,12 +731,22 @@ class Config:
         self.WEB_SERVER_PORT = int(os.getenv("WEB_SERVER_PORT", "8080"))
         self.ALLOW_PORT_SHIFT = os.getenv("ALLOW_PORT_SHIFT", "true").lower() == "true"
         
+        # 一键清理功能配置
+        self.ENABLE_ONE_CLICK_CLEANUP = os.getenv("ENABLE_ONE_CLICK_CLEANUP", "true").lower() == "true"
+        self.CLEANUP_LEAVE_CONCURRENCY = int(os.getenv("CLEANUP_LEAVE_CONCURRENCY", "3"))
+        self.CLEANUP_DELETE_HISTORY_CONCURRENCY = int(os.getenv("CLEANUP_DELETE_HISTORY_CONCURRENCY", "2"))
+        self.CLEANUP_DELETE_CONTACTS_CONCURRENCY = int(os.getenv("CLEANUP_DELETE_CONTACTS_CONCURRENCY", "3"))
+        self.CLEANUP_ACTION_SLEEP = float(os.getenv("CLEANUP_ACTION_SLEEP", "0.3"))
+        self.CLEANUP_MIN_PEER_INTERVAL = float(os.getenv("CLEANUP_MIN_PEER_INTERVAL", "1.5"))
+        self.CLEANUP_REVOKE_DEFAULT = os.getenv("CLEANUP_REVOKE_DEFAULT", "true").lower() == "true"
+        
         # 获取当前脚本目录
         self.SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
         
         # 文件管理配置
         self.RESULTS_DIR = os.path.join(self.SCRIPT_DIR, "results")
         self.UPLOADS_DIR = os.path.join(self.SCRIPT_DIR, "uploads")
+        self.CLEANUP_REPORTS_DIR = os.path.join(self.RESULTS_DIR, "cleanup_reports")
         
         # Session文件目录结构
         # sessions: 存放用户上传的session文件
@@ -747,14 +757,17 @@ class Config:
         # 创建目录
         os.makedirs(self.RESULTS_DIR, exist_ok=True)
         os.makedirs(self.UPLOADS_DIR, exist_ok=True)
+        os.makedirs(self.CLEANUP_REPORTS_DIR, exist_ok=True)
         os.makedirs(self.SESSIONS_DIR, exist_ok=True)
         os.makedirs(self.SESSIONS_BAK_DIR, exist_ok=True)
         
         print(f"📁 上传目录: {self.UPLOADS_DIR}")
         print(f"📁 结果目录: {self.RESULTS_DIR}")
+        print(f"📁 清理报告目录: {self.CLEANUP_REPORTS_DIR}")
         print(f"📁 Session目录: {self.SESSIONS_DIR}")
         print(f"📁 临时文件目录: {self.SESSIONS_BAK_DIR}")
         print(f"📡 系统配置: USE_PROXY={'true' if self.USE_PROXY else 'false'}")
+        print(f"🧹 一键清理: {'启用' if self.ENABLE_ONE_CLICK_CLEANUP else '禁用'}")
         print(f"💡 注意: 实际代理模式需要配置文件+数据库开关+有效代理文件同时满足")
     
     def validate(self):
@@ -801,6 +814,14 @@ FORGET2FA_DEFAULT_COUNTRY_PREFIX=+62
 # API格式转换器和验证码服务器配置
 WEB_SERVER_PORT=8080
 ALLOW_PORT_SHIFT=true
+# 一键清理功能配置
+ENABLE_ONE_CLICK_CLEANUP=true
+CLEANUP_LEAVE_CONCURRENCY=3
+CLEANUP_DELETE_HISTORY_CONCURRENCY=2
+CLEANUP_DELETE_CONTACTS_CONCURRENCY=3
+CLEANUP_ACTION_SLEEP=0.3
+CLEANUP_MIN_PEER_INTERVAL=1.5
+CLEANUP_REVOKE_DEFAULT=true
 """
             with open(".env", "w", encoding="utf-8") as f:
                 f.write(env_content)
