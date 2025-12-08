@@ -31,7 +31,7 @@ import csv
 import traceback
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any, NamedTuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from io import BytesIO
 import threading
 import struct
@@ -41,6 +41,15 @@ from dataclasses import dataclass
 from collections import deque, namedtuple
 print("🔍 Telegram账号检测机器人 V8.0")
 print(f"📅 当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+# ================================
+# 日志配置
+# ================================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # ================================
 # 环境变量加载
@@ -159,6 +168,16 @@ except ImportError:
 # ================================
 
 @dataclass
+class CleanupAction:
+    """清理操作记录"""
+    chat_id: int
+    title: str
+    chat_type: str  # 'user', 'group', 'channel', 'bot'
+    actions_done: List[str] = field(default_factory=list)
+    status: str = 'pending'  # 'pending', 'success', 'partial', 'failed', 'skipped'
+    error: Optional[str] = None
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+
 # ================================
 # 代理管理器
 # ================================
@@ -733,6 +752,7 @@ class Config:
         
         # 一键清理功能配置
         self.ENABLE_ONE_CLICK_CLEANUP = os.getenv("ENABLE_ONE_CLICK_CLEANUP", "true").lower() == "true"
+        self.CLEANUP_ACCOUNT_CONCURRENCY = int(os.getenv("CLEANUP_ACCOUNT_CONCURRENCY", "3"))  # 同时处理的账户数
         self.CLEANUP_LEAVE_CONCURRENCY = int(os.getenv("CLEANUP_LEAVE_CONCURRENCY", "3"))
         self.CLEANUP_DELETE_HISTORY_CONCURRENCY = int(os.getenv("CLEANUP_DELETE_HISTORY_CONCURRENCY", "2"))
         self.CLEANUP_DELETE_CONTACTS_CONCURRENCY = int(os.getenv("CLEANUP_DELETE_CONTACTS_CONCURRENCY", "3"))
@@ -816,6 +836,7 @@ WEB_SERVER_PORT=8080
 ALLOW_PORT_SHIFT=true
 # 一键清理功能配置
 ENABLE_ONE_CLICK_CLEANUP=true
+CLEANUP_ACCOUNT_CONCURRENCY=3  # 同时处理的账户数量（提升清理速度）
 CLEANUP_LEAVE_CONCURRENCY=3
 CLEANUP_DELETE_HISTORY_CONCURRENCY=2
 CLEANUP_DELETE_CONTACTS_CONCURRENCY=3
@@ -8073,6 +8094,9 @@ class EnhancedBot:
             self.handle_cleanup_confirm(update, context, query)
         elif data == "cleanup_cancel":
             query.answer()
+            # Clean up any pending cleanup task
+            if user_id in self.pending_cleanup:
+                self.cleanup_cleanup_task(user_id)
             self.show_main_menu(update, user_id)
         elif query.data == "back_to_main":
             self.show_main_menu(update, user_id)
@@ -14238,6 +14262,370 @@ class EnhancedBot:
             if temp_dir and os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir, ignore_errors=True)
     
+    def _is_frozen_error(self, error: Exception) -> bool:
+        """检查是否为冻结账户错误"""
+        error_str = str(error).upper()
+        return 'FROZEN_METHOD_INVALID' in error_str or 'FROZEN' in error_str
+    
+    async def _cleanup_single_account(self, client, account_name: str, file_path: str, progress_callback=None) -> Dict[str, Any]:
+        """清理单个账号"""
+        start_time = time.time()
+        
+        actions = []
+        stats = {
+            'profile_cleared': 0,
+            'groups_left': 0,
+            'channels_left': 0,
+            'histories_deleted': 0,
+            'contacts_deleted': 0,
+            'dialogs_closed': 0,
+            'errors': 0,
+            'skipped': 0
+        }
+        
+        # 用于详细报告的错误列表
+        error_details = []
+        
+        try:
+            # 0. 清理账号资料（头像、名字、简介）
+            logger.info(f"清理账号资料: {account_name}")
+            if progress_callback:
+                await progress_callback("🔄 清理账号资料（头像、名字、简介）...")
+            
+            try:
+                from telethon.tl.functions.account import UpdateProfileRequest
+                from telethon.tl.functions.photos import DeletePhotosRequest, GetUserPhotosRequest
+                
+                # 获取当前账号信息
+                me = await client.get_me()
+                
+                # 随机修改名字和简介为符号字母
+                profile_cleared = False
+                try:
+                    # 生成随机符号字母组合（使用secrets确保随机性）
+                    charset = string.ascii_letters + string.digits + '._-'
+                    random_chars = ''.join(secrets.choice(charset) for _ in range(secrets.randbelow(6) + 3))  # 3-8位
+                    random_bio = ''.join(secrets.choice(charset + ' ') for _ in range(secrets.randbelow(11) + 5))  # 5-15位
+                    
+                    await client(UpdateProfileRequest(
+                        first_name=random_chars,  # 随机名字
+                        last_name='',              # 清空姓氏
+                        about=random_bio           # 随机简介
+                    ))
+                    logger.info(f"已修改名字和简介为随机字符: {random_chars}")
+                    profile_cleared = True
+                except Exception as e:
+                    logger.warning(f"修改名字/简介失败: {e}")
+                    # 检查是否为冻结账户
+                    if self._is_frozen_error(e):
+                        error_details.append(f"❄️ 账户已冻结 (FROZEN): {str(e)}")
+                        logger.error(f"检测到冻结账户，终止清理: {account_name}")
+                        return {
+                            'success': False,
+                            'error': 'FROZEN_ACCOUNT',
+                            'error_message': f"账户已冻结: {str(e)}",
+                            'statistics': stats,
+                            'error_details': error_details,
+                            'is_frozen': True
+                        }
+                    error_details.append(f"修改资料失败: {str(e)}")
+                
+                # 删除所有头像
+                try:
+                    photos = await client(GetUserPhotosRequest(
+                        user_id=me,
+                        offset=0,
+                        max_id=0,
+                        limit=100
+                    ))
+                    
+                    if hasattr(photos, 'photos') and photos.photos:
+                        photo_ids = list(photos.photos)
+                        await client(DeletePhotosRequest(id=photo_ids))
+                        logger.info(f"已删除 {len(photo_ids)} 个头像")
+                        if profile_cleared:
+                            stats['profile_cleared'] = 1
+                except Exception as e:
+                    logger.warning(f"删除头像失败: {e}")
+                
+                await asyncio.sleep(config.CLEANUP_ACTION_SLEEP)
+                
+            except Exception as e:
+                logger.error(f"清理账号资料错误: {e}")
+                stats['errors'] += 1
+            
+            # 1. 获取所有对话
+            logger.info(f"获取对话列表: {account_name}")
+            if progress_callback:
+                await progress_callback("📋 获取对话列表...")
+            
+            dialogs = await client.get_dialogs()
+            logger.info(f"找到 {len(dialogs)} 个对话")
+            
+            # 分类对话
+            from telethon.tl.types import Channel, Chat, User
+            groups = []
+            channels = []
+            users = []
+            bots = []
+            
+            for dialog in dialogs:
+                entity = dialog.entity
+                if isinstance(entity, Channel):
+                    if entity.broadcast:
+                        channels.append(dialog)
+                    else:
+                        groups.append(dialog)
+                elif isinstance(entity, Chat):
+                    groups.append(dialog)
+                elif isinstance(entity, User):
+                    if entity.bot:
+                        bots.append(dialog)
+                    else:
+                        users.append(dialog)
+            
+            logger.info(f"分类: {len(groups)}群组, {len(channels)}频道, {len(users)}用户, {len(bots)}机器人")
+            
+            if progress_callback:
+                await progress_callback(f"📊 找到 {len(groups)}群组, {len(channels)}频道, {len(users)}用户")
+            
+            # 1. 离开群组和频道
+            if progress_callback:
+                await progress_callback(f"🚪 开始退出 {len(groups) + len(channels)} 个群组/频道...")
+            from telethon.tl.functions.channels import LeaveChannelRequest
+            from telethon.tl.functions.messages import DeleteChatUserRequest
+            
+            for dialog in groups + channels:
+                entity = dialog.entity
+                chat_id = entity.id
+                title = getattr(entity, 'title', 'Unknown')
+                chat_type = 'channel' if isinstance(entity, Channel) and entity.broadcast else 'group'
+                
+                action = CleanupAction(chat_id=chat_id, title=title, chat_type=chat_type)
+                
+                try:
+                    await asyncio.sleep(config.CLEANUP_ACTION_SLEEP + random.uniform(0, 0.2))
+                    
+                    if isinstance(entity, Channel):
+                        await client(LeaveChannelRequest(entity))
+                    else:
+                        me = await client.get_me()
+                        await client(DeleteChatUserRequest(chat_id, me))
+                    
+                    action.actions_done.append('left')
+                    action.status = 'success'
+                    
+                    if chat_type == 'channel':
+                        stats['channels_left'] += 1
+                    else:
+                        stats['groups_left'] += 1
+                    
+                    logger.debug(f"离开 {chat_type}: {title}")
+                    
+                except FloodWaitError as e:
+                    logger.warning(f"FloodWait离开{title}: {e.seconds}秒")
+                    await asyncio.sleep(e.seconds)
+                    try:
+                        if isinstance(entity, Channel):
+                            await client(LeaveChannelRequest(entity))
+                        else:
+                            me = await client.get_me()
+                            await client(DeleteChatUserRequest(chat_id, me))
+                        action.actions_done.append('left')
+                        action.status = 'success'
+                        if chat_type == 'channel':
+                            stats['channels_left'] += 1
+                        else:
+                            stats['groups_left'] += 1
+                    except Exception as retry_error:
+                        action.status = 'failed'
+                        action.error = f"重试失败: {str(retry_error)}"
+                        stats['errors'] += 1
+                        
+                except Exception as e:
+                    action.status = 'failed'
+                    action.error = str(e)
+                    stats['errors'] += 1
+                    logger.error(f"离开{title}错误: {e}")
+                
+                actions.append(action)
+            
+            # 2. 删除聊天记录
+            if progress_callback:
+                await progress_callback(f"🗑️ 开始删除 {len(users) + len(bots)} 个对话记录...")
+            
+            from telethon.tl.functions.messages import DeleteHistoryRequest
+            
+            for dialog in users + bots:
+                entity = dialog.entity
+                chat_id = entity.id
+                
+                if hasattr(entity, 'first_name') and entity.first_name:
+                    title = entity.first_name
+                elif hasattr(entity, 'username') and entity.username:
+                    title = entity.username
+                else:
+                    title = 'Unknown'
+                
+                chat_type = 'bot' if entity.bot else 'user'
+                action = CleanupAction(chat_id=chat_id, title=title, chat_type=chat_type)
+                
+                try:
+                    await asyncio.sleep(config.CLEANUP_ACTION_SLEEP + random.uniform(0, 0.2))
+                    
+                    # 尝试撤回删除
+                    if config.CLEANUP_REVOKE_DEFAULT:
+                        try:
+                            await client(DeleteHistoryRequest(
+                                peer=entity,
+                                max_id=0,
+                                just_clear=False,
+                                revoke=True
+                            ))
+                            action.actions_done.extend(['history_deleted', 'revoked'])
+                            action.status = 'success'
+                        except Exception:
+                            # 回退到单向删除
+                            await client(DeleteHistoryRequest(
+                                peer=entity,
+                                max_id=0,
+                                just_clear=False,
+                                revoke=False
+                            ))
+                            action.actions_done.append('history_deleted')
+                            action.status = 'partial'
+                            action.error = '部分: 仅删除自己的消息'
+                    else:
+                        await client(DeleteHistoryRequest(
+                            peer=entity,
+                            max_id=0,
+                            just_clear=False,
+                            revoke=False
+                        ))
+                        action.actions_done.append('history_deleted')
+                        action.status = 'success'
+                    
+                    stats['histories_deleted'] += 1
+                    logger.debug(f"删除历史记录: {title}")
+                    
+                except FloodWaitError as e:
+                    logger.warning(f"FloodWait删除{title}: {e.seconds}秒")
+                    await asyncio.sleep(e.seconds)
+                    try:
+                        await client(DeleteHistoryRequest(
+                            peer=entity,
+                            max_id=0,
+                            just_clear=False,
+                            revoke=False
+                        ))
+                        action.actions_done.append('history_deleted')
+                        action.status = 'success'
+                        stats['histories_deleted'] += 1
+                    except Exception as retry_error:
+                        action.status = 'failed'
+                        action.error = f"重试失败: {str(retry_error)}"
+                        stats['errors'] += 1
+                        
+                except Exception as e:
+                    action.status = 'failed'
+                    action.error = str(e)
+                    stats['errors'] += 1
+                    logger.error(f"删除{title}历史记录错误: {e}")
+                
+                actions.append(action)
+            
+            # 3. 删除联系人
+            if progress_callback:
+                await progress_callback("📇 开始删除联系人...")
+            
+            from telethon.tl.functions.contacts import DeleteContactsRequest, GetContactsRequest
+            
+            try:
+                result = await client(GetContactsRequest(hash=0))
+                
+                if hasattr(result, 'users') and result.users:
+                    contact_ids = [user.id for user in result.users]
+                    logger.info(f"删除 {len(contact_ids)} 个联系人...")
+                    
+                    batch_size = 100
+                    for i in range(0, len(contact_ids), batch_size):
+                        batch = contact_ids[i:i + batch_size]
+                        
+                        try:
+                            await client(DeleteContactsRequest(id=batch))
+                            stats['contacts_deleted'] += len(batch)
+                            logger.debug(f"已删除 {len(batch)} 个联系人")
+                            
+                            if i + batch_size < len(contact_ids):
+                                await asyncio.sleep(config.CLEANUP_ACTION_SLEEP * 2)
+                                
+                        except FloodWaitError as e:
+                            logger.warning(f"FloodWait删除联系人: {e.seconds}秒")
+                            await asyncio.sleep(e.seconds)
+                            try:
+                                await client(DeleteContactsRequest(id=batch))
+                                stats['contacts_deleted'] += len(batch)
+                            except Exception:
+                                stats['errors'] += 1
+                        
+                        except Exception as e:
+                            stats['errors'] += 1
+                            logger.error(f"删除联系人批次错误: {e}")
+                    
+                    logger.info(f"已删除 {stats['contacts_deleted']} 个联系人")
+                    
+            except Exception as e:
+                stats['errors'] += 1
+                logger.error(f"获取/删除联系人错误: {e}")
+            
+            # 4. 归档剩余对话
+            if progress_callback:
+                await progress_callback("📁 归档剩余对话...")
+            
+            try:
+                remaining_dialogs = await client.get_dialogs()
+                archived_count = 0
+                
+                for dialog in remaining_dialogs:
+                    try:
+                        await client.edit_folder(dialog.entity, folder=1)
+                        archived_count += 1
+                        await asyncio.sleep(config.CLEANUP_ACTION_SLEEP)
+                    except FloodWaitError as e:
+                        logger.warning(f"FloodWait归档: {e.seconds}秒")
+                        await asyncio.sleep(e.seconds)
+                        try:
+                            await client.edit_folder(dialog.entity, folder=1)
+                            archived_count += 1
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        logger.debug(f"无法归档对话: {e}")
+                
+                stats['dialogs_closed'] = archived_count
+                logger.info(f"已归档 {archived_count} 个对话")
+                
+            except Exception as e:
+                logger.error(f"归档对话错误: {e}")
+            
+            # 返回清理结果（不生成单独报告）
+            elapsed_time = time.time() - start_time
+            
+            return {
+                'success': True,
+                'elapsed_time': elapsed_time,
+                'statistics': stats,
+                'actions': actions  # 返回动作列表用于汇总报告
+            }
+            
+        except Exception as e:
+            logger.error(f"清理失败: {e}", exc_info=True)
+            return {
+                'success': False,
+                'error': str(e),
+                'statistics': stats
+            }
+    
     def handle_cleanup_confirm(self, update, context, query):
         """确认清理"""
         user_id = query.from_user.id
@@ -14264,8 +14652,201 @@ class EnhancedBot:
         
         self.safe_edit_message(query, "🧹 <b>开始清理...</b>\n\n正在初始化清理服务...", 'HTML')
     
+    async def _process_single_account_full(self, file_info: tuple, file_type: str, progress_msg, all_files_count: int, completed_count: dict, lock: asyncio.Lock, start_time: float) -> dict:
+        """处理单个账户的完整流程（包含连接和清理）"""
+        file_path, file_name = file_info
+        result_data = {
+            'file_path': file_path,
+            'file_name': file_name,
+            'success': False,
+            'error': None,
+            'is_frozen': False,
+            'statistics': {},
+            'error_details': []
+        }
+        
+        client = None
+        try:
+            # 如果是TData，需要先转换为Session
+            if file_type == 'tdata':
+                try:
+                    from opentele.api import API, UseCurrentSession
+                    from opentele.td import TDesktop
+                    
+                    tdesk = TDesktop(file_path)
+                    session_path = file_path.replace('tdata', 'session').replace('.zip', '.session')
+                    
+                    client = await tdesk.ToTelethon(
+                        session=session_path,
+                        flag=UseCurrentSession,
+                        api=API.TelegramDesktop
+                    )
+                    await client.connect()
+                    
+                except Exception as e:
+                    logger.error(f"TData conversion failed for {file_name}: {e}")
+                    result_data['error'] = f"TData转换失败: {str(e)}"
+                    return result_data
+            else:
+                # 直接使用Session
+                session_path = os.path.splitext(file_path)[0]
+                
+                # 获取代理配置
+                proxy_dict = None
+                proxy_enabled = self.db.get_proxy_enabled() if self.db else True
+                use_proxy = config.USE_PROXY and proxy_enabled and self.proxy_manager.proxies
+                
+                if use_proxy:
+                    proxy_info = self.proxy_manager.get_next_proxy()
+                    if proxy_info:
+                        proxy_dict = self.checker.create_proxy_dict(proxy_info)
+                        logger.info(f"使用代理连接账号: {file_name}")
+                
+                try:
+                    client = TelegramClient(
+                        session_path,
+                        int(config.API_ID),
+                        str(config.API_HASH),
+                        proxy=proxy_dict
+                    )
+                    await client.connect()
+                    
+                    if not await client.is_user_authorized():
+                        logger.warning(f"Session not authorized: {file_name}")
+                        result_data['error'] = "Session未授权"
+                        await client.disconnect()
+                        return result_data
+                except Exception as e:
+                    logger.error(f"Session connection failed for {file_name}: {e}")
+                    result_data['error'] = f"连接失败: {str(e)}"
+                    return result_data
+            
+            # 进度更新节流（避免触发 Telegram 限制）
+            last_updated_idx = {'value': 0}
+            UPDATE_BATCH = 10  # 每完成10个账户更新一次
+            
+            # 创建进度回调函数
+            async def update_progress(status_text):
+                current_idx = completed_count['value'] + 1
+                
+                if not progress_msg:
+                    return
+                
+                # 节流逻辑：只在以下情况更新
+                # 1. 每完成10个账户
+                # 2. 是第一个账户
+                # 3. 是最后一个账户
+                accounts_since_last_update = current_idx - last_updated_idx['value']
+                
+                should_update = (
+                    accounts_since_last_update >= UPDATE_BATCH or
+                    current_idx == 1 or
+                    current_idx == all_files_count
+                )
+                
+                if not should_update:
+                    return
+                
+                async with lock:
+                    try:
+                        progress_percent = int((current_idx / all_files_count) * 100)
+                        
+                        # 更新索引
+                        last_updated_idx['value'] = current_idx
+                        
+                        filled = int(progress_percent / 10)
+                        empty = 10 - filled
+                        progress_bar = "█" * filled + "░" * empty
+                        
+                        status_display = status_text[:30] + '...' if len(status_text) > 30 else status_text
+                        
+                        # 计算预计完成时间
+                        elapsed_time = time.time() - start_time
+                        if current_idx > 0:
+                            avg_time_per_account = elapsed_time / current_idx
+                            remaining_accounts = all_files_count - current_idx
+                            estimated_remaining_seconds = avg_time_per_account * remaining_accounts
+                            
+                            hours = int(estimated_remaining_seconds // 3600)
+                            minutes = int((estimated_remaining_seconds % 3600) // 60)
+                            seconds = int(estimated_remaining_seconds % 60)
+                            
+                            if hours > 0:
+                                time_remaining = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                            else:
+                                time_remaining = f"{minutes:02d}:{seconds:02d}"
+                        else:
+                            time_remaining = "计算中..."
+                        
+                        message_text = (
+                            f"🧹 <b>正在清理中，请耐心等待。</b>\n\n"
+                            f"📄 当前: {file_name}\n"
+                            f"📊 总进度: {current_idx}/{all_files_count} ({progress_percent}%)\n"
+                            f"[{progress_bar}]\n"
+                            f"预计完成时间 还剩 {time_remaining}\n\n"
+                            f"🔄 状态: {status_text}"
+                        )
+                        
+                        keyboard = InlineKeyboardMarkup([
+                            [InlineKeyboardButton(
+                                f"⏳ 进度: {progress_percent}% ({current_idx}/{all_files_count})",
+                                callback_data="progress_info"
+                            )],
+                            [InlineKeyboardButton(
+                                f"🔄 {status_display}",
+                                callback_data="status_info"
+                            )]
+                        ])
+                        
+                        progress_msg.edit_text(
+                            message_text,
+                            parse_mode='HTML',
+                            reply_markup=keyboard
+                        )
+                    except Exception as e:
+                        # 如果是限流错误，静默处理
+                        if "too many requests" in str(e).lower() or "retry after" in str(e).lower():
+                            logger.warning(f"进度更新触发限流: {e}")
+                        pass
+            
+            # 执行清理
+            cleanup_result = await self._cleanup_single_account(
+                client=client,
+                account_name=file_name,
+                file_path=file_path,
+                progress_callback=update_progress
+            )
+            
+            # 断开客户端
+            try:
+                await client.disconnect()
+            except:
+                pass
+            
+            # 更新完成计数
+            async with lock:
+                completed_count['value'] += 1
+            
+            # 合并结果
+            result_data.update(cleanup_result)
+            return result_data
+            
+        except Exception as e:
+            logger.error(f"处理账户失败 {file_name}: {e}")
+            import traceback
+            traceback.print_exc()
+            result_data['error'] = str(e)
+            
+            if client:
+                try:
+                    await client.disconnect()
+                except:
+                    pass
+            
+            return result_data
+    
     async def execute_cleanup(self, update, context, user_id: int):
-        """执行一键清理"""
+        """执行一键清理（并发版本）"""
         if user_id not in self.pending_cleanup:
             return
         
@@ -14275,164 +14856,154 @@ class EnhancedBot:
         extract_dir = task['extract_dir']
         progress_msg = task.get('progress_msg')
         
-        # 导入清理服务
-        try:
-            from services.one_click_cleaner import OneClickCleaner
-        except ImportError as e:
-            context.bot.send_message(
-                chat_id=user_id,
-                text=f"❌ <b>清理服务不可用</b>\n\n{str(e)}",
-                parse_mode='HTML'
-            )
-            self.cleanup_cleanup_task(user_id)
-            return
-        
         results_summary = {
             'total': len(files),
             'success': 0,
             'failed': 0,
+            'frozen': 0,
             'reports': [],
-            'success_files': [],  # 成功清理的账户文件
-            'failed_files': []    # 失败的账户文件
+            'success_files': [],
+            'failed_files': [],
+            'frozen_files': [],
+            'detailed_results': []
         }
         
         try:
-            # 处理每个账号
-            for idx, (file_path, file_name) in enumerate(files, 1):
-                try:
-                    # 更新进度
-                    if progress_msg:
-                        try:
-                            progress_msg.edit_text(
-                                f"🧹 <b>正在清理账号 {idx}/{len(files)}</b>\n\n"
-                                f"文件: {file_name}\n"
-                                f"进度: {idx}/{len(files)} ({idx/len(files)*100:.1f}%)",
-                                parse_mode='HTML'
-                            )
-                        except:
-                            pass
-                    
-                    # 如果是TData，需要先转换为Session
-                    if file_type == 'tdata':
-                        # 转换TData到Session
-                        try:
-                            # Import at runtime to avoid circular dependencies
-                            from opentele.api import API, UseCurrentSession
-                            from opentele.td import TDesktop
-                            
-                            tdesk = TDesktop(file_path)
-                            session_path = file_path.replace('tdata', 'session').replace('.zip', '.session')
-                            
-                            client = await tdesk.ToTelethon(
-                                session=session_path,
-                                flag=UseCurrentSession,
-                                api=API.TelegramDesktop
-                            )
-                            await client.connect()
-                            
-                        except Exception as e:
-                            logger.error(f"TData conversion failed for {file_name}: {e}")
-                            results_summary['failed'] += 1
-                            continue
-                    else:
-                        # 直接使用Session
-                        session_path = os.path.splitext(file_path)[0]
-                        
-                        try:
-                            client = TelegramClient(
-                                session_path,
-                                int(config.API_ID),
-                                str(config.API_HASH)
-                            )
-                            await client.connect()
-                            
-                            if not await client.is_user_authorized():
-                                logger.warning(f"Session not authorized: {file_name}")
-                                results_summary['failed'] += 1
-                                await client.disconnect()
-                                continue
-                        except Exception as e:
-                            logger.error(f"Session connection failed for {file_name}: {e}")
-                            results_summary['failed'] += 1
-                            continue
-                    
-                    # 创建清理服务
-                    cleaner = OneClickCleaner(
-                        client=client,
-                        account_name=file_name,
-                        leave_concurrency=config.CLEANUP_LEAVE_CONCURRENCY,
-                        delete_history_concurrency=config.CLEANUP_DELETE_HISTORY_CONCURRENCY,
-                        delete_contacts_concurrency=config.CLEANUP_DELETE_CONTACTS_CONCURRENCY,
-                        action_sleep=config.CLEANUP_ACTION_SLEEP,
-                        min_peer_interval=config.CLEANUP_MIN_PEER_INTERVAL,
-                        revoke_default=config.CLEANUP_REVOKE_DEFAULT,
-                        report_dir=config.CLEANUP_REPORTS_DIR
-                    )
-                    
-                    # 执行清理
-                    result = await cleaner.run(dry_run=False)
-                    
-                    # 断开客户端
-                    try:
-                        await client.disconnect()
-                    except:
-                        pass
-                    
-                    if result.get('success'):
-                        results_summary['success'] += 1
-                        if result.get('report_path'):
-                            results_summary['reports'].append(result['report_path'])
-                        # 保存成功清理的账户文件
-                        results_summary['success_files'].append((file_path, file_name))
-                    else:
-                        results_summary['failed'] += 1
-                        # 保存失败的账户文件
-                        results_summary['failed_files'].append((file_path, file_name))
-                    
-                except Exception as e:
-                    logger.error(f"Cleanup failed for {file_name}: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    results_summary['failed'] += 1
-                    # 保存失败的账户文件
-                    results_summary['failed_files'].append((file_path, file_name))
+            # 创建信号量控制并发数
+            semaphore = asyncio.Semaphore(config.CLEANUP_ACCOUNT_CONCURRENCY)
+            lock = asyncio.Lock()
+            completed_count = {'value': 0}
+            start_time = time.time()
             
-            # 生成统一的TXT报告
+            async def process_with_semaphore(file_info):
+                async with semaphore:
+                    return await self._process_single_account_full(
+                        file_info, file_type, progress_msg, len(files), completed_count, lock, start_time
+                    )
+            
+            # 并发处理所有账户
+            logger.info(f"开始并发清理 {len(files)} 个账户，并发数: {config.CLEANUP_ACCOUNT_CONCURRENCY}")
+            tasks = [process_with_semaphore(file_info) for file_info in files]
+            all_results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 汇总结果
+            for idx, result in enumerate(all_results, 1):
+                if isinstance(result, Exception):
+                    logger.error(f"处理异常: {result}")
+                    results_summary['failed'] += 1
+                    results_summary['failed_files'].append((files[idx-1][0], files[idx-1][1]))
+                    results_summary['detailed_results'].append({
+                        'file_name': files[idx-1][1],
+                        'status': 'failed',
+                        'error': str(result)
+                    })
+                    continue
+                
+                # 保存详细结果
+                results_summary['detailed_results'].append({
+                    'file_name': result['file_name'],
+                    'status': 'frozen' if result.get('is_frozen') else ('success' if result.get('success') else 'failed'),
+                    'error': result.get('error'),
+                    'error_details': result.get('error_details', []),
+                    'statistics': result.get('statistics', {})
+                })
+                
+                # 分类统计
+                if result.get('is_frozen'):
+                    results_summary['frozen'] += 1
+                    results_summary['frozen_files'].append((result['file_path'], result['file_name']))
+                    logger.info(f"❄️ 冻结账户: {result['file_name']}")
+                elif result.get('success'):
+                    results_summary['success'] += 1
+                    results_summary['success_files'].append((result['file_path'], result['file_name']))
+                    logger.info(f"✅ 清理成功: {result['file_name']}")
+                else:
+                    results_summary['failed'] += 1
+                    results_summary['failed_files'].append((result['file_path'], result['file_name']))
+                    logger.info(f"❌ 清理失败: {result['file_name']}")
+            
+            # 生成详细的TXT报告
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             summary_report_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleanup_summary_{timestamp}.txt")
             
             with open(summary_report_path, 'w', encoding='utf-8') as f:
-                f.write("=" * 70 + "\n")
-                f.write("           批量清理汇总报告 / Batch Cleanup Summary\n")
-                f.write("=" * 70 + "\n\n")
+                f.write("=" * 80 + "\n")
+                f.write("              批量清理详细报告 / Batch Cleanup Detailed Report\n")
+                f.write("=" * 80 + "\n\n")
                 
                 success_rate = (results_summary['success'] / results_summary['total'] * 100) if results_summary['total'] > 0 else 0
+                frozen_rate = (results_summary['frozen'] / results_summary['total'] * 100) if results_summary['total'] > 0 else 0
                 
                 f.write(f"清理时间 / Cleanup Time: {timestamp}\n")
+                f.write(f"并发数 / Concurrency: {config.CLEANUP_ACCOUNT_CONCURRENCY} 账户同时处理\n")
                 f.write(f"总账号数 / Total Accounts: {results_summary['total']}\n")
                 f.write(f"✅ 成功 / Success: {results_summary['success']} ({success_rate:.1f}%)\n")
+                f.write(f"❄️ 冻结 / Frozen: {results_summary['frozen']} ({frozen_rate:.1f}%)\n")
                 f.write(f"❌ 失败 / Failed: {results_summary['failed']}\n\n")
                 
+                # 详细结果
+                f.write("=" * 80 + "\n")
+                f.write("                    详细清理结果 / Detailed Results\n")
+                f.write("=" * 80 + "\n\n")
+                
+                for idx, detail in enumerate(results_summary['detailed_results'], 1):
+                    status_icon = "✅" if detail['status'] == 'success' else ("❄️" if detail['status'] == 'frozen' else "❌")
+                    status_text = "成功" if detail['status'] == 'success' else ("冻结" if detail['status'] == 'frozen' else "失败")
+                    
+                    f.write(f"{idx}. {status_icon} {detail['file_name']} - {status_text}\n")
+                    
+                    if detail.get('error'):
+                        f.write(f"   错误: {detail['error']}\n")
+                    
+                    if detail.get('error_details'):
+                        f.write("   详细错误信息:\n")
+                        for err in detail['error_details']:
+                            f.write(f"   - {err}\n")
+                    
+                    stats = detail.get('statistics', {})
+                    if stats:
+                        f.write(f"   统计: ")
+                        stat_parts = []
+                        if stats.get('profile_cleared'): stat_parts.append("资料已清理")
+                        if stats.get('groups_left'): stat_parts.append(f"退出{stats['groups_left']}个群组")
+                        if stats.get('channels_left'): stat_parts.append(f"退出{stats['channels_left']}个频道")
+                        if stats.get('histories_deleted'): stat_parts.append(f"删除{stats['histories_deleted']}个对话")
+                        if stats.get('contacts_deleted'): stat_parts.append(f"删除{stats['contacts_deleted']}个联系人")
+                        if stat_parts:
+                            f.write(", ".join(stat_parts))
+                        f.write("\n")
+                    
+                    f.write("\n")
+                
+                # 分类汇总
                 if results_summary['success_files']:
-                    f.write("-" * 70 + "\n")
+                    f.write("-" * 80 + "\n")
                     f.write(f"成功清理的账户 / Successfully Cleaned ({len(results_summary['success_files'])})\n")
-                    f.write("-" * 70 + "\n")
+                    f.write("-" * 80 + "\n")
                     for idx, (_, fname) in enumerate(results_summary['success_files'], 1):
                         f.write(f"{idx}. ✅ {fname}\n")
                     f.write("\n")
                 
+                if results_summary['frozen_files']:
+                    f.write("-" * 80 + "\n")
+                    f.write(f"冻结的账户 / Frozen Accounts ({len(results_summary['frozen_files'])})\n")
+                    f.write("-" * 80 + "\n")
+                    for idx, (_, fname) in enumerate(results_summary['frozen_files'], 1):
+                        f.write(f"{idx}. ❄️ {fname}\n")
+                    f.write("\n")
+                
                 if results_summary['failed_files']:
-                    f.write("-" * 70 + "\n")
+                    f.write("-" * 80 + "\n")
                     f.write(f"清理失败的账户 / Failed to Clean ({len(results_summary['failed_files'])})\n")
-                    f.write("-" * 70 + "\n")
+                    f.write("-" * 80 + "\n")
                     for idx, (_, fname) in enumerate(results_summary['failed_files'], 1):
                         f.write(f"{idx}. ❌ {fname}\n")
                     f.write("\n")
                 
-                f.write("=" * 70 + "\n")
-                f.write("详细报告请查看各账户对应的报告文件\n")
-                f.write("See individual account reports for details\n")
-                f.write("=" * 70 + "\n")
+                f.write("=" * 80 + "\n")
+                f.write(f"并发清理模式: 同时处理 {config.CLEANUP_ACCOUNT_CONCURRENCY} 个账户，提升处理速度\n")
+                f.write(f"Concurrent mode: Processing {config.CLEANUP_ACCOUNT_CONCURRENCY} accounts simultaneously\n")
+                f.write("=" * 80 + "\n")
             
             # 打包成功和失败的账户文件
             result_zips = []
@@ -14476,12 +15047,17 @@ class EnhancedBot:
                 result_zips.append(('failed', failed_zip_path, len(results_summary['failed_files'])))
             
             # 发送完成消息
+            frozen_rate = (results_summary['frozen'] / results_summary['total'] * 100) if results_summary['total'] > 0 else 0
             final_text = f"""
-✅ <b>清理完成！</b>
+✅ <b>并发清理完成！</b>
+
+<b>⚡ 并发模式</b>
+• 同时处理: {config.CLEANUP_ACCOUNT_CONCURRENCY} 个账户
 
 <b>📊 清理统计</b>
 • 总账号数: {results_summary['total']}
 • ✅ 成功: {results_summary['success']} ({success_rate:.1f}%)
+• ❄️ 冻结: {results_summary['frozen']} ({frozen_rate:.1f}%)
 • ❌ 失败: {results_summary['failed']}
 
 <b>📦 正在打包账户文件...</b>
