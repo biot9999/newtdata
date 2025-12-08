@@ -9405,7 +9405,7 @@ class EnhancedBot:
                 
                 # 处理结果
                 for result in results:
-                    if isinstance(result, Exception):
+                    if isinstance(result, BaseException):
                         failed_accounts.append(("未知文件", "并发异常"))
                         failure_reasons["并发异常"] = failure_reasons.get("并发异常", 0) + 1
                         continue
@@ -14888,7 +14888,7 @@ class EnhancedBot:
             
             # 汇总结果
             for idx, result in enumerate(all_results, 1):
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     logger.error(f"处理异常: {result}")
                     results_summary['failed'] += 1
                     results_summary['failed_files'].append((files[idx-1][0], files[idx-1][1]))
