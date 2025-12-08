@@ -8120,8 +8120,8 @@ class EnhancedBot:
                     InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
                 ],
                 [
-                    InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu"),
-                    InlineKeyboardButton("ℹ️ 帮助", callback_data="help")
+                    InlineKeyboardButton("🔄 重新授权", callback_data="reauth_menu"),
+                    InlineKeyboardButton("💳 开通会员", callback_data="vip_menu")
                 ]
             ]
             
@@ -9021,7 +9021,7 @@ class EnhancedBot:
             row = c.fetchone()
             conn.close()
 
-            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files
+            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files, waiting_reauth_upload
             if not row or row[0] not in [
                 "waiting_file",
                 "waiting_convert_tdata",
@@ -9033,6 +9033,7 @@ class EnhancedBot:
                 "waiting_merge_files",
                 "waiting_forget_2fa_file",
                 "waiting_add_2fa_file",
+                "waiting_reauth_upload",
             ]:
                 self.safe_send_message(update, "❌ 请先点击相应的功能按钮")
                 return
@@ -9042,12 +9043,15 @@ class EnhancedBot:
             self.safe_send_message(update, "❌ 系统错误，请重试")
             return
         
-        # 文件重命名和账户合并不需要会员权限检查，也不需要ZIP格式检查
+        # 文件重命名、账户合并和重新授权不需要会员权限检查，也不需要ZIP格式检查
         if user_status == "waiting_rename_file":
             self.handle_rename_file_upload(update, context, document)
             return
         elif user_status == "waiting_merge_files":
             self.handle_merge_file_upload(update, context, document)
+            return
+        elif user_status == "waiting_reauth_upload":
+            self.handle_reauth_upload(update, context, document)
             return
         
         # 其他功能需要ZIP格式
@@ -10434,6 +10438,23 @@ class EnhancedBot:
                 elif user_status == "waiting_rename_newname":
                     self.handle_rename_newname_input(update, context, user_id, text)
                     return
+                elif user_status == "waiting_reauth_manual_input":
+                    self.handle_reauth_manual_input(update, context, user_id, text)
+                    return
+                elif user_status == "waiting_reauth_phone":
+                    if user_id in self.pending_reauth_tasks:
+                        task = self.pending_reauth_tasks[user_id]
+                        task['phone'] = text.strip()
+                        self.db.save_user(user_id, "", "", "")
+                        self.safe_send_message(update, f"✅ 手机号已更新: {task['phone']}\n\n请点击'开始处理'继续")
+                    return
+                elif user_status == "waiting_reauth_2fa":
+                    if user_id in self.pending_reauth_tasks:
+                        task = self.pending_reauth_tasks[user_id]
+                        task['two_fa'] = text.strip() if text.strip().lower() not in ['无', 'skip', 'none'] else None
+                        self.db.save_user(user_id, "", "", "")
+                        self.safe_send_message(update, f"✅ 2FA已更新: {'已配置' if task['two_fa'] else '未配置'}\n\n请点击'开始处理'继续")
+                    return
         except Exception as e:
             print(f"❌ 检查广播状态失败: {e}")
         
@@ -10809,6 +10830,551 @@ class EnhancedBot:
                 pass
         else:
             self.safe_send_message(update, text, 'HTML', keyboard)
+    
+    def handle_reauth_callbacks(self, update: Update, context: CallbackContext, query, data: str):
+        """处理重新授权相关的回调"""
+        if data == "reauth_menu":
+            self.handle_reauth_menu(query, update)
+        elif data == "reauth_start":
+            self.handle_reauth_start(query)
+        elif data == "reauth_help":
+            self.handle_reauth_help(query)
+        elif data == "reauth_process":
+            self.handle_reauth_process(query, update, context)
+        elif data == "reauth_cancel":
+            self.handle_reauth_cancel(query)
+        elif data == "reauth_edit_phone":
+            self.handle_reauth_edit_phone(query)
+        elif data == "reauth_edit_2fa":
+            self.handle_reauth_edit_2fa(query)
+    
+    def handle_reauth_start(self, query):
+        """开始重新授权流程"""
+        user_id = query.from_user.id
+        query.answer()
+        
+        # 初始化任务
+        self.pending_reauth_tasks[user_id] = {
+            'step': 'upload',
+            'start_time': time.time(),
+            'session_path': None,
+            'json_path': None,
+            'phone': None,
+            'two_fa': None,
+            'user_id': user_id
+        }
+        
+        # 设置用户状态
+        self.db.save_user(
+            user_id,
+            query.from_user.username or "",
+            query.from_user.first_name or "",
+            "waiting_reauth_upload"
+        )
+        
+        text = """
+🔄 <b>开始重新授权</b>
+
+<b>📤 步骤 1/3: 上传Session文件</b>
+
+请上传包含Session文件和JSON配置的ZIP文件：
+
+<b>✅ 支持的格式</b>
+• Session + JSON配对文件（推荐）
+• 格式：phone.session + phone.json
+
+<b>📋 JSON配置示例</b>
+<code>{
+  "phone": "+1234567890",
+  "twoFA": "your_2fa_password",
+  "app_id": 12345678,
+  "app_hash": "your_api_hash"
+}</code>
+
+<b>💡 提示</b>
+• 确保Session文件可用且已登录
+• JSON中的2FA密码将用于重新登录
+• 如果没有JSON文件，将在后续步骤手动输入信息
+
+⏰ <i>5分钟内未上传将自动取消</i>
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+        ])
+        
+        self.safe_edit_message(query, text, 'HTML', keyboard)
+    
+    def handle_reauth_help(self, query):
+        """显示重新授权详细说明"""
+        query.answer()
+        
+        text = """
+📖 <b>重新授权详细说明</b>
+
+<b>🔍 技术原理</b>
+1. <b>会话重置</b>
+   利用Telegram API的 ResetAuthorizationsRequest 功能，将账号在所有其他设备上的登录踢下线
+
+2. <b>验证码自动获取</b>
+   • 新客户端请求验证码（SendCodeRequest）
+   • Telegram会向手机号发送验证码
+   • 旧Session（还在线）从777000读取验证码
+   • 使用正则表达式提取5-6位数字
+
+3. <b>无缝切换</b>
+   • 新Session成功登录后才登出旧Session
+   • 确保不会出现无法登录的情况
+   • 支持2FA密码验证
+
+4. <b>格式转换</b>
+   • 可选择转换为TData格式
+   • 使用opentele库进行转换
+   • 同时保留Session格式
+
+<b>🎯 适用场景</b>
+• ✅ Session文件被其他人使用
+• ✅ 需要统一2FA密码
+• ✅ Session文件损坏需要重建
+• ✅ 更换设备或环境
+• ✅ 账号被多设备登录
+
+<b>⚠️ 限制条件</b>
+• ❌ 账号必须能接收Telegram消息
+• ❌ 账号不能被Telegram限制
+• ❌ 需要有效的API ID和Hash
+• ❌ 旧Session必须处于登录状态
+
+<b>📝 处理流程</b>
+1. 上传Session + JSON文件
+2. 系统连接旧Session检查状态
+3. 重置所有其他设备的会话
+4. 创建新客户端请求验证码
+5. 自动从旧Session读取验证码
+6. 使用验证码登录新客户端
+7. 如有2FA则使用密码登录
+8. 登出旧Session
+9. 保存新Session和配置
+10. 可选：转换为TData格式
+
+<b>💡 成功率提升技巧</b>
+• 确保Session文件是最近使用的
+• 建议先手动登录一次测试
+• 2FA密码务必正确
+• 网络环境稳定
+
+<b>🔒 安全说明</b>
+• 所有处理在服务器端进行
+• 旧Session完成验证码读取后立即登出
+• 新Session文件会重新生成
+• 不会泄露您的账号信息
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 开始重新授权", callback_data="reauth_start")],
+            [InlineKeyboardButton("◀️ 返回", callback_data="reauth_menu")]
+        ])
+        
+        self.safe_edit_message(query, text, 'HTML', keyboard)
+    
+    def handle_reauth_edit_phone(self, query):
+        """编辑手机号"""
+        user_id = query.from_user.id
+        query.answer()
+        
+        if user_id not in self.pending_reauth_tasks:
+            self.safe_edit_message(query, "❌ 没有待处理的重新授权任务")
+            return
+        
+        self.db.save_user(user_id, "", "", "waiting_reauth_phone")
+        
+        text = """
+📱 <b>修改手机号</b>
+
+请发送新的手机号（带国家代码）：
+
+<b>📋 格式要求</b>
+• 必须以 + 开头
+• 格式：+国家代码+号码
+• 例如：+1234567890
+
+⏰ <i>5分钟内未输入将自动取消</i>
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("❌ 取消", callback_data="reauth_cancel")]
+        ])
+        
+        self.safe_edit_message(query, text, 'HTML', keyboard)
+    
+    def handle_reauth_edit_2fa(self, query):
+        """编辑2FA密码"""
+        user_id = query.from_user.id
+        query.answer()
+        
+        if user_id not in self.pending_reauth_tasks:
+            self.safe_edit_message(query, "❌ 没有待处理的重新授权任务")
+            return
+        
+        self.db.save_user(user_id, "", "", "waiting_reauth_2fa")
+        
+        text = """
+🔑 <b>修改2FA密码</b>
+
+请发送新的2FA密码：
+
+<b>💡 提示</b>
+• 如果账号没有2FA，发送"无"或"skip"
+• 2FA密码区分大小写
+• 请确保密码正确
+
+⏰ <i>5分钟内未输入将自动取消</i>
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("❌ 取消", callback_data="reauth_cancel")]
+        ])
+        
+        self.safe_edit_message(query, text, 'HTML', keyboard)
+    
+    def handle_reauth_upload(self, update: Update, context: CallbackContext, document):
+        """处理重新授权文件上传"""
+        user_id = update.effective_user.id
+        
+        if user_id not in self.pending_reauth_tasks:
+            self.safe_send_message(update, "❌ 没有待处理的重新授权任务")
+            return
+        
+        task = self.pending_reauth_tasks[user_id]
+        
+        # 检查超时
+        if time.time() - task['start_time'] > 300:  # 5分钟
+            del self.pending_reauth_tasks[user_id]
+            self.db.save_user(user_id, "", "", "")
+            self.safe_send_message(update, "❌ 操作超时，请重新开始")
+            return
+        
+        # 创建临时目录
+        temp_dir = tempfile.mkdtemp(prefix="temp_reauth_")
+        task['temp_dir'] = temp_dir
+        
+        # 下载文件
+        file_path = os.path.join(temp_dir, document.file_name)
+        try:
+            document.get_file().download(file_path)
+        except Exception as e:
+            self.safe_send_message(update, f"❌ 下载文件失败: {str(e)}")
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            return
+        
+        # 解压并查找文件
+        try:
+            extract_dir = os.path.join(temp_dir, 'extracted')
+            os.makedirs(extract_dir, exist_ok=True)
+            
+            with zipfile.ZipFile(file_path, 'r') as zf:
+                zf.extractall(extract_dir)
+            
+            # 查找session和json文件
+            session_files = []
+            json_files = {}
+            
+            for root, dirs, files in os.walk(extract_dir):
+                for fname in files:
+                    if fname.endswith('.session'):
+                        session_files.append(os.path.join(root, fname))
+                    elif fname.endswith('.json'):
+                        basename = fname[:-5]
+                        json_files[basename] = os.path.join(root, fname)
+            
+            if not session_files:
+                self.safe_send_message(update, "❌ 未找到Session文件，请检查上传的ZIP文件")
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return
+            
+            # 使用第一个session文件
+            session_path = session_files[0]
+            session_basename = os.path.basename(session_path).replace('.session', '')
+            json_path = json_files.get(session_basename)
+            
+            task['session_path'] = session_path
+            task['json_path'] = json_path
+            
+            # 尝试从JSON读取配置
+            if json_path and os.path.exists(json_path):
+                try:
+                    with open(json_path, 'r', encoding='utf-8') as f:
+                        config_data = json.load(f)
+                        task['phone'] = config_data.get('phone')
+                        task['two_fa'] = config_data.get('twoFA')
+                    
+                    info_text = f"""
+✅ <b>文件接收成功</b>
+
+<b>📁 已识别文件</b>
+• Session: <code>{os.path.basename(session_path)}</code>
+• JSON配置: <code>{os.path.basename(json_path)}</code>
+
+<b>📱 账号信息</b>
+• 手机号: <code>{task['phone'] or '未知'}</code>
+• 2FA: {'✅ 已配置' if task['two_fa'] else '❌ 未配置'}
+
+<b>⏭️ 下一步</b>
+确认信息无误后，点击"开始处理"
+如需修改信息，请点击对应按钮
+                    """
+                    
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🚀 开始处理", callback_data="reauth_process")],
+                        [InlineKeyboardButton("📱 修改手机号", callback_data="reauth_edit_phone")],
+                        [InlineKeyboardButton("🔑 修改2FA", callback_data="reauth_edit_2fa")],
+                        [InlineKeyboardButton("❌ 取消", callback_data="reauth_cancel")]
+                    ])
+                    
+                    self.safe_send_message(update, info_text, 'HTML', keyboard)
+                    
+                except Exception as e:
+                    print(f"⚠️ 读取JSON配置失败: {e}")
+                    # 继续处理，后续要求用户手动输入
+                    self._request_manual_input(update, task)
+            else:
+                # 没有JSON文件，要求手动输入
+                self._request_manual_input(update, task)
+        
+        except Exception as e:
+            self.safe_send_message(update, f"❌ 处理文件失败: {str(e)}")
+            shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def _request_manual_input(self, update, task):
+        """请求用户手动输入配置信息"""
+        task['step'] = 'manual_input'
+        
+        text = """
+📝 <b>需要补充信息</b>
+
+未找到JSON配置文件或配置不完整，请提供以下信息：
+
+<b>📱 手机号</b>
+• 格式：+国家代码+号码
+• 例如：+1234567890
+
+<b>🔑 2FA密码（可选）</b>
+• 如果账号启用了2FA，请在下一步提供
+• 如果没有2FA，可以跳过
+
+<b>💡 输入格式</b>
+请按以下格式发送：
+<code>手机号,2FA密码</code>
+
+如果没有2FA，只发送手机号：
+<code>+1234567890</code>
+
+⏰ <i>5分钟内未输入将自动取消</i>
+        """
+        
+        # 更新用户状态
+        user_id = task.get('user_id')
+        self.db.save_user(user_id, "", "", "waiting_reauth_manual_input")
+        
+        self.safe_send_message(update, text, 'HTML')
+    
+    def handle_reauth_manual_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
+        """处理手动输入的配置信息"""
+        if user_id not in self.pending_reauth_tasks:
+            self.safe_send_message(update, "❌ 没有待处理的重新授权任务")
+            return
+        
+        task = self.pending_reauth_tasks[user_id]
+        
+        # 解析输入
+        parts = text.strip().split(',')
+        
+        if len(parts) >= 1:
+            task['phone'] = parts[0].strip()
+        
+        if len(parts) >= 2:
+            task['two_fa'] = parts[1].strip()
+        
+        # 验证手机号
+        if not task.get('phone') or not task['phone'].startswith('+'):
+            self.safe_send_message(update, "❌ 手机号格式错误，请使用 +国家代码+号码 格式")
+            return
+        
+        # 显示确认信息
+        info_text = f"""
+✅ <b>信息已接收</b>
+
+<b>📱 账号信息</b>
+• 手机号: <code>{task['phone']}</code>
+• 2FA: {'✅ 已配置' if task.get('two_fa') else '❌ 未配置'}
+
+<b>⏭️ 下一步</b>
+确认信息无误后，点击"开始处理"
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 开始处理", callback_data="reauth_process")],
+            [InlineKeyboardButton("❌ 取消", callback_data="reauth_cancel")]
+        ])
+        
+        # 清除用户状态
+        self.db.save_user(user_id, "", "", "")
+        
+        self.safe_send_message(update, info_text, 'HTML', keyboard)
+    
+    def handle_reauth_process(self, query, update, context):
+        """开始处理重新授权"""
+        user_id = query.from_user.id
+        query.answer()
+        
+        if user_id not in self.pending_reauth_tasks:
+            self.safe_edit_message(query, "❌ 没有待处理的重新授权任务")
+            return
+        
+        task = self.pending_reauth_tasks[user_id]
+        
+        # 验证必要信息
+        if not task.get('session_path') or not task.get('phone'):
+            self.safe_edit_message(query, "❌ 缺少必要信息，请重新开始")
+            return
+        
+        self.safe_edit_message(query, "🔄 <b>正在处理，请稍候...</b>", 'HTML')
+        
+        # 在后台线程中处理
+        def process_reauth():
+            asyncio.run(self.execute_reauth_process(update, context, user_id))
+        
+        thread = threading.Thread(target=process_reauth, daemon=True)
+        thread.start()
+    
+    async def execute_reauth_process(self, update, context, user_id: int):
+        """执行重新授权处理"""
+        if user_id not in self.pending_reauth_tasks:
+            return
+        
+        task = self.pending_reauth_tasks[user_id]
+        
+        try:
+            # 创建输出目录
+            output_folder = os.path.join(task['temp_dir'], 'output')
+            os.makedirs(output_folder, exist_ok=True)
+            
+            # 生成新session路径
+            phone_clean = task['phone'].replace('+', '')
+            new_session_path = os.path.join(output_folder, f"{phone_clean}.session")
+            
+            # 获取代理配置（如果启用）
+            proxy_dict = None
+            if self.proxy_manager.is_proxy_mode_active(self.db):
+                proxy_info = self.proxy_manager.get_next_proxy()
+                if proxy_info:
+                    proxy_dict = self.checker.create_proxy_dict(proxy_info)
+            
+            # 调用重新授权管理器
+            success, message = await self.reauth_manager.recreate_session(
+                old_session_path=task['session_path'],
+                new_session_path=new_session_path,
+                phone_number=task['phone'],
+                two_fa_password=task.get('two_fa'),
+                json_config_path=task.get('json_path'),
+                output_folder=output_folder,
+                device=get_device_info(),
+                proxy=proxy_dict,
+                convert_to_tdata=True  # 自动转换为TData
+            )
+            
+            if success:
+                # 打包结果
+                result_zip = os.path.join(task['temp_dir'], f"reauth_{phone_clean}_{int(time.time())}.zip")
+                
+                with zipfile.ZipFile(result_zip, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    for root, dirs, files in os.walk(output_folder):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            arcname = os.path.relpath(file_path, output_folder)
+                            zf.write(file_path, arcname)
+                
+                # 发送结果
+                success_text = f"""
+✅ <b>重新授权成功！</b>
+
+<b>📱 账号信息</b>
+{message}
+
+<b>📦 生成的文件</b>
+• 新Session文件
+• JSON配置文件
+• TData格式（如果支持）
+
+<b>✨ 处理完成</b>
+新的账号文件已打包发送，旧Session已失效
+                """
+                
+                context.bot.send_message(chat_id=user_id, text=success_text, parse_mode='HTML')
+                
+                # 发送ZIP文件
+                with open(result_zip, 'rb') as f:
+                    context.bot.send_document(
+                        chat_id=user_id,
+                        document=f,
+                        caption=f"📦 重新授权结果 - {task['phone']}",
+                        filename=os.path.basename(result_zip)
+                    )
+            else:
+                # 失败
+                error_text = f"""
+❌ <b>重新授权失败</b>
+
+<b>错误信息</b>
+{message}
+
+<b>💡 可能的原因</b>
+• 旧Session已失效或无法接收消息
+• 手机号或2FA密码错误
+• 网络连接问题
+• 账号被Telegram限制
+
+<b>建议</b>
+• 检查Session文件是否可用
+• 确认手机号和2FA密码正确
+• 稍后重试
+                """
+                
+                context.bot.send_message(chat_id=user_id, text=error_text, parse_mode='HTML')
+        
+        except Exception as e:
+            print(f"❌ 重新授权处理失败: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            error_text = f"❌ <b>处理失败</b>\n\n错误: {str(e)[:200]}"
+            context.bot.send_message(chat_id=user_id, text=error_text, parse_mode='HTML')
+        
+        finally:
+            # 清理任务
+            if user_id in self.pending_reauth_tasks:
+                task = self.pending_reauth_tasks[user_id]
+                if task.get('temp_dir') and os.path.exists(task['temp_dir']):
+                    shutil.rmtree(task['temp_dir'], ignore_errors=True)
+                del self.pending_reauth_tasks[user_id]
+            
+            # 清除用户状态
+            self.db.save_user(user_id, "", "", "")
+    
+    def handle_reauth_cancel(self, query):
+        """取消重新授权"""
+        user_id = query.from_user.id
+        query.answer()
+        
+        if user_id in self.pending_reauth_tasks:
+            task = self.pending_reauth_tasks[user_id]
+            if task.get('temp_dir') and os.path.exists(task['temp_dir']):
+                shutil.rmtree(task['temp_dir'], ignore_errors=True)
+            del self.pending_reauth_tasks[user_id]
+        
+        self.db.save_user(user_id, "", "", "")
+        
+        self.safe_edit_message(query, "❌ <b>重新授权已取消</b>", 'HTML')
     
     def on_back_to_main(self, update: Update, context: CallbackContext):
         """处理“返回主菜单”按钮"""
