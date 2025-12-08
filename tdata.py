@@ -14661,13 +14661,16 @@ class EnhancedBot:
                             empty = 10 - filled
                             progress_bar = "█" * filled + "░" * empty
                             
+                            # 格式化文件名显示
+                            file_display = file_name[:25] + '...' if len(file_name) > 25 else file_name
+                            
                             keyboard = InlineKeyboardMarkup([
                                 [InlineKeyboardButton(
                                     f"⏳ 进度: {progress_percent}% ({idx}/{len(files)})",
                                     callback_data="progress_info"
                                 )],
                                 [InlineKeyboardButton(
-                                    f"📄 {file_name[:25]}...",
+                                    f"📄 {file_display}",
                                     callback_data="file_info"
                                 )]
                             ])
@@ -14742,22 +14745,26 @@ class EnhancedBot:
                             continue
                     
                     # 创建进度回调函数（使用内联按钮显示进度）
-                    async def update_progress(status_text):
+                    # 使用默认参数捕获当前迭代的值，避免闭包问题
+                    async def update_progress(status_text, current_idx=idx, current_file=file_name):
                         if progress_msg:
                             try:
                                 # 计算进度百分比
-                                progress_percent = int((idx / len(files)) * 100)
+                                progress_percent = int((current_idx / len(files)) * 100)
                                 
                                 # 创建进度条
                                 filled = int(progress_percent / 10)
                                 empty = 10 - filled
                                 progress_bar = "█" * filled + "░" * empty
                                 
+                                # 格式化状态文本
+                                status_display = status_text[:30] + '...' if len(status_text) > 30 else status_text
+                                
                                 # 构建消息文本
                                 message_text = (
                                     f"🧹 <b>正在清理账号</b>\n\n"
-                                    f"📄 当前: {file_name}\n"
-                                    f"📊 进度: {idx}/{len(files)} ({progress_percent}%)\n"
+                                    f"📄 当前: {current_file}\n"
+                                    f"📊 进度: {current_idx}/{len(files)} ({progress_percent}%)\n"
                                     f"[{progress_bar}]\n\n"
                                     f"🔄 状态: {status_text}"
                                 )
@@ -14765,11 +14772,11 @@ class EnhancedBot:
                                 # 创建内联按钮显示进度
                                 keyboard = InlineKeyboardMarkup([
                                     [InlineKeyboardButton(
-                                        f"⏳ 进度: {progress_percent}% ({idx}/{len(files)})",
+                                        f"⏳ 进度: {progress_percent}% ({current_idx}/{len(files)})",
                                         callback_data="progress_info"
                                     )],
                                     [InlineKeyboardButton(
-                                        f"🔄 {status_text[:30]}...",
+                                        f"🔄 {status_display}",
                                         callback_data="status_info"
                                     )]
                                 ])
