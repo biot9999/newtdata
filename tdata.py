@@ -731,12 +731,22 @@ class Config:
         self.WEB_SERVER_PORT = int(os.getenv("WEB_SERVER_PORT", "8080"))
         self.ALLOW_PORT_SHIFT = os.getenv("ALLOW_PORT_SHIFT", "true").lower() == "true"
         
+        # 一键清理功能配置
+        self.ENABLE_ONE_CLICK_CLEANUP = os.getenv("ENABLE_ONE_CLICK_CLEANUP", "true").lower() == "true"
+        self.CLEANUP_LEAVE_CONCURRENCY = int(os.getenv("CLEANUP_LEAVE_CONCURRENCY", "3"))
+        self.CLEANUP_DELETE_HISTORY_CONCURRENCY = int(os.getenv("CLEANUP_DELETE_HISTORY_CONCURRENCY", "2"))
+        self.CLEANUP_DELETE_CONTACTS_CONCURRENCY = int(os.getenv("CLEANUP_DELETE_CONTACTS_CONCURRENCY", "3"))
+        self.CLEANUP_ACTION_SLEEP = float(os.getenv("CLEANUP_ACTION_SLEEP", "0.3"))
+        self.CLEANUP_MIN_PEER_INTERVAL = float(os.getenv("CLEANUP_MIN_PEER_INTERVAL", "1.5"))
+        self.CLEANUP_REVOKE_DEFAULT = os.getenv("CLEANUP_REVOKE_DEFAULT", "true").lower() == "true"
+        
         # 获取当前脚本目录
         self.SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
         
         # 文件管理配置
         self.RESULTS_DIR = os.path.join(self.SCRIPT_DIR, "results")
         self.UPLOADS_DIR = os.path.join(self.SCRIPT_DIR, "uploads")
+        self.CLEANUP_REPORTS_DIR = os.path.join(self.RESULTS_DIR, "cleanup_reports")
         
         # Session文件目录结构
         # sessions: 存放用户上传的session文件
@@ -747,14 +757,17 @@ class Config:
         # 创建目录
         os.makedirs(self.RESULTS_DIR, exist_ok=True)
         os.makedirs(self.UPLOADS_DIR, exist_ok=True)
+        os.makedirs(self.CLEANUP_REPORTS_DIR, exist_ok=True)
         os.makedirs(self.SESSIONS_DIR, exist_ok=True)
         os.makedirs(self.SESSIONS_BAK_DIR, exist_ok=True)
         
         print(f"📁 上传目录: {self.UPLOADS_DIR}")
         print(f"📁 结果目录: {self.RESULTS_DIR}")
+        print(f"📁 清理报告目录: {self.CLEANUP_REPORTS_DIR}")
         print(f"📁 Session目录: {self.SESSIONS_DIR}")
         print(f"📁 临时文件目录: {self.SESSIONS_BAK_DIR}")
         print(f"📡 系统配置: USE_PROXY={'true' if self.USE_PROXY else 'false'}")
+        print(f"🧹 一键清理: {'启用' if self.ENABLE_ONE_CLICK_CLEANUP else '禁用'}")
         print(f"💡 注意: 实际代理模式需要配置文件+数据库开关+有效代理文件同时满足")
     
     def validate(self):
@@ -801,6 +814,14 @@ FORGET2FA_DEFAULT_COUNTRY_PREFIX=+62
 # API格式转换器和验证码服务器配置
 WEB_SERVER_PORT=8080
 ALLOW_PORT_SHIFT=true
+# 一键清理功能配置
+ENABLE_ONE_CLICK_CLEANUP=true
+CLEANUP_LEAVE_CONCURRENCY=3
+CLEANUP_DELETE_HISTORY_CONCURRENCY=2
+CLEANUP_DELETE_CONTACTS_CONCURRENCY=3
+CLEANUP_ACTION_SLEEP=0.3
+CLEANUP_MIN_PEER_INTERVAL=1.5
+CLEANUP_REVOKE_DEFAULT=true
 """
             with open(".env", "w", encoding="utf-8") as f:
                 f.write(env_content)
@@ -6673,6 +6694,9 @@ class EnhancedBot:
         
         # 添加2FA待处理任务
         self.pending_add_2fa_tasks: Dict[int, Dict[str, Any]] = {}
+        
+        # 一键清理待处理任务
+        self.pending_cleanup: Dict[int, Dict[str, Any]] = {}
 
         self.updater = Updater(config.TOKEN, use_context=True)
         self.dp = self.updater.dispatcher
@@ -6997,7 +7021,10 @@ class EnhancedBot:
                 InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
             ],
             [
-                InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu"),
+                InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start"),
+                InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
+            ],
+            [
                 InlineKeyboardButton("ℹ️ 帮助", callback_data="help")
             ]
         ]
@@ -8040,6 +8067,13 @@ class EnhancedBot:
             self.handle_merge_start(query)
         elif data == "merge_finish":
             self.handle_merge_finish(update, context, query)
+        elif data == "cleanup_start":
+            self.handle_cleanup_start(query)
+        elif data == "cleanup_confirm":
+            self.handle_cleanup_confirm(update, context, query)
+        elif data == "cleanup_cancel":
+            query.answer()
+            self.show_main_menu(update, user_id)
         elif query.data == "back_to_main":
             self.show_main_menu(update, user_id)
             # 返回主菜单 - 横排2x2布局
@@ -8094,7 +8128,10 @@ class EnhancedBot:
                     InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
                 ],
                 [
-                    InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu"),
+                    InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start"),
+                    InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
+                ],
+                [
                     InlineKeyboardButton("ℹ️ 帮助", callback_data="help")
                 ]
             ]
@@ -8995,7 +9032,7 @@ class EnhancedBot:
             row = c.fetchone()
             conn.close()
 
-            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files
+            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files, waiting_cleanup_file
             if not row or row[0] not in [
                 "waiting_file",
                 "waiting_convert_tdata",
@@ -9007,6 +9044,7 @@ class EnhancedBot:
                 "waiting_merge_files",
                 "waiting_forget_2fa_file",
                 "waiting_add_2fa_file",
+                "waiting_cleanup_file",
             ]:
                 self.safe_send_message(update, "❌ 请先点击相应的功能按钮")
                 return
@@ -9132,6 +9170,19 @@ class EnhancedBot:
                     import traceback
                     traceback.print_exc()
             thread = threading.Thread(target=process_add_2fa, daemon=True)
+            thread.start()
+        elif user_status == "waiting_cleanup_file":
+            # 一键清理处理
+            def process_cleanup():
+                try:
+                    asyncio.run(self.process_cleanup(update, context, document))
+                except asyncio.CancelledError:
+                    print(f"[process_cleanup] 任务被取消")
+                except Exception as e:
+                    print(f"[process_cleanup] 处理异常: {e}")
+                    import traceback
+                    traceback.print_exc()
+            thread = threading.Thread(target=process_cleanup, daemon=True)
             thread.start()
         # 清空用户状态
         self.db.save_user(
@@ -14042,6 +14093,454 @@ class EnhancedBot:
             if task['temp_dir'] and os.path.exists(task['temp_dir']):
                 shutil.rmtree(task['temp_dir'], ignore_errors=True)
             del self.pending_merge[user_id]
+        
+        # 清除用户状态
+        self.db.save_user(user_id, "", "", "")
+    
+    # ================================
+    # 一键清理功能
+    # ================================
+    
+    def handle_cleanup_start(self, query):
+        """开始一键清理流程"""
+        user_id = query.from_user.id
+        query.answer()
+        
+        # 检查是否启用
+        if not config.ENABLE_ONE_CLICK_CLEANUP:
+            self.safe_edit_message(query, "❌ 一键清理功能未启用")
+            return
+        
+        # 检查会员权限
+        is_member, _, _ = self.db.check_membership(user_id)
+        if not is_member and not self.db.is_admin(user_id):
+            self.safe_edit_message(query, "❌ 一键清理需要会员权限")
+            return
+        
+        # 设置用户状态
+        self.db.save_user(
+            user_id,
+            query.from_user.username or "",
+            query.from_user.first_name or "",
+            "waiting_cleanup_file"
+        )
+        
+        text = """
+<b>🧹 一键清理功能</b>
+
+<b>⚠️ 重要提示</b>
+此功能会对上传的账号执行以下操作：
+• 🚪 离开所有群组和频道
+• 🗑️ 删除所有聊天记录（尽可能撤回）
+• 📇 清除所有联系人
+• 📁 归档剩余对话
+
+<b>🔴 不可逆操作</b>
+一旦开始清理，无法撤销！请谨慎使用。
+
+<b>✅ 安全保障</b>
+• 验证码记录（接码记录）将被保留
+• 自动处理 Telegram 限速
+• 生成详细的清理报告
+
+<b>📤 请上传 Session 或 TData ZIP 文件</b>
+
+⏰ <i>5分钟内未上传将自动取消</i>
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+        ])
+        
+        self.safe_edit_message(query, text, 'HTML', keyboard)
+    
+    async def process_cleanup(self, update, context, document):
+        """处理一键清理"""
+        user_id = update.effective_user.id
+        start_time = time.time()
+        
+        progress_msg = self.safe_send_message(update, "📥 <b>正在处理您的文件...</b>", 'HTML')
+        if not progress_msg:
+            return
+        
+        temp_zip = None
+        temp_dir = None
+        
+        try:
+            # 下载文件
+            temp_dir = tempfile.mkdtemp(prefix="temp_cleanup_")
+            temp_zip = os.path.join(temp_dir, document.file_name)
+            document.get_file().download(temp_zip)
+            
+            # 扫描ZIP文件
+            task_id = f"{user_id}_{int(start_time)}"
+            files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, task_id)
+            
+            if not files:
+                try:
+                    progress_msg.edit_text(
+                        "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件",
+                        parse_mode='HTML'
+                    )
+                except:
+                    pass
+                return
+            
+            total_files = len(files)
+            
+            # 显示确认消息
+            try:
+                progress_msg.edit_text(
+                    f"✅ <b>已找到 {total_files} 个账号文件</b>\n"
+                    f"📊 类型: {file_type.upper()}\n\n"
+                    f"⚠️ <b>确认清理操作？</b>\n\n"
+                    f"此操作将：\n"
+                    f"• 离开所有群组和频道\n"
+                    f"• 删除所有聊天记录\n"
+                    f"• 清除所有联系人\n"
+                    f"• 归档剩余对话\n\n"
+                    f"<b>🔴 此操作不可逆！</b>",
+                    parse_mode='HTML',
+                    reply_markup=InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("✅ 确认清理", callback_data="cleanup_confirm"),
+                            InlineKeyboardButton("❌ 取消", callback_data="cleanup_cancel")
+                        ]
+                    ])
+                )
+            except:
+                pass
+            
+            # 保存任务信息
+            self.pending_cleanup[user_id] = {
+                'files': files,
+                'extract_dir': extract_dir,
+                'file_type': file_type,
+                'temp_dir': temp_dir,
+                'progress_msg': progress_msg,
+                'started_at': time.time()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in process_cleanup: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            try:
+                progress_msg.edit_text(
+                    f"❌ <b>处理失败</b>\n\n错误: {str(e)}",
+                    parse_mode='HTML'
+                )
+            except:
+                pass
+            
+            # 清理临时文件
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+    
+    def handle_cleanup_confirm(self, update, context, query):
+        """确认清理"""
+        user_id = query.from_user.id
+        query.answer()
+        
+        if user_id not in self.pending_cleanup:
+            self.safe_edit_message(query, "❌ 没有待处理的清理任务")
+            return
+        
+        task = self.pending_cleanup[user_id]
+        
+        # 检查超时（10分钟）
+        if time.time() - task['started_at'] > 600:
+            self.cleanup_cleanup_task(user_id)
+            self.safe_edit_message(query, "❌ 操作超时，请重新开始")
+            return
+        
+        # 启动异步清理
+        def execute_cleanup():
+            asyncio.run(self.execute_cleanup(update, context, user_id))
+        
+        thread = threading.Thread(target=execute_cleanup, daemon=True)
+        thread.start()
+        
+        self.safe_edit_message(query, "🧹 <b>开始清理...</b>\n\n正在初始化清理服务...", 'HTML')
+    
+    async def execute_cleanup(self, update, context, user_id: int):
+        """执行一键清理"""
+        if user_id not in self.pending_cleanup:
+            return
+        
+        task = self.pending_cleanup[user_id]
+        files = task['files']
+        file_type = task['file_type']
+        extract_dir = task['extract_dir']
+        progress_msg = task.get('progress_msg')
+        
+        # 导入清理服务
+        try:
+            from services.one_click_cleaner import OneClickCleaner
+        except ImportError as e:
+            context.bot.send_message(
+                chat_id=user_id,
+                text=f"❌ <b>清理服务不可用</b>\n\n{str(e)}",
+                parse_mode='HTML'
+            )
+            self.cleanup_cleanup_task(user_id)
+            return
+        
+        results_summary = {
+            'total': len(files),
+            'success': 0,
+            'failed': 0,
+            'reports': [],
+            'success_files': [],  # 成功清理的账户文件
+            'failed_files': []    # 失败的账户文件
+        }
+        
+        try:
+            # 处理每个账号
+            for idx, (file_path, file_name) in enumerate(files, 1):
+                try:
+                    # 更新进度
+                    if progress_msg:
+                        try:
+                            progress_msg.edit_text(
+                                f"🧹 <b>正在清理账号 {idx}/{len(files)}</b>\n\n"
+                                f"文件: {file_name}\n"
+                                f"进度: {idx}/{len(files)} ({idx/len(files)*100:.1f}%)",
+                                parse_mode='HTML'
+                            )
+                        except:
+                            pass
+                    
+                    # 如果是TData，需要先转换为Session
+                    if file_type == 'tdata':
+                        # 转换TData到Session
+                        try:
+                            # Import at runtime to avoid circular dependencies
+                            from opentele.api import API, UseCurrentSession
+                            from opentele.td import TDesktop
+                            
+                            tdesk = TDesktop(file_path)
+                            session_path = file_path.replace('tdata', 'session').replace('.zip', '.session')
+                            
+                            client = await tdesk.ToTelethon(
+                                session=session_path,
+                                flag=UseCurrentSession,
+                                api=API.TelegramDesktop
+                            )
+                            await client.connect()
+                            
+                        except Exception as e:
+                            logger.error(f"TData conversion failed for {file_name}: {e}")
+                            results_summary['failed'] += 1
+                            continue
+                    else:
+                        # 直接使用Session
+                        session_path = os.path.splitext(file_path)[0]
+                        
+                        try:
+                            client = TelegramClient(
+                                session_path,
+                                int(config.API_ID),
+                                str(config.API_HASH)
+                            )
+                            await client.connect()
+                            
+                            if not await client.is_user_authorized():
+                                logger.warning(f"Session not authorized: {file_name}")
+                                results_summary['failed'] += 1
+                                await client.disconnect()
+                                continue
+                        except Exception as e:
+                            logger.error(f"Session connection failed for {file_name}: {e}")
+                            results_summary['failed'] += 1
+                            continue
+                    
+                    # 创建清理服务
+                    cleaner = OneClickCleaner(
+                        client=client,
+                        account_name=file_name,
+                        leave_concurrency=config.CLEANUP_LEAVE_CONCURRENCY,
+                        delete_history_concurrency=config.CLEANUP_DELETE_HISTORY_CONCURRENCY,
+                        delete_contacts_concurrency=config.CLEANUP_DELETE_CONTACTS_CONCURRENCY,
+                        action_sleep=config.CLEANUP_ACTION_SLEEP,
+                        min_peer_interval=config.CLEANUP_MIN_PEER_INTERVAL,
+                        revoke_default=config.CLEANUP_REVOKE_DEFAULT,
+                        report_dir=config.CLEANUP_REPORTS_DIR
+                    )
+                    
+                    # 执行清理
+                    result = await cleaner.run(dry_run=False)
+                    
+                    # 断开客户端
+                    try:
+                        await client.disconnect()
+                    except:
+                        pass
+                    
+                    if result.get('success'):
+                        results_summary['success'] += 1
+                        if result.get('report_path'):
+                            results_summary['reports'].append(result['report_path'])
+                        # 保存成功清理的账户文件
+                        results_summary['success_files'].append((file_path, file_name))
+                    else:
+                        results_summary['failed'] += 1
+                        # 保存失败的账户文件
+                        results_summary['failed_files'].append((file_path, file_name))
+                    
+                except Exception as e:
+                    logger.error(f"Cleanup failed for {file_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    results_summary['failed'] += 1
+                    # 保存失败的账户文件
+                    results_summary['failed_files'].append((file_path, file_name))
+            
+            # 生成统一的TXT报告
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            summary_report_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleanup_summary_{timestamp}.txt")
+            
+            with open(summary_report_path, 'w', encoding='utf-8') as f:
+                f.write("=" * 70 + "\n")
+                f.write("           批量清理汇总报告 / Batch Cleanup Summary\n")
+                f.write("=" * 70 + "\n\n")
+                
+                success_rate = (results_summary['success'] / results_summary['total'] * 100) if results_summary['total'] > 0 else 0
+                
+                f.write(f"清理时间 / Cleanup Time: {timestamp}\n")
+                f.write(f"总账号数 / Total Accounts: {results_summary['total']}\n")
+                f.write(f"✅ 成功 / Success: {results_summary['success']} ({success_rate:.1f}%)\n")
+                f.write(f"❌ 失败 / Failed: {results_summary['failed']}\n\n")
+                
+                if results_summary['success_files']:
+                    f.write("-" * 70 + "\n")
+                    f.write(f"成功清理的账户 / Successfully Cleaned ({len(results_summary['success_files'])})\n")
+                    f.write("-" * 70 + "\n")
+                    for idx, (_, fname) in enumerate(results_summary['success_files'], 1):
+                        f.write(f"{idx}. ✅ {fname}\n")
+                    f.write("\n")
+                
+                if results_summary['failed_files']:
+                    f.write("-" * 70 + "\n")
+                    f.write(f"清理失败的账户 / Failed to Clean ({len(results_summary['failed_files'])})\n")
+                    f.write("-" * 70 + "\n")
+                    for idx, (_, fname) in enumerate(results_summary['failed_files'], 1):
+                        f.write(f"{idx}. ❌ {fname}\n")
+                    f.write("\n")
+                
+                f.write("=" * 70 + "\n")
+                f.write("详细报告请查看各账户对应的报告文件\n")
+                f.write("See individual account reports for details\n")
+                f.write("=" * 70 + "\n")
+            
+            # 打包成功和失败的账户文件
+            result_zips = []
+            
+            # 打包成功清理的账户
+            if results_summary['success_files']:
+                success_zip_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleaned_success_{timestamp}.zip")
+                with zipfile.ZipFile(success_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for file_path, file_name in results_summary['success_files']:
+                        # 添加session文件
+                        if os.path.exists(file_path):
+                            zipf.write(file_path, file_name)
+                        # 如果有对应的session-journal文件也添加
+                        journal_path = file_path + '-journal'
+                        if os.path.exists(journal_path):
+                            zipf.write(journal_path, file_name + '-journal')
+                        # 如果有对应的json文件也添加
+                        json_path = os.path.splitext(file_path)[0] + '.json'
+                        if os.path.exists(json_path):
+                            zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
+                
+                result_zips.append(('success', success_zip_path, len(results_summary['success_files'])))
+            
+            # 打包失败的账户
+            if results_summary['failed_files']:
+                failed_zip_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleaned_failed_{timestamp}.zip")
+                with zipfile.ZipFile(failed_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for file_path, file_name in results_summary['failed_files']:
+                        # 添加session文件
+                        if os.path.exists(file_path):
+                            zipf.write(file_path, file_name)
+                        # 如果有对应的session-journal文件也添加
+                        journal_path = file_path + '-journal'
+                        if os.path.exists(journal_path):
+                            zipf.write(journal_path, file_name + '-journal')
+                        # 如果有对应的json文件也添加
+                        json_path = os.path.splitext(file_path)[0] + '.json'
+                        if os.path.exists(json_path):
+                            zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
+                
+                result_zips.append(('failed', failed_zip_path, len(results_summary['failed_files'])))
+            
+            # 发送完成消息
+            final_text = f"""
+✅ <b>清理完成！</b>
+
+<b>📊 清理统计</b>
+• 总账号数: {results_summary['total']}
+• ✅ 成功: {results_summary['success']} ({success_rate:.1f}%)
+• ❌ 失败: {results_summary['failed']}
+
+<b>📦 正在打包账户文件...</b>
+            """
+            
+            context.bot.send_message(
+                chat_id=user_id,
+                text=final_text,
+                parse_mode='HTML'
+            )
+            
+            # 发送汇总报告
+            try:
+                with open(summary_report_path, 'rb') as f:
+                    context.bot.send_document(
+                        chat_id=user_id,
+                        document=f,
+                        caption=f"📋 清理汇总报告",
+                        filename=os.path.basename(summary_report_path)
+                    )
+            except Exception as e:
+                logger.error(f"Failed to send summary report: {e}")
+            
+            # 发送账户ZIP文件
+            for zip_type, zip_path, count in result_zips:
+                try:
+                    caption = f"📦 清理{'成功' if zip_type == 'success' else '失败'}的账户 ({count} 个)"
+                    with open(zip_path, 'rb') as f:
+                        context.bot.send_document(
+                            chat_id=user_id,
+                            document=f,
+                            caption=caption,
+                            filename=os.path.basename(zip_path)
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to send {zip_type} accounts ZIP: {e}")
+            
+        except Exception as e:
+            logger.error(f"Cleanup execution failed: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            context.bot.send_message(
+                chat_id=user_id,
+                text=f"❌ <b>清理失败</b>\n\n错误: {str(e)}",
+                parse_mode='HTML'
+            )
+        
+        finally:
+            # 清理任务
+            self.cleanup_cleanup_task(user_id)
+    
+    def cleanup_cleanup_task(self, user_id: int):
+        """清理一键清理任务"""
+        if user_id in self.pending_cleanup:
+            task = self.pending_cleanup[user_id]
+            if task.get('temp_dir') and os.path.exists(task['temp_dir']):
+                shutil.rmtree(task['temp_dir'], ignore_errors=True)
+            del self.pending_cleanup[user_id]
         
         # 清除用户状态
         self.db.save_user(user_id, "", "", "")
