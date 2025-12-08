@@ -14696,25 +14696,26 @@ class EnhancedBot:
                 try:
                     from opentele.api import API, UseCurrentSession
                     from opentele.td import TDesktop
-                    
-                    tdesk = TDesktop(file_path)
-                    session_path = file_path.replace('tdata', 'session').replace('.zip', '.session')
-                    
-                    # 创建不接收更新的客户端以提升清理速度
                     from telethon import TelegramClient as TelethonClient
+                    
                     tdesk = TDesktop(file_path)
                     session_path = file_path.replace('tdata', 'session').replace('.zip', '.session')
                     
                     # 先转换session
-                    temp_client = await tdesk.ToTelethon(
-                        session=session_path,
-                        flag=UseCurrentSession,
-                        api=API.TelegramDesktop
-                    )
-                    await temp_client.connect()
-                    await temp_client.disconnect()
+                    try:
+                        temp_client = await tdesk.ToTelethon(
+                            session=session_path,
+                            flag=UseCurrentSession,
+                            api=API.TelegramDesktop
+                        )
+                        await temp_client.connect()
+                        await temp_client.disconnect()
+                    except Exception as conv_error:
+                        logger.error(f"TData session conversion failed for {file_name}: {conv_error}")
+                        result_data['error'] = f"TData转换失败: {str(conv_error)}"
+                        return result_data
                     
-                    # 使用转换后的session创建不接收更新的客户端
+                    # 使用转换后的session创建不接收更新的客户端以提升清理速度
                     client = TelethonClient(
                         os.path.splitext(session_path)[0],
                         int(config.API_ID),
@@ -14774,7 +14775,7 @@ class EnhancedBot:
                     return
                 
                 # 节流逻辑：只在以下情况更新
-                # 1. 每完成10个账户
+                # 1. 每完成50个账户
                 # 2. 是第一个账户
                 # 3. 是最后一个账户
                 accounts_since_last_update = current_idx - last_updated_idx['value']
