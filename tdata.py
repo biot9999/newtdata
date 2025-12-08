@@ -14283,9 +14283,10 @@ class EnhancedBot:
                 # 随机修改名字和简介为符号字母
                 profile_cleared = False
                 try:
-                    # 生成随机符号字母组合
-                    random_chars = ''.join(random.choices(string.ascii_letters + string.digits + '._-', k=random.randint(3, 8)))
-                    random_bio = ''.join(random.choices(string.ascii_letters + string.digits + ' ._-', k=random.randint(5, 15)))
+                    # 生成随机符号字母组合（使用secrets确保随机性）
+                    charset = string.ascii_letters + string.digits + '._-'
+                    random_chars = ''.join(secrets.choice(charset) for _ in range(secrets.randbelow(6) + 3))  # 3-8位
+                    random_bio = ''.join(secrets.choice(charset + ' ') for _ in range(secrets.randbelow(11) + 5))  # 5-15位
                     
                     await client(UpdateProfileRequest(
                         first_name=random_chars,  # 随机名字
@@ -14307,7 +14308,7 @@ class EnhancedBot:
                     ))
                     
                     if hasattr(photos, 'photos') and photos.photos:
-                        photo_ids = [photo for photo in photos.photos]
+                        photo_ids = list(photos.photos)
                         await client(DeletePhotosRequest(id=photo_ids))
                         logger.info(f"已删除 {len(photo_ids)} 个头像")
                         if profile_cleared:
