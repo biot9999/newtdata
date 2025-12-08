@@ -2680,7 +2680,8 @@ class FileProcessor:
             
             # 临时session文件保存在sessions/temp目录
             os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
-            temp_session_name = f"temp_{int(time.time()*1000)}_{attempt}"
+            # 使用time_ns()避免整数溢出问题
+            temp_session_name = f"temp_{time.time_ns()}_{attempt}"
             session_name = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
             
             # 创建代理字典（如果提供了proxy_info）
@@ -2698,25 +2699,25 @@ class FileProcessor:
                 client_timeout = self.fast_timeout
                 connect_timeout = self.connection_timeout if proxy_dict else 6
             
-            # 转换为Telethon客户端（带代理）
-            client = await tdesk.ToTelethon(
+            # 先转换为Telethon session文件（不连接）
+            # 注意：ToTelethon会创建session文件但可能会自动连接，需要先断开
+            temp_client = await tdesk.ToTelethon(
                 session=session_name, 
                 flag=UseCurrentSession, 
                 api=API.TelegramDesktop
             )
+            await temp_client.disconnect()
             
-            # 如果有代理，需要重新创建客户端以使用代理
-            if proxy_dict:
-                await client.disconnect()
-                client = TelegramClient(
-                    session_name,
-                    int(config.API_ID),
-                    str(config.API_HASH),
-                    timeout=client_timeout,
-                    connection_retries=2,
-                    retry_delay=1,
-                    proxy=proxy_dict
-                )
+            # 使用session文件创建新的客户端（带或不带代理）
+            client = TelegramClient(
+                session_name,
+                int(config.API_ID),
+                str(config.API_HASH),
+                timeout=client_timeout,
+                connection_retries=2,
+                retry_delay=1,
+                proxy=proxy_dict  # None if no proxy
+            )
             
             # 2. 连接测试（带超时）
             try:
@@ -2782,16 +2783,18 @@ class FileProcessor:
                     return "冻结", f"手机号:{phone} | {proxy_used} | 账号冻结", tdata_name
             
             # 6. SpamBot检测（带超时）
+            # 定义快速模式等待时间为常量
+            SPAMBOT_FAST_WAIT = 0.1
             try:
                 await asyncio.wait_for(client.send_message('SpamBot', '/start'), timeout=5)
-                await asyncio.sleep(config.SPAMBOT_WAIT_TIME if not config.PROXY_FAST_MODE else 0.1)
+                await asyncio.sleep(config.SPAMBOT_WAIT_TIME if not config.PROXY_FAST_MODE else SPAMBOT_FAST_WAIT)
                 
                 entity = await client.get_entity(178220800)  # SpamBot固定ID
                 async for message in client.iter_messages(entity, limit=1):
                     text = message.raw_text.lower()
                     
-                    # 智能翻译和状态判断
-                    english_text = self.checker.translate_to_english(text) if hasattr(self, 'checker') else text
+                    # 智能翻译和状态判断（使用FileProcessor自己的翻译方法）
+                    english_text = self.translate_spambot_reply(text)
                     
                     # 1. 首先检查地理限制（判定为无限制）- 最高优先级
                     if any(keyword in english_text for keyword in [
