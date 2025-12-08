@@ -14652,7 +14652,7 @@ class EnhancedBot:
         
         self.safe_edit_message(query, "🧹 <b>开始清理...</b>\n\n正在初始化清理服务...", 'HTML')
     
-    async def _process_single_account_full(self, file_info: tuple, file_type: str, progress_msg, all_files_count: int, completed_count: dict, lock: asyncio.Lock) -> dict:
+    async def _process_single_account_full(self, file_info: tuple, file_type: str, progress_msg, all_files_count: int, completed_count: dict, lock: asyncio.Lock, start_time: float) -> dict:
         """处理单个账户的完整流程（包含连接和清理）"""
         file_path, file_name = file_info
         result_data = {
@@ -14721,45 +14721,93 @@ class EnhancedBot:
                     result_data['error'] = f"连接失败: {str(e)}"
                     return result_data
             
+            # 进度更新节流（避免触发 Telegram 限制）
+            last_updated_idx = {'value': 0}
+            UPDATE_BATCH = 10  # 每完成10个账户更新一次
+            
             # 创建进度回调函数
             async def update_progress(status_text):
+                current_idx = completed_count['value'] + 1
+                
+                if not progress_msg:
+                    return
+                
+                # 节流逻辑：只在以下情况更新
+                # 1. 每完成10个账户
+                # 2. 是第一个账户
+                # 3. 是最后一个账户
+                accounts_since_last_update = current_idx - last_updated_idx['value']
+                
+                should_update = (
+                    accounts_since_last_update >= UPDATE_BATCH or
+                    current_idx == 1 or
+                    current_idx == all_files_count
+                )
+                
+                if not should_update:
+                    return
+                
                 async with lock:
-                    current_idx = completed_count['value'] + 1
-                    if progress_msg:
-                        try:
-                            progress_percent = int((current_idx / all_files_count) * 100)
-                            filled = int(progress_percent / 10)
-                            empty = 10 - filled
-                            progress_bar = "█" * filled + "░" * empty
+                    try:
+                        progress_percent = int((current_idx / all_files_count) * 100)
+                        
+                        # 更新索引
+                        last_updated_idx['value'] = current_idx
+                        
+                        filled = int(progress_percent / 10)
+                        empty = 10 - filled
+                        progress_bar = "█" * filled + "░" * empty
+                        
+                        status_display = status_text[:30] + '...' if len(status_text) > 30 else status_text
+                        
+                        # 计算预计完成时间
+                        elapsed_time = time.time() - start_time
+                        if current_idx > 0:
+                            avg_time_per_account = elapsed_time / current_idx
+                            remaining_accounts = all_files_count - current_idx
+                            estimated_remaining_seconds = avg_time_per_account * remaining_accounts
                             
-                            status_display = status_text[:30] + '...' if len(status_text) > 30 else status_text
+                            hours = int(estimated_remaining_seconds // 3600)
+                            minutes = int((estimated_remaining_seconds % 3600) // 60)
+                            seconds = int(estimated_remaining_seconds % 60)
                             
-                            message_text = (
-                                f"🧹 <b>并发清理中 (同时{config.CLEANUP_ACCOUNT_CONCURRENCY}个)</b>\n\n"
-                                f"📄 当前: {file_name}\n"
-                                f"📊 总进度: {current_idx}/{all_files_count} ({progress_percent}%)\n"
-                                f"[{progress_bar}]\n\n"
-                                f"🔄 状态: {status_text}"
-                            )
-                            
-                            keyboard = InlineKeyboardMarkup([
-                                [InlineKeyboardButton(
-                                    f"⚡ 并发: {config.CLEANUP_ACCOUNT_CONCURRENCY} | 进度: {progress_percent}%",
-                                    callback_data="progress_info"
-                                )],
-                                [InlineKeyboardButton(
-                                    f"🔄 {status_display}",
-                                    callback_data="status_info"
-                                )]
-                            ])
-                            
-                            progress_msg.edit_text(
-                                message_text,
-                                parse_mode='HTML',
-                                reply_markup=keyboard
-                            )
-                        except Exception:
-                            pass
+                            if hours > 0:
+                                time_remaining = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                            else:
+                                time_remaining = f"{minutes:02d}:{seconds:02d}"
+                        else:
+                            time_remaining = "计算中..."
+                        
+                        message_text = (
+                            f"🧹 <b>正在清理中，请耐心等待。</b>\n\n"
+                            f"📄 当前: {file_name}\n"
+                            f"📊 总进度: {current_idx}/{all_files_count} ({progress_percent}%)\n"
+                            f"[{progress_bar}]\n"
+                            f"预计完成时间 还剩 {time_remaining}\n\n"
+                            f"🔄 状态: {status_text}"
+                        )
+                        
+                        keyboard = InlineKeyboardMarkup([
+                            [InlineKeyboardButton(
+                                f"⏳ 进度: {progress_percent}% ({current_idx}/{all_files_count})",
+                                callback_data="progress_info"
+                            )],
+                            [InlineKeyboardButton(
+                                f"🔄 {status_display}",
+                                callback_data="status_info"
+                            )]
+                        ])
+                        
+                        progress_msg.edit_text(
+                            message_text,
+                            parse_mode='HTML',
+                            reply_markup=keyboard
+                        )
+                    except Exception as e:
+                        # 如果是限流错误，静默处理
+                        if "too many requests" in str(e).lower() or "retry after" in str(e).lower():
+                            logger.warning(f"进度更新触发限流: {e}")
+                        pass
             
             # 执行清理
             cleanup_result = await self._cleanup_single_account(
@@ -14825,11 +14873,12 @@ class EnhancedBot:
             semaphore = asyncio.Semaphore(config.CLEANUP_ACCOUNT_CONCURRENCY)
             lock = asyncio.Lock()
             completed_count = {'value': 0}
+            start_time = time.time()
             
             async def process_with_semaphore(file_info):
                 async with semaphore:
                     return await self._process_single_account_full(
-                        file_info, file_type, progress_msg, len(files), completed_count, lock
+                        file_info, file_type, progress_msg, len(files), completed_count, lock, start_time
                     )
             
             # 并发处理所有账户
