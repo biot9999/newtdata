@@ -373,7 +373,13 @@ class OneClickCleaner:
         async with self.delete_semaphore:
             entity = dialog.entity
             chat_id = entity.id
-            title = getattr(entity, 'first_name', getattr(entity, 'username', 'Unknown'))
+            # Get title with proper fallback chain
+            if hasattr(entity, 'first_name') and entity.first_name:
+                title = entity.first_name
+            elif hasattr(entity, 'username') and entity.username:
+                title = entity.username
+            else:
+                title = 'Unknown'
             
             # Determine chat type
             if isinstance(entity, User):
@@ -542,7 +548,9 @@ class OneClickCleaner:
                     try:
                         await self.client.edit_folder(dialog.entity, folder=1)
                         archived_count += 1
-                    except:
+                    except Exception as archive_error:
+                        # Silently ignore archive errors as they're not critical
+                        logger.debug(f"Cannot archive dialog: {archive_error}")
                         pass
                         
                 except Exception as e:
@@ -610,9 +618,11 @@ async def example_usage():
     # This is just an example - actual usage is through the bot
     
     from telethon import TelegramClient
+    import os
     
-    api_id = 12345
-    api_hash = "your_api_hash"
+    # Use environment variables or placeholders
+    api_id = int(os.getenv("API_ID", "0"))
+    api_hash = os.getenv("API_HASH", "")
     session_path = "account.session"
     
     client = TelegramClient(session_path, api_id, api_hash)
