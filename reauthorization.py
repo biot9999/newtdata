@@ -13,6 +13,10 @@ import asyncio
 from typing import Optional, Dict, Tuple
 from datetime import datetime
 
+# 常量定义
+REAUTH_TIMEOUT = 300  # 超时时间（秒）
+CODE_ARRIVAL_WAIT = 5  # 验证码到达等待时间（秒）
+
 try:
     from telethon import TelegramClient
     from telethon.tl.functions.auth import SendCodeRequest, ResetAuthorizationsRequest
@@ -123,10 +127,15 @@ class ReauthorizationManager:
             print(f"📨 收到消息: {message_text[:50]}...")
             
             # 从消息中提取验证码（5-6位数字）
-            code_match = re.search(r"\b(\d{5,6})\b", message_text)
+            # 使用更精确的模式，通常验证码前后有特定的文本
+            code_match = re.search(r"(?:code|код|验证码)[:\s]*(\d{5,6})|(\d{5,6})[.\s]*(?:is your|является вашим|是您的)", message_text, re.IGNORECASE)
+            if not code_match:
+                # 回退到简单匹配
+                code_match = re.search(r"\b(\d{5,6})\b", message_text)
             
             if code_match:
-                code = code_match.group(1)
+                # 获取第一个非None的组
+                code = code_match.group(1) or code_match.group(2)
                 print(f"✅ 提取到验证码: {code}")
                 return code
             else:
@@ -260,8 +269,8 @@ class ReauthorizationManager:
             print(f"✅ 验证码已发送，phone_code_hash: {sent_code.phone_code_hash[:20]}...")
             
             # 等待验证码到达
-            print("\n⏳ 等待验证码到达（最多60秒）...")
-            await asyncio.sleep(5)  # 等待5秒让验证码到达
+            print(f"\n⏳ 等待验证码到达（{CODE_ARRIVAL_WAIT}秒）...")
+            await asyncio.sleep(CODE_ARRIVAL_WAIT)  # 等待验证码到达
             
             # 步骤5: 从旧Session获取验证码
             print("\n📥 步骤5: 从旧Session获取验证码...")
@@ -369,8 +378,8 @@ class ReauthorizationManager:
             if convert_to_tdata and OPENTELE_AVAILABLE:
                 print(f"\n🔄 步骤11: 转换为TData格式...")
                 try:
-                    # 重新连接新Session以进行转换
-                    temp_client = TelegramClient(new_session_base, self.api_id, self.api_hash)
+                    # 重新连接新Session以进行转换（使用相同的代理配置）
+                    temp_client = TelegramClient(new_session_base, self.api_id, self.api_hash, proxy=proxy)
                     await temp_client.connect()
                     
                     if await temp_client.is_user_authorized():

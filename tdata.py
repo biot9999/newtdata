@@ -10896,6 +10896,11 @@ class EnhancedBot:
 • JSON中的2FA密码将用于重新登录
 • 如果没有JSON文件，将在后续步骤手动输入信息
 
+<b>⚠️ 安全提示</b>
+• 建议使用JSON文件提供2FA密码
+• 避免在消息中直接发送2FA密码
+• 处理完成后请及时更改2FA密码
+
 ⏰ <i>5分钟内未上传将自动取消</i>
         """
         
@@ -11048,7 +11053,8 @@ class EnhancedBot:
         task = self.pending_reauth_tasks[user_id]
         
         # 检查超时
-        if time.time() - task['start_time'] > 300:  # 5分钟
+        REAUTH_TIMEOUT = 300  # 超时时间（秒）
+        if time.time() - task['start_time'] > REAUTH_TIMEOUT:  # 5分钟
             del self.pending_reauth_tasks[user_id]
             self.db.save_user(user_id, "", "", "")
             self.safe_send_message(update, "❌ 操作超时，请重新开始")
@@ -11270,6 +11276,9 @@ class EnhancedBot:
                 if proxy_info:
                     proxy_dict = self.checker.create_proxy_dict(proxy_info)
             
+            # 检查是否支持TData转换
+            convert_to_tdata = OPENTELE_AVAILABLE and task.get('convert_tdata', True)
+            
             # 调用重新授权管理器
             success, message = await self.reauth_manager.recreate_session(
                 old_session_path=task['session_path'],
@@ -11280,7 +11289,7 @@ class EnhancedBot:
                 output_folder=output_folder,
                 device=get_device_info(),
                 proxy=proxy_dict,
-                convert_to_tdata=True  # 自动转换为TData
+                convert_to_tdata=convert_to_tdata  # 根据配置决定是否转换
             )
             
             if success:
@@ -11347,7 +11356,8 @@ class EnhancedBot:
             import traceback
             traceback.print_exc()
             
-            error_text = f"❌ <b>处理失败</b>\n\n错误: {str(e)[:200]}"
+            # 使用通用错误消息，避免泄露敏感信息
+            error_text = "❌ <b>处理失败</b>\n\n系统遇到未预期的错误，请稍后重试或联系管理员"
             context.bot.send_message(chat_id=user_id, text=error_text, parse_mode='HTML')
         
         finally:
