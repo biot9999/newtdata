@@ -153,7 +153,12 @@ class OneClickCleaner:
             List of User objects
         """
         try:
-            contacts = await self.client.get_contacts()
+            # Use iter_participants on the Contacts dialog or get all dialogs and filter users
+            contacts = []
+            async for dialog in self.client.iter_dialogs():
+                entity = dialog.entity
+                if isinstance(entity, User) and not entity.bot and not entity.deleted and entity.contact:
+                    contacts.append(entity)
             logger.info(f"Found {len(contacts)} contacts")
             return contacts
         except Exception as e:
@@ -545,7 +550,7 @@ class OneClickCleaner:
     
     async def _generate_report(self, elapsed_time: float, failed: bool = False, error: Optional[str] = None) -> Path:
         """
-        Generate cleanup report in CSV and JSON formats.
+        Generate cleanup report in TXT format.
         
         Args:
             elapsed_time: Total elapsed time in seconds
@@ -558,50 +563,66 @@ class OneClickCleaner:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_base = self.report_dir / f"cleanup_{self.account_name}_{timestamp}"
         
-        # Generate CSV report
-        csv_path = report_base.with_suffix('.csv')
-        with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=[
-                'chat_id', 'title', 'type', 'actions_done', 'status', 'error', 'timestamp'
-            ])
-            writer.writeheader()
-            for action in self.actions:
-                writer.writerow({
-                    'chat_id': action.chat_id,
-                    'title': action.title,
-                    'type': action.chat_type,
-                    'actions_done': ', '.join(action.actions_done),
-                    'status': action.status,
-                    'error': action.error or '',
-                    'timestamp': action.timestamp
-                })
+        # Generate TXT report
+        txt_path = report_base.with_suffix('.txt')
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            # Header
+            f.write("=" * 70 + "\n")
+            f.write("               一键清理报告 / Cleanup Report\n")
+            f.write("=" * 70 + "\n\n")
+            
+            # Basic Info
+            f.write(f"账号名称 / Account Name: {self.account_name}\n")
+            f.write(f"清理时间 / Timestamp: {timestamp}\n")
+            f.write(f"耗时 / Elapsed Time: {elapsed_time:.2f} 秒/seconds\n")
+            f.write(f"状态 / Status: {'❌ 失败/Failed' if failed else '✅ 成功/Success'}\n")
+            if error:
+                f.write(f"错误 / Error: {error}\n")
+            f.write("\n")
+            
+            # Statistics
+            f.write("-" * 70 + "\n")
+            f.write("统计信息 / Statistics\n")
+            f.write("-" * 70 + "\n")
+            f.write(f"• 离开群组 / Groups Left: {self.stats['groups_left']}\n")
+            f.write(f"• 离开频道 / Channels Left: {self.stats['channels_left']}\n")
+            f.write(f"• 删除历史记录 / Histories Deleted: {self.stats['histories_deleted']}\n")
+            f.write(f"• 删除联系人 / Contacts Deleted: {self.stats['contacts_deleted']}\n")
+            f.write(f"• 归档对话 / Dialogs Archived: {self.stats['dialogs_closed']}\n")
+            f.write(f"• 错误数 / Errors: {self.stats['errors']}\n")
+            f.write(f"• 跳过数 / Skipped: {self.stats['skipped']}\n")
+            f.write("\n")
+            
+            # Detailed Actions
+            if self.actions:
+                f.write("-" * 70 + "\n")
+                f.write("详细操作记录 / Detailed Action Log\n")
+                f.write("-" * 70 + "\n\n")
+                
+                for idx, action in enumerate(self.actions, 1):
+                    status_icon = {
+                        'success': '✅',
+                        'partial': '⚠️',
+                        'failed': '❌',
+                        'skipped': '⏭️',
+                        'pending': '⏳'
+                    }.get(action.status, '❓')
+                    
+                    f.write(f"[{idx}] {status_icon} {action.title}\n")
+                    f.write(f"    Chat ID: {action.chat_id}\n")
+                    f.write(f"    类型 / Type: {action.chat_type}\n")
+                    if action.actions_done:
+                        f.write(f"    操作 / Actions: {', '.join(action.actions_done)}\n")
+                    f.write(f"    状态 / Status: {action.status}\n")
+                    if action.error:
+                        f.write(f"    错误 / Error: {action.error}\n")
+                    f.write("\n")
+            
+            # Footer
+            f.write("=" * 70 + "\n")
+            f.write("清理完成 / Cleanup Completed\n")
+            f.write("=" * 70 + "\n")
         
-        # Generate JSON report
-        json_path = report_base.with_suffix('.json')
-        report_data = {
-            'account_name': self.account_name,
-            'timestamp': timestamp,
-            'elapsed_time_seconds': elapsed_time,
-            'failed': failed,
-            'error': error,
-            'statistics': self.stats,
-            'actions': [
-                {
-                    'chat_id': a.chat_id,
-                    'title': a.title,
-                    'chat_type': a.chat_type,
-                    'actions_done': a.actions_done,
-                    'status': a.status,
-                    'error': a.error,
-                    'timestamp': a.timestamp
-                }
-                for a in self.actions
-            ]
-        }
+        logger.info(f"Report generated: {txt_path}")
         
-        with open(json_path, 'w', encoding='utf-8') as f:
-            json.dump(report_data, f, indent=2, ensure_ascii=False)
-        
-        logger.info(f"Reports generated: {csv_path} and {json_path}")
-        
-        return csv_path
+        return txt_path

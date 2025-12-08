@@ -14291,7 +14291,9 @@ class EnhancedBot:
             'total': len(files),
             'success': 0,
             'failed': 0,
-            'reports': []
+            'reports': [],
+            'success_files': [],  # 成功清理的账户文件
+            'failed_files': []    # 失败的账户文件
         }
         
         try:
@@ -14380,18 +14382,100 @@ class EnhancedBot:
                         results_summary['success'] += 1
                         if result.get('report_path'):
                             results_summary['reports'].append(result['report_path'])
+                        # 保存成功清理的账户文件
+                        results_summary['success_files'].append((file_path, file_name))
                     else:
                         results_summary['failed'] += 1
+                        # 保存失败的账户文件
+                        results_summary['failed_files'].append((file_path, file_name))
                     
                 except Exception as e:
                     logger.error(f"Cleanup failed for {file_name}: {e}")
                     import traceback
                     traceback.print_exc()
                     results_summary['failed'] += 1
+                    # 保存失败的账户文件
+                    results_summary['failed_files'].append((file_path, file_name))
+            
+            # 生成统一的TXT报告
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            summary_report_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleanup_summary_{timestamp}.txt")
+            
+            with open(summary_report_path, 'w', encoding='utf-8') as f:
+                f.write("=" * 70 + "\n")
+                f.write("           批量清理汇总报告 / Batch Cleanup Summary\n")
+                f.write("=" * 70 + "\n\n")
+                
+                success_rate = (results_summary['success'] / results_summary['total'] * 100) if results_summary['total'] > 0 else 0
+                
+                f.write(f"清理时间 / Cleanup Time: {timestamp}\n")
+                f.write(f"总账号数 / Total Accounts: {results_summary['total']}\n")
+                f.write(f"✅ 成功 / Success: {results_summary['success']} ({success_rate:.1f}%)\n")
+                f.write(f"❌ 失败 / Failed: {results_summary['failed']}\n\n")
+                
+                if results_summary['success_files']:
+                    f.write("-" * 70 + "\n")
+                    f.write(f"成功清理的账户 / Successfully Cleaned ({len(results_summary['success_files'])})\n")
+                    f.write("-" * 70 + "\n")
+                    for idx, (_, fname) in enumerate(results_summary['success_files'], 1):
+                        f.write(f"{idx}. ✅ {fname}\n")
+                    f.write("\n")
+                
+                if results_summary['failed_files']:
+                    f.write("-" * 70 + "\n")
+                    f.write(f"清理失败的账户 / Failed to Clean ({len(results_summary['failed_files'])})\n")
+                    f.write("-" * 70 + "\n")
+                    for idx, (_, fname) in enumerate(results_summary['failed_files'], 1):
+                        f.write(f"{idx}. ❌ {fname}\n")
+                    f.write("\n")
+                
+                f.write("=" * 70 + "\n")
+                f.write("详细报告请查看各账户对应的报告文件\n")
+                f.write("See individual account reports for details\n")
+                f.write("=" * 70 + "\n")
+            
+            # 打包成功和失败的账户文件
+            result_zips = []
+            
+            # 打包成功清理的账户
+            if results_summary['success_files']:
+                success_zip_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleaned_success_{timestamp}.zip")
+                with zipfile.ZipFile(success_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for file_path, file_name in results_summary['success_files']:
+                        # 添加session文件
+                        if os.path.exists(file_path):
+                            zipf.write(file_path, file_name)
+                        # 如果有对应的session-journal文件也添加
+                        journal_path = file_path + '-journal'
+                        if os.path.exists(journal_path):
+                            zipf.write(journal_path, file_name + '-journal')
+                        # 如果有对应的json文件也添加
+                        json_path = os.path.splitext(file_path)[0] + '.json'
+                        if os.path.exists(json_path):
+                            zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
+                
+                result_zips.append(('success', success_zip_path, len(results_summary['success_files'])))
+            
+            # 打包失败的账户
+            if results_summary['failed_files']:
+                failed_zip_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleaned_failed_{timestamp}.zip")
+                with zipfile.ZipFile(failed_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for file_path, file_name in results_summary['failed_files']:
+                        # 添加session文件
+                        if os.path.exists(file_path):
+                            zipf.write(file_path, file_name)
+                        # 如果有对应的session-journal文件也添加
+                        journal_path = file_path + '-journal'
+                        if os.path.exists(journal_path):
+                            zipf.write(journal_path, file_name + '-journal')
+                        # 如果有对应的json文件也添加
+                        json_path = os.path.splitext(file_path)[0] + '.json'
+                        if os.path.exists(json_path):
+                            zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
+                
+                result_zips.append(('failed', failed_zip_path, len(results_summary['failed_files'])))
             
             # 发送完成消息
-            success_rate = (results_summary['success'] / results_summary['total'] * 100) if results_summary['total'] > 0 else 0
-            
             final_text = f"""
 ✅ <b>清理完成！</b>
 
@@ -14400,8 +14484,7 @@ class EnhancedBot:
 • ✅ 成功: {results_summary['success']} ({success_rate:.1f}%)
 • ❌ 失败: {results_summary['failed']}
 
-<b>📋 清理报告</b>
-已生成 {len(results_summary['reports'])} 份报告
+<b>📦 正在打包账户文件...</b>
             """
             
             context.bot.send_message(
@@ -14410,18 +14493,31 @@ class EnhancedBot:
                 parse_mode='HTML'
             )
             
-            # 发送报告文件
-            for report_path in results_summary['reports']:
+            # 发送汇总报告
+            try:
+                with open(summary_report_path, 'rb') as f:
+                    context.bot.send_document(
+                        chat_id=user_id,
+                        document=f,
+                        caption=f"📋 清理汇总报告",
+                        filename=os.path.basename(summary_report_path)
+                    )
+            except Exception as e:
+                logger.error(f"Failed to send summary report: {e}")
+            
+            # 发送账户ZIP文件
+            for zip_type, zip_path, count in result_zips:
                 try:
-                    with open(report_path, 'rb') as f:
+                    caption = f"📦 清理{'成功' if zip_type == 'success' else '失败'}的账户 ({count} 个)"
+                    with open(zip_path, 'rb') as f:
                         context.bot.send_document(
                             chat_id=user_id,
                             document=f,
-                            caption=f"📋 清理报告: {os.path.basename(report_path)}",
-                            filename=os.path.basename(report_path)
+                            caption=caption,
+                            filename=os.path.basename(zip_path)
                         )
                 except Exception as e:
-                    logger.error(f"Failed to send report {report_path}: {e}")
+                    logger.error(f"Failed to send {zip_type} accounts ZIP: {e}")
             
         except Exception as e:
             logger.error(f"Cleanup execution failed: {e}")
