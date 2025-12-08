@@ -74,7 +74,7 @@ except ImportError as e:
     sys.exit(1)
 
 try:
-    from telethon import TelegramClient, functions, events
+    from telethon import TelegramClient, functions
     from telethon.errors import (
         FloodWaitError, SessionPasswordNeededError, RPCError,
         UserDeactivatedBanError, UserDeactivatedError, AuthKeyUnregisteredError,
@@ -1565,22 +1565,6 @@ class Database:
             )
         """)
         
-        # 重新授权日志表
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS reauth_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                batch_id TEXT NOT NULL,
-                account_name TEXT NOT NULL,
-                phone TEXT,
-                old_password TEXT,
-                new_password TEXT,
-                status TEXT,
-                error_message TEXT,
-                proxy_used TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
         # 迁移：添加expiry_time列到memberships表
         try:
             c.execute("ALTER TABLE memberships ADD COLUMN expiry_time TEXT")
@@ -2349,38 +2333,6 @@ class Database:
             return True
         except Exception as e:
             print(f"❌ 插入忘记2FA日志失败: {e}")
-            return False
-    
-    def insert_reauth_log(self, batch_id: str, account_name: str, phone: str,
-                         old_password: str, new_password: str, status: str,
-                         error_message: str = "", proxy_used: str = ""):
-        """插入重新授权日志"""
-        try:
-            conn = sqlite3.connect(self.db_name)
-            c = conn.cursor()
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            c.execute("""
-                INSERT INTO reauth_logs 
-                (batch_id, account_name, phone, old_password, new_password, status, error_message, proxy_used, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                batch_id,
-                account_name,
-                phone,
-                old_password,
-                new_password,
-                status,
-                error_message,
-                proxy_used,
-                now
-            ))
-            
-            conn.commit()
-            conn.close()
-            return True
-        except Exception as e:
-            print(f"❌ 插入重新授权日志失败: {e}")
             return False
 
 # ================================
@@ -6445,453 +6397,6 @@ class Forget2FAManager:
         return result_files
 
 # ================================
-# 重新授权管理器
-# ================================
-
-class ReauthorizationManager:
-    """账号重新授权管理器 - 批量重新授权 Telegram 账号"""
-    
-    # 配置常量
-    DEFAULT_CONCURRENT_LIMIT = 10      # 默认并发数限制
-    DEFAULT_MAX_PROXY_RETRIES = 2      # 默认代理重试次数
-    DEFAULT_PROXY_TIMEOUT = 20         # 默认代理超时时间（秒）
-    DEFAULT_CODE_WAIT_TIMEOUT = 60     # 等待验证码的超时时间（秒）
-    
-    def __init__(self, proxy_manager: ProxyManager, db: Database,
-                 concurrent_limit: int = None):
-        self.proxy_manager = proxy_manager
-        self.db = db
-        self.password_detector = PasswordDetector()
-        self.device_params_loader = DeviceParamsLoader()
-        
-        # 使用传入参数或默认值
-        self.concurrent_limit = concurrent_limit if concurrent_limit is not None else self.DEFAULT_CONCURRENT_LIMIT
-        
-        # 创建信号量控制并发
-        self.semaphore = asyncio.Semaphore(self.concurrent_limit)
-        
-        print(f"🔄 重新授权管理器初始化: 并发={self.concurrent_limit}")
-    
-    def create_proxy_dict(self, proxy_info: Dict) -> Optional[Dict]:
-        """创建代理字典"""
-        if not proxy_info:
-            return None
-        
-        try:
-            if PROXY_SUPPORT:
-                if proxy_info['type'] == 'socks5':
-                    proxy_type = socks.SOCKS5
-                elif proxy_info['type'] == 'socks4':
-                    proxy_type = socks.SOCKS4
-                else:
-                    proxy_type = socks.HTTP
-                
-                proxy_dict = {
-                    'proxy_type': proxy_type,
-                    'addr': proxy_info['host'],
-                    'port': proxy_info['port']
-                }
-                
-                if proxy_info.get('username') and proxy_info.get('password'):
-                    proxy_dict['username'] = proxy_info['username']
-                    proxy_dict['password'] = proxy_info['password']
-            else:
-                proxy_dict = (proxy_info['host'], proxy_info['port'])
-            
-            return proxy_dict
-            
-        except Exception as e:
-            print(f"❌ 创建代理配置失败: {e}")
-            return None
-    
-    async def reauthorize_account(
-        self, 
-        file_path: str, 
-        file_name: str,
-        old_password: Optional[str],
-        new_password: str,
-        file_type: str = 'session'
-    ) -> Tuple[str, str, Optional[str]]:
-        """
-        重新授权单个账号
-        
-        Args:
-            file_path: Session文件路径或TData目录路径
-            file_name: 显示用的文件名
-            old_password: 旧密码（可选，会尝试自动检测）
-            new_password: 新密码
-            file_type: 文件类型 ('session' 或 'tdata')
-            
-        Returns:
-            (status, message, new_file_path)
-            status: 'success', 'password_error', 'frozen', 'banned', 'connection_error'
-        """
-        if not TELETHON_AVAILABLE:
-            return 'connection_error', "Telethon未安装", None
-        
-        async with self.semaphore:
-            old_client = None
-            new_client = None
-            proxy_dict = None
-            proxy_used = "本地连接"
-            phone = None
-            
-            try:
-                # 1. 尝试自动检测旧密码
-                if not old_password:
-                    detected_password = self.password_detector.detect_password(file_path, file_type)
-                    if detected_password:
-                        old_password = detected_password
-                        print(f"✅ 自动检测到旧密码: {file_name}")
-                
-                # 2. 尝试使用代理
-                proxy_enabled = self.db.get_proxy_enabled() if self.db else True
-                if config.USE_PROXY and proxy_enabled and self.proxy_manager.proxies:
-                    proxy_info = self.proxy_manager.get_next_proxy()
-                    if proxy_info:
-                        proxy_dict = self.create_proxy_dict(proxy_info)
-                        if proxy_dict:
-                            proxy_used = "使用代理"
-                
-                # 3. 创建旧会话客户端
-                if file_type == 'session':
-                    session_base = file_path.replace('.session', '') if file_path.endswith('.session') else file_path
-                else:
-                    # TData 格式需要先转换
-                    return 'connection_error', "暂不支持TData格式的重新授权", None
-                
-                old_client = TelegramClient(
-                    session_base,
-                    int(config.API_ID),
-                    str(config.API_HASH),
-                    timeout=self.DEFAULT_PROXY_TIMEOUT,
-                    connection_retries=2,
-                    retry_delay=1,
-                    proxy=proxy_dict
-                )
-                
-                # 4. 连接旧会话
-                await asyncio.wait_for(old_client.connect(), timeout=15)
-                
-                # 5. 检查旧会话授权
-                is_authorized = await asyncio.wait_for(old_client.is_user_authorized(), timeout=5)
-                if not is_authorized:
-                    return 'connection_error', f"{proxy_used} | 旧会话未授权", None
-                
-                # 6. 获取账号信息
-                try:
-                    me = await asyncio.wait_for(old_client.get_me(), timeout=5)
-                    phone = str(me.phone) if me.phone else None
-                    user_info = f"ID:{me.id}"
-                    if me.username:
-                        user_info += f" @{me.username}"
-                except Exception as e:
-                    user_info = "账号"
-                    phone = None
-                
-                # 7. 验证旧密码（如果有）
-                if old_password:
-                    try:
-                        from telethon.tl.functions.account import GetPasswordRequest
-                        pwd_info = await asyncio.wait_for(
-                            old_client(GetPasswordRequest()),
-                            timeout=10
-                        )
-                        
-                        if pwd_info.has_password:
-                            # 验证旧密码 - 使用check_password方法
-                            try:
-                                # 使用check_password验证旧密码是否正确
-                                from telethon.tl.functions.auth import CheckPasswordRequest
-                                import hashlib
-                                
-                                # Telethon会自动处理密码哈希，我们只需传入明文密码
-                                # 如果密码错误会抛出PasswordHashInvalidError
-                                await old_client.sign_in(password=old_password)
-                            except PasswordHashInvalidError:
-                                return 'password_error', f"{user_info} | {proxy_used} | 旧密码错误", None
-                            except Exception as e:
-                                # 账号可能已经登录，密码验证可能不需要
-                                print(f"⚠️ 密码验证跳过: {e}")
-                                pass
-                    except Exception as e:
-                        print(f"⚠️ 旧密码验证失败: {e}")
-                
-                # 8. 删除旧密码（如果有）
-                if old_password:
-                    try:
-                        # 首先检查账号是否有2FA密码
-                        from telethon.tl.functions.account import GetPasswordRequest
-                        pwd_info = await old_client(GetPasswordRequest())
-                        
-                        if pwd_info.has_password:
-                            # 使用 edit_2fa 删除旧密码
-                            await old_client.edit_2fa(current_password=old_password, new_password='')
-                            print(f"✅ 已删除旧密码: {file_name}")
-                        else:
-                            print(f"ℹ️ 账号未设置2FA密码，跳过删除: {file_name}")
-                    except Exception as e:
-                        print(f"⚠️ 删除旧密码失败（密码可能不正确）: {e}")
-                        # 即使删除失败也继续流程
-                
-                # 9. 踢出所有其他设备
-                try:
-                    from telethon.tl.functions.auth import ResetAuthorizationsRequest
-                    await old_client(ResetAuthorizationsRequest())
-                    print(f"✅ 已踢出所有其他设备: {file_name}")
-                    await asyncio.sleep(2)  # 等待操作生效
-                except Exception as e:
-                    print(f"⚠️ 踢出设备失败: {e}")
-                
-                # 10. 监听验证码（在旧会话中设置监听器）
-                code_received = asyncio.Event()
-                received_code = {'value': None}
-                
-                def extract_code_local(text: str) -> Optional[str]:
-                    """从消息文本中提取 5-6 位验证码"""
-                    if not text:
-                        return None
-                    match = re.search(r'\b(\d{5,6})\b', text)
-                    return match.group(1) if match else None
-                
-                # 设置事件处理器监听 777000 的消息
-                @old_client.on(events.NewMessage(from_users=777000))
-                async def code_handler(event):
-                    code = extract_code_local(event.raw_text or event.message.message)
-                    if code:
-                        received_code['value'] = code
-                        code_received.set()
-                        print(f"📥 收到验证码 {file_name}: {code}")
-                
-                # 11. 请求验证码
-                try:
-                    if not phone:
-                        return 'connection_error', f"{user_info} | 无法获取手机号", None
-                    
-                    # 确保 phone 是字符串格式
-                    phone_str = str(phone) if not isinstance(phone, str) else phone
-                    print(f"🔍 调试信息 - 电话: {phone_str}, 类型: {type(phone_str)}")
-                    print(f"🔍 客户端 API_ID 类型: {type(old_client.api_id)}, API_HASH 类型: {type(old_client.api_hash)}")
-                    
-                    sent_code = await old_client.send_code_request(phone_str)
-                    print(f"✅ 已请求验证码: {file_name}")
-                except Exception as e:
-                    print(f"⚠️ 请求验证码失败: {e}")
-                    print(f"🔍 错误类型: {type(e)}")
-                    import traceback
-                    traceback.print_exc()
-                    return 'connection_error', f"{user_info} | 请求验证码失败: {str(e)[:50]}", None
-                
-                # 12. 等待验证码（最多等待60秒）
-                code_timeout = 60  # 验证码等待超时时间（秒）
-                try:
-                    await asyncio.wait_for(code_received.wait(), timeout=code_timeout)
-                    verification_code = received_code['value']
-                    if not verification_code:
-                        return 'connection_error', f"{user_info} | {proxy_used} | 未收到验证码", None
-                    print(f"✅ 验证码已接收: {file_name}")
-                except asyncio.TimeoutError:
-                    return 'connection_error', f"{user_info} | {proxy_used} | 等待验证码超时({code_timeout}秒)", None
-                
-                # 13. 创建新会话并登录
-                new_session_path = file_path.replace('.session', '_new.session') if file_path.endswith('.session') else file_path + '_new'
-                new_session_base = new_session_path.replace('.session', '') if new_session_path.endswith('.session') else new_session_path
-                
-                try:
-                    # 获取随机设备参数
-                    device_config = self.device_params_loader.get_random_device_config()
-                    
-                    # 使用随机 API 凭证（如果有），否则使用配置的
-                    api_id = device_config.get('api_id', int(config.API_ID))
-                    api_hash = str(device_config.get('api_hash', config.API_HASH))
-                    
-                    new_client = TelegramClient(
-                        new_session_base,
-                        api_id,
-                        api_hash,
-                        timeout=self.DEFAULT_PROXY_TIMEOUT,
-                        connection_retries=2,
-                        retry_delay=1,
-                        proxy=proxy_dict,
-                        # 设置设备参数
-                        device_model=device_config.get('device_model', 'PC 64bit'),
-                        system_version=device_config.get('system_version', 'Windows 10'),
-                        app_version=device_config.get('app_version', '4.12.2'),
-                        lang_code=device_config.get('lang_code', 'en'),
-                        system_lang_code=device_config.get('system_lang_code', 'en-US')
-                    )
-                    
-                    print(f"🎲 使用随机设备参数: {device_config.get('device_model')} | {device_config.get('app_version')}")
-                    await asyncio.wait_for(new_client.connect(), timeout=15)
-                    
-                    # 使用验证码登录
-                    try:
-                        phone_str = str(phone) if not isinstance(phone, str) else phone
-                        await new_client.sign_in(phone_str, verification_code, phone_code_hash=sent_code.phone_code_hash)
-                        print(f"✅ 新会话登录成功: {file_name}")
-                    except SessionPasswordNeededError:
-                        # 需要2FA密码
-                        if old_password:
-                            try:
-                                await new_client.sign_in(password=old_password)
-                                print(f"✅ 使用旧密码完成2FA验证: {file_name}")
-                            except Exception as e:
-                                return 'password_error', f"{user_info} | {proxy_used} | 2FA密码验证失败: {str(e)[:50]}", None
-                        else:
-                            return 'password_error', f"{user_info} | {proxy_used} | 需要2FA密码", None
-                    
-                    # 14. 设置新密码
-                    if new_password:
-                        try:
-                            await new_client.edit_2fa(
-                                current_password=old_password if old_password else None,
-                                new_password=new_password,
-                                hint=f"Updated {datetime.now().strftime('%Y-%m-%d')}"
-                            )
-                            print(f"✅ 已设置新密码: {file_name}")
-                        except Exception as e:
-                            print(f"⚠️ 设置新密码失败: {e}")
-                    
-                    # 15. 断开新会话
-                    await new_client.disconnect()
-                    
-                    # 16. 登出旧会话
-                    await old_client.log_out()
-                    print(f"✅ 旧会话已登出: {file_name}")
-                    
-                    # 返回成功，包含新会话文件路径
-                    return 'success', f"{user_info} | {proxy_used} | 重新授权成功", new_session_path + '.session'
-                    
-                except PhoneCodeInvalidError:
-                    return 'connection_error', f"{user_info} | {proxy_used} | 验证码无效", None
-                except Exception as e:
-                    print(f"❌ 新会话登录失败: {e}")
-                    return 'connection_error', f"{user_info} | {proxy_used} | 新会话登录失败: {str(e)[:50]}", None
-                
-            except UserDeactivatedError:
-                return 'frozen', f"{proxy_used} | 账号已冻结", None
-            except UserDeactivatedBanError:
-                return 'banned', f"{proxy_used} | 账号已封禁", None
-            except PhoneNumberBannedError:
-                return 'banned', f"{proxy_used} | 手机号已封禁", None
-            except AuthKeyUnregisteredError:
-                return 'connection_error', f"{proxy_used} | 会话已失效", None
-            except Exception as e:
-                error_msg = str(e).lower()
-                if any(word in error_msg for word in ["timeout", "network", "connection"]):
-                    return 'connection_error', f"{proxy_used} | 网络连接失败: {str(e)[:50]}", None
-                elif "password" in error_msg:
-                    return 'password_error', f"{proxy_used} | 密码错误: {str(e)[:50]}", None
-                else:
-                    return 'connection_error', f"{proxy_used} | 错误: {str(e)[:50]}", None
-            
-            finally:
-                # 清理客户端连接
-                if old_client:
-                    try:
-                        await old_client.disconnect()
-                    except:
-                        pass
-                if new_client:
-                    try:
-                        await new_client.disconnect()
-                    except:
-                        pass
-    
-    async def batch_reauthorize_with_progress(
-        self,
-        files: List[Tuple[str, str]],
-        file_type: str,
-        old_password: Optional[str],
-        new_password: str,
-        progress_callback
-    ) -> Dict[str, List]:
-        """
-        批量重新授权并实时更新进度
-        
-        Args:
-            files: 文件列表 [(path, name), ...]
-            file_type: 文件类型 ('session' 或 'tdata')
-            old_password: 旧密码（可选）
-            new_password: 新密码
-            progress_callback: 进度回调函数
-            
-        Returns:
-            Dict[status, List[result]]
-        """
-        results = {
-            'success': [],
-            'password_error': [],
-            'frozen': [],
-            'banned': [],
-            'connection_error': []
-        }
-        
-        total = len(files)
-        
-        # 创建所有任务
-        tasks = []
-        for file_path, file_name in files:
-            task = self.reauthorize_account(
-                file_path, file_name, old_password, new_password, file_type
-            )
-            tasks.append(task)
-        
-        # 使用 asyncio.gather 并发执行所有任务，保持顺序
-        task_results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # 处理结果，顺序与files列表一致
-        for idx, result in enumerate(task_results):
-            file_path, file_name = files[idx]
-            
-            try:
-                if isinstance(result, Exception):
-                    # 任务执行时发生异常
-                    print(f"❌ 处理账号异常 {file_name}: {result}")
-                    results['connection_error'].append({
-                        'name': file_name,
-                        'path': file_path,
-                        'new_path': None,
-                        'message': f"处理异常: {str(result)[:50]}"
-                    })
-                else:
-                    # 正常返回结果
-                    status, message, new_file_path = result
-                    
-                    # 记录结果
-                    result_item = {
-                        'name': file_name,
-                        'path': file_path,
-                        'new_path': new_file_path,
-                        'message': message
-                    }
-                    results[status].append(result_item)
-                
-                # 更新进度
-                processed = idx + 1
-                if progress_callback:
-                    await progress_callback(
-                        processed, total,
-                        len(results['success']),
-                        len(results['password_error']) + len(results['frozen']) + 
-                        len(results['banned']) + len(results['connection_error']),
-                        len(results['frozen']),
-                        len(results['banned']),
-                        len(results['connection_error'])
-                    )
-                    
-            except Exception as e:
-                print(f"❌ 处理结果失败 {file_name}: {e}")
-                results['connection_error'].append({
-                    'name': file_name,
-                    'path': file_path,
-                    'new_path': None,
-                    'message': f"处理失败: {str(e)[:50]}"
-                })
-        
-        return results
-
-# ================================
 # 设备参数加载器
 # ================================
 
@@ -7127,7 +6632,6 @@ class EnhancedBot:
         self.processor = FileProcessor(self.checker, self.db)
         self.converter = FormatConverter(self.db)
         self.two_factor_manager = TwoFactorManager(self.proxy_manager, self.db)
-        self.reauth_manager = ReauthorizationManager(self.proxy_manager, self.db)
         import inspect
         print("DEBUG APIFormatConverter source:", inspect.getsourcefile(APIFormatConverter))
         print("DEBUG APIFormatConverter signature:", str(inspect.signature(APIFormatConverter)))
@@ -7169,9 +6673,6 @@ class EnhancedBot:
         
         # 添加2FA待处理任务
         self.pending_add_2fa_tasks: Dict[int, Dict[str, Any]] = {}
-        
-        # 重新授权待处理任务
-        self.pending_reauth_tasks: Dict[int, Dict[str, Any]] = {}
 
         self.updater = Updater(config.TOKEN, use_context=True)
         self.dp = self.updater.dispatcher
@@ -7494,9 +6995,6 @@ class EnhancedBot:
             [
                 InlineKeyboardButton("📝 文件重命名", callback_data="rename_start"),
                 InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
-            ],
-            [
-                InlineKeyboardButton("🔄 重新授权", callback_data="reauth_start"),
             ],
             [
                 InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu"),
@@ -8542,8 +8040,6 @@ class EnhancedBot:
             self.handle_merge_start(query)
         elif data == "merge_finish":
             self.handle_merge_finish(update, context, query)
-        elif data == "reauth_start":
-            self.handle_reauth_start(query)
         elif query.data == "back_to_main":
             self.show_main_menu(update, user_id)
             # 返回主菜单 - 横排2x2布局
@@ -8596,9 +8092,6 @@ class EnhancedBot:
                 [
                     InlineKeyboardButton("📝 文件重命名", callback_data="rename_start"),
                     InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
-                ],
-                [
-                    InlineKeyboardButton("🔄 重新授权", callback_data="reauth_start"),
                 ],
                 [
                     InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu"),
@@ -9502,7 +8995,7 @@ class EnhancedBot:
             row = c.fetchone()
             conn.close()
 
-            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files, waiting_reauth_files
+            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files
             if not row or row[0] not in [
                 "waiting_file",
                 "waiting_convert_tdata",
@@ -9514,7 +9007,6 @@ class EnhancedBot:
                 "waiting_merge_files",
                 "waiting_forget_2fa_file",
                 "waiting_add_2fa_file",
-                "waiting_reauth_files",
             ]:
                 self.safe_send_message(update, "❌ 请先点击相应的功能按钮")
                 return
@@ -9530,9 +9022,6 @@ class EnhancedBot:
             return
         elif user_status == "waiting_merge_files":
             self.handle_merge_file_upload(update, context, document)
-            return
-        elif user_status == "waiting_reauth_files":
-            self.handle_reauth_file_upload(update, context, document)
             return
         
         # 其他功能需要ZIP格式
@@ -10921,51 +10410,6 @@ class EnhancedBot:
                     return
         except Exception as e:
             print(f"❌ 检查广播状态失败: {e}")
-        
-        # 处理重新授权等待的密码输入
-        if user_id in getattr(self, "pending_reauth_tasks", {}):
-            task = self.pending_reauth_tasks[user_id]
-            
-            # 检查用户状态
-            try:
-                conn = sqlite3.connect(config.DB_NAME)
-                c = conn.cursor()
-                c.execute("SELECT status FROM users WHERE user_id = ?", (user_id,))
-                row = c.fetchone()
-                conn.close()
-                
-                if row:
-                    user_status = row[0]
-                    
-                    if user_status == "waiting_reauth_old_password":
-                        # 保存旧密码（如果用户输入 "-" 则表示无密码）
-                        old_password = text.strip() if text.strip() != "-" else None
-                        task['old_password'] = old_password
-                        
-                        # 更新状态并提示输入新密码
-                        self.db.save_user(user_id, "", "", "waiting_reauth_new_password")
-                        self.safe_send_message(
-                            update,
-                            "<b>📝 请输入新密码</b>\n\n"
-                            "这将是新 session 的 2FA 密码",
-                            'HTML'
-                        )
-                        return
-                    
-                    elif user_status == "waiting_reauth_new_password":
-                        # 保存新密码并开始处理
-                        new_password = text.strip()
-                        old_password = task.get('old_password')
-                        
-                        # 开始处理
-                        def process_reauth():
-                            asyncio.run(self.process_reauthorization(update, context, user_id, old_password, new_password))
-                        
-                        thread = threading.Thread(target=process_reauth, daemon=True)
-                        thread.start()
-                        return
-            except Exception as e:
-                print(f"❌ 检查重新授权状态失败: {e}")
         
         # 处理添加2FA等待的密码输入（使用任务字典检查，不依赖数据库状态）
         if user_id in getattr(self, "pending_add_2fa_tasks", {}):
@@ -14601,311 +14045,6 @@ class EnhancedBot:
         
         # 清除用户状态
         self.db.save_user(user_id, "", "", "")
-    
-    def handle_reauth_start(self, query):
-        """开始重新授权流程"""
-        user_id = query.from_user.id
-        query.answer()
-        
-        # 权限检查 - 可以设置为会员专属或全员可用
-        # is_member, level, _ = self.db.check_membership(user_id)
-        # if not is_member and not self.db.is_admin(user_id):
-        #     self.safe_edit_message(query, "❌ 需要会员权限才能使用重新授权功能")
-        #     return
-        
-        # 创建临时目录
-        temp_dir = tempfile.mkdtemp(prefix="temp_reauth_")
-        task_id = secrets.token_hex(8)
-        
-        # 初始化任务
-        self.pending_reauth_tasks[user_id] = {
-            'temp_dir': temp_dir,
-            'task_id': task_id,
-            'files': [],
-            'file_type': None
-        }
-        
-        # 设置用户状态
-        self.db.save_user(
-            user_id,
-            query.from_user.username or "",
-            query.from_user.first_name or "",
-            "waiting_reauth_files"
-        )
-        
-        text = """
-<b>🔄 账号重新授权（全自动）</b>
-
-<b>💡 功能说明</b>
-• 批量重新授权 Telegram 账号
-• 自动监听验证码（777000）
-• 确保旧 session 完全失效
-• 生成新的授权 session
-• 支持 Session 格式
-
-<b>🔐 核心流程</b>
-1. 验证旧会话有效性
-2. 踢出所有其他设备
-3. 请求新的登录验证码
-4. 自动监听并获取验证码
-5. 使用验证码创建新会话
-6. 设置新的 2FA 密码
-7. 旧会话登出
-
-<b>⚡ 自动化特性</b>
-• 自动监听 Telegram 官方消息（777000）
-• 自动接收并使用验证码
-• 无需手动输入验证码
-• 全程自动化处理
-
-<b>📤 请上传 ZIP 文件</b>
-包含 Session 格式的账号文件
-
-上传完成后将提示输入旧密码和新密码
-        """
-        
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
-        ])
-        
-        self.safe_edit_message(query, text, 'HTML', keyboard)
-    
-    def handle_reauth_file_upload(self, update: Update, context: CallbackContext, document):
-        """处理重新授权文件上传"""
-        user_id = update.effective_user.id
-        
-        if user_id not in self.pending_reauth_tasks:
-            return
-        
-        task = self.pending_reauth_tasks[user_id]
-        filename = document.file_name
-        
-        # 检查文件类型 - 仅接受ZIP文件
-        if not filename.lower().endswith('.zip'):
-            self.safe_send_message(update, "❌ 仅支持 .zip 文件，请重新上传")
-            return
-        
-        # 下载文件
-        file_path = os.path.join(task['temp_dir'], filename)
-        try:
-            document.get_file().download(file_path)
-            
-            # 扫描文件 - 传入所有必需参数
-            files, extract_dir, file_type = self.processor.scan_zip_file(file_path, user_id, task['task_id'])
-            
-            if not files or file_type == "error" or file_type == "none":
-                self.safe_send_message(update, "❌ ZIP 文件中没有找到有效的账号文件")
-                return
-            
-            task['files'] = files
-            task['file_type'] = file_type
-            task['extract_dir'] = extract_dir
-            
-            # 设置用户状态并提示输入旧密码
-            self.db.save_user(user_id, "", "", "waiting_reauth_old_password")
-            
-            self.safe_send_message(
-                update,
-                f"✅ <b>文件接收成功</b>\n\n"
-                f"文件名: <code>{filename}</code>\n"
-                f"账号数量: {len(files)}\n"
-                f"文件类型: {file_type.upper()}\n\n"
-                f"<b>📝 请输入旧密码（可选）</b>\n"
-                f"如果账号设置了 2FA 密码，请输入旧密码\n"
-                f"系统会自动检测密码，如无密码请直接发送 \"-\" 跳过",
-                'HTML'
-            )
-        except Exception as e:
-            self.safe_send_message(update, f"❌ 处理文件失败: {str(e)}")
-            import traceback
-            traceback.print_exc()
-    
-    async def process_reauthorization(self, update, context, user_id: int, old_password: Optional[str], new_password: str):
-        """处理重新授权任务"""
-        if user_id not in self.pending_reauth_tasks:
-            return
-        
-        task = self.pending_reauth_tasks[user_id]
-        files = task['files']
-        file_type = task['file_type']
-        task_id = task['task_id']
-        
-        # 创建进度显示消息
-        progress_text = """
-<b>🔄 重新授权处理中...</b>
-
-✅ 授权成功: 0
-❌ 授权失败: 0
-🔒 冻结账户: 0
-🚫 封禁账户: 0
-⚠️ 连接错误: 0
-
-处理进度: 0 / {total}
-        """.format(total=len(files))
-        
-        progress_msg = self.safe_send_message(update, progress_text, 'HTML')
-        
-        # 进度回调
-        async def progress_callback(processed, total, success, failed, frozen, banned, connection_error):
-            nonlocal progress_msg
-            text = f"<b>🔄 重新授权处理中...</b>\n\n处理进度: {processed} / {total}"
-            
-            # 使用按钮显示统计信息
-            buttons = [
-                [InlineKeyboardButton(f"✅ 授权成功: {success}", callback_data="noop")],
-                [InlineKeyboardButton(f"❌ 授权失败: {failed}", callback_data="noop")],
-                [InlineKeyboardButton(f"🔒 冻结账户: {frozen}", callback_data="noop")],
-                [InlineKeyboardButton(f"🚫 封禁账户: {banned}", callback_data="noop")],
-                [InlineKeyboardButton(f"⚠️ 连接错误: {connection_error}", callback_data="noop")]
-            ]
-            keyboard = InlineKeyboardMarkup(buttons)
-            
-            if progress_msg:
-                try:
-                    progress_msg.edit_text(text, parse_mode='HTML', reply_markup=keyboard)
-                except:
-                    pass
-        
-        # 批量处理
-        results = await self.reauth_manager.batch_reauthorize_with_progress(
-            files, file_type, old_password, new_password, progress_callback
-        )
-        
-        # 创建结果ZIP文件
-        result_dir = os.path.join(task['temp_dir'], 'results')
-        os.makedirs(result_dir, exist_ok=True)
-        
-        # 成功结果
-        success_files = []
-        if results['success']:
-            success_zip_name = f"授权成功-{task_id}.zip"
-            success_zip_path = os.path.join(result_dir, success_zip_name)
-            
-            with zipfile.ZipFile(success_zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
-                for item in results['success']:
-                    if item['new_path'] and os.path.exists(item['new_path']):
-                        arcname = os.path.basename(item['new_path'])
-                        zf.write(item['new_path'], arcname=arcname)
-                        
-                        # 创建或更新对应的 JSON 文件
-                        json_path = item['new_path'].replace('.session', '.json')
-                        old_json_path = item['path'].replace('.session', '.json')
-                        
-                        # 如果旧JSON存在，复制并更新密码；否则创建新的
-                        json_data = {}
-                        if os.path.exists(old_json_path):
-                            try:
-                                with open(old_json_path, 'r', encoding='utf-8') as f:
-                                    json_data = json.load(f)
-                            except:
-                                pass
-                        
-                        # 更新密码字段
-                        json_data['2fa'] = new_password
-                        json_data['twoFA'] = new_password
-                        json_data['password'] = new_password
-                        
-                        # 保存JSON文件
-                        try:
-                            with open(json_path, 'w', encoding='utf-8') as f:
-                                json.dump(json_data, f, ensure_ascii=False, indent=2)
-                            zf.write(json_path, arcname=os.path.basename(json_path))
-                        except Exception as e:
-                            print(f"⚠️ 创建JSON文件失败: {e}")
-            
-            success_files.append(success_zip_path)
-        
-        # 失败结果
-        failed_files = []
-        if any([results['password_error'], results['frozen'], results['banned'], results['connection_error']]):
-            failed_zip_name = f"授权失败-{task_id}.zip"
-            failed_zip_path = os.path.join(result_dir, failed_zip_name)
-            
-            # 创建失败报告
-            failed_report_path = os.path.join(result_dir, f"失败报告-{task_id}.txt")
-            with open(failed_report_path, 'w', encoding='utf-8') as f:
-                f.write("=== 授权失败报告 ===\n\n")
-                
-                if results['password_error']:
-                    f.write("【密码错误】\n")
-                    for item in results['password_error']:
-                        f.write(f"  • {item['name']}: {item['message']}\n")
-                    f.write("\n")
-                
-                if results['frozen']:
-                    f.write("【冻结账户】\n")
-                    for item in results['frozen']:
-                        f.write(f"  • {item['name']}: {item['message']}\n")
-                    f.write("\n")
-                
-                if results['banned']:
-                    f.write("【封禁账户】\n")
-                    for item in results['banned']:
-                        f.write(f"  • {item['name']}: {item['message']}\n")
-                    f.write("\n")
-                
-                if results['connection_error']:
-                    f.write("【连接错误】\n")
-                    for item in results['connection_error']:
-                        f.write(f"  • {item['name']}: {item['message']}\n")
-                    f.write("\n")
-            
-            with zipfile.ZipFile(failed_zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
-                # 添加失败报告
-                zf.write(failed_report_path, arcname=os.path.basename(failed_report_path))
-                
-                # 添加失败的原始文件
-                all_failed = (results['password_error'] + results['frozen'] + 
-                             results['banned'] + results['connection_error'])
-                for item in all_failed:
-                    if item['path'] and os.path.exists(item['path']):
-                        arcname = os.path.basename(item['path'])
-                        zf.write(item['path'], arcname=arcname)
-                        
-                        # 如果有对应的 JSON 文件也打包
-                        json_path = item['path'].replace('.session', '.json')
-                        if os.path.exists(json_path):
-                            zf.write(json_path, arcname=os.path.basename(json_path))
-            
-            failed_files.append(failed_zip_path)
-        
-        # 发送结果
-        summary_text = f"""
-<b>✅ 重新授权完成</b>
-
-<b>📊 处理结果</b>
-• 总计: {len(files)} 个账号
-• ✅ 成功: {len(results['success'])} 个
-• ❌ 失败: {len(results['password_error']) + len(results['frozen']) + len(results['banned']) + len(results['connection_error'])} 个
-  - 密码错误: {len(results['password_error'])} 个
-  - 冻结账户: {len(results['frozen'])} 个
-  - 封禁账户: {len(results['banned'])} 个
-  - 连接错误: {len(results['connection_error'])} 个
-
-<b>📦 结果文件</b>
-{len(success_files) + len(failed_files)} 个 ZIP 文件已生成
-        """
-        
-        self.safe_send_message(update, summary_text, 'HTML')
-        
-        # 发送结果文件
-        for file_path in success_files + failed_files:
-            try:
-                with open(file_path, 'rb') as f:
-                    update.effective_chat.send_document(
-                        document=f,
-                        filename=os.path.basename(file_path)
-                    )
-            except Exception as e:
-                print(f"❌ 发送文件失败 {os.path.basename(file_path)}: {e}")
-        
-        # 清理任务
-        del self.pending_reauth_tasks[user_id]
-        self.db.save_user(user_id, "", "", "")
-        
-        # 清理临时文件
-        if os.path.exists(task['temp_dir']):
-            shutil.rmtree(task['temp_dir'], ignore_errors=True)
     
     def run(self):
         print("🚀 启动增强版机器人（速度优化版）...")
