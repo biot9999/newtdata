@@ -317,7 +317,7 @@ class OneClickCleaner:
         
         # Process all contacts concurrently with semaphore limit
         tasks = [delete_contact(user) for user in contacts]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*tasks)
         
         return deleted, errors
     
@@ -475,7 +475,7 @@ class OneClickCleaner:
                 await asyncio.sleep(self.min_peer_interval)
         
         tasks = [process_leave(dialog) for dialog in dialogs]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*tasks)
     
     async def _delete_all_histories(self, dialogs: List[Dialog]):
         """Delete history for all dialogs with concurrency control"""
@@ -531,7 +531,7 @@ class OneClickCleaner:
                 await asyncio.sleep(self.min_peer_interval)
         
         tasks = [process_delete(dialog) for dialog in dialogs]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*tasks)
     
     async def _archive_remaining(self, dialogs: List[Dialog]):
         """Archive remaining dialogs (best-effort)"""

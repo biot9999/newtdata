@@ -14314,15 +14314,17 @@ class EnhancedBot:
                     if file_type == 'tdata':
                         # 转换TData到Session
                         try:
-                            if not OPENTELE_AVAILABLE:
-                                raise ImportError("opentele not available")
+                            # Import at runtime to avoid circular dependencies
+                            from opentele.api import API, UseCurrentSession
+                            from opentele.td import TDesktop
                             
                             tdesk = TDesktop(file_path)
                             session_path = file_path.replace('tdata', 'session').replace('.zip', '.session')
                             
                             client = await tdesk.ToTelethon(
                                 session=session_path,
-                                flag=UseCurrentSession
+                                flag=UseCurrentSession,
+                                api=API.TelegramDesktop
                             )
                             await client.connect()
                             
@@ -14332,7 +14334,7 @@ class EnhancedBot:
                             continue
                     else:
                         # 直接使用Session
-                        session_path = file_path.replace('.session', '')
+                        session_path = os.path.splitext(file_path)[0]
                         
                         try:
                             client = TelegramClient(
