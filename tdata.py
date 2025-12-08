@@ -6658,10 +6658,22 @@ class ReauthorizationManager:
                     # 确保 phone 是字符串格式
                     phone_str = str(phone) if not isinstance(phone, str) else phone
                     
+                    # 验证 phone_str 不是 "None" 或空字符串
+                    if not phone_str or phone_str == "None":
+                        return 'connection_error', f"{user_info} | 手机号无效: {phone_str}", None
+                    
+                    # 验证 API 配置
+                    if not old_client.api_id or old_client.api_id == 0:
+                        return 'connection_error', f"{user_info} | API_ID 未配置", None
+                    if not old_client.api_hash or not isinstance(old_client.api_hash, str):
+                        return 'connection_error', f"{user_info} | API_HASH 配置错误，类型: {type(old_client.api_hash)}", None
+                    
                     sent_code = await old_client.send_code_request(phone_str)
                     print(f"✅ 已请求验证码: {file_name}")
                 except Exception as e:
                     print(f"⚠️ 请求验证码失败: {e}")
+                    print(f"🔍 调试信息 - 电话类型: {type(phone)}, phone_str类型: {type(phone_str) if 'phone_str' in locals() else 'undefined'}")
+                    print(f"🔍 API配置 - api_id: {old_client.api_id} (类型: {type(old_client.api_id)}), api_hash类型: {type(old_client.api_hash)}")
                     import traceback
                     traceback.print_exc()
                     return 'connection_error', f"{user_info} | 请求验证码失败: {str(e)[:50]}", None
