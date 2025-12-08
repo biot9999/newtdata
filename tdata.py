@@ -6456,6 +6456,7 @@ class ReauthorizationManager:
     DEFAULT_MAX_PROXY_RETRIES = 2      # 默认代理重试次数
     DEFAULT_PROXY_TIMEOUT = 20         # 默认代理超时时间（秒）
     DEFAULT_CODE_WAIT_TIMEOUT = 60     # 等待验证码的超时时间（秒）
+    API_HASH_DEBUG_TRUNCATE_LENGTH = 20  # 调试日志中API_HASH截断长度
     
     def __init__(self, proxy_manager: ProxyManager, db: Database,
                  concurrent_limit: int = None):
@@ -6667,7 +6668,7 @@ class ReauthorizationManager:
                         return 'connection_error', f"{user_info} | API_ID 未配置", None
                     if not old_client.api_hash or not isinstance(old_client.api_hash, str) or old_client.api_hash == "None":
                         api_hash_type = type(old_client.api_hash).__name__
-                        api_hash_value = repr(old_client.api_hash) if old_client.api_hash else "空"
+                        api_hash_value = repr(old_client.api_hash) if old_client.api_hash else "<empty>"
                         return 'connection_error', f"{user_info} | API_HASH 配置错误 (类型: {api_hash_type}, 值: {api_hash_value})", None
                     
                     sent_code = await old_client.send_code_request(phone_str)
@@ -6675,7 +6676,7 @@ class ReauthorizationManager:
                 except Exception as e:
                     print(f"⚠️ 请求验证码失败: {e}")
                     print(f"🔍 调试信息 - phone类型: {type(phone).__name__}, phone_str类型: {type(phone_str).__name__}, phone_str值: {repr(phone_str) if phone_str else '<empty>'}")
-                    api_hash_repr = repr(old_client.api_hash)[:20] if old_client.api_hash else '<None>'
+                    api_hash_repr = repr(old_client.api_hash)[:self.API_HASH_DEBUG_TRUNCATE_LENGTH] if old_client.api_hash else '<None>'
                     print(f"🔍 API配置 - api_id: {old_client.api_id} (类型: {type(old_client.api_id).__name__}), api_hash类型: {type(old_client.api_hash).__name__}, api_hash前缀: {api_hash_repr}")
                     import traceback
                     traceback.print_exc()
