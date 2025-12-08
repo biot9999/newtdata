@@ -6505,6 +6505,26 @@ class ReauthorizationManager:
             print(f"❌ 创建代理配置失败: {e}")
             return None
     
+    @staticmethod
+    def _is_frozen_error(error: Exception) -> bool:
+        """
+        检查是否为账号冻结错误（FROZEN_METHOD_INVALID）
+        
+        Args:
+            error: 异常对象
+            
+        Returns:
+            True if the error indicates a frozen account, False otherwise
+        """
+        error_str = str(error)
+        # 检查错误消息中是否包含FROZEN_METHOD_INVALID
+        if "FROZEN_METHOD_INVALID" in error_str:
+            return True
+        # 如果是RPCError，也检查error_message属性
+        if hasattr(error, 'error_message') and error.error_message and "FROZEN_METHOD_INVALID" in error.error_message:
+            return True
+        return False
+    
     async def reauthorize_account(
         self, 
         file_path: str, 
@@ -6615,7 +6635,7 @@ class ReauthorizationManager:
                                 return 'password_error', f"{user_info} | {proxy_used} | 旧密码错误", None
                             except RPCError as e:
                                 # 检查是否为账号冻结错误
-                                if "FROZEN_METHOD_INVALID" in str(e) or (hasattr(e, 'error_message') and "FROZEN_METHOD_INVALID" in e.error_message):
+                                if self._is_frozen_error(e):
                                     return 'frozen', f"{user_info} | {proxy_used} | 账号已冻结", None
                                 # 其他RPC错误，可能是网络问题或账号状态异常
                                 print(f"⚠️ 删除旧密码失败: {e}")
@@ -6637,7 +6657,7 @@ class ReauthorizationManager:
                     await asyncio.sleep(2)  # 等待操作生效
                 except RPCError as e:
                     # 检查是否为账号冻结错误
-                    if "FROZEN_METHOD_INVALID" in str(e) or (hasattr(e, 'error_message') and "FROZEN_METHOD_INVALID" in e.error_message):
+                    if self._is_frozen_error(e):
                         return 'frozen', f"{user_info} | {proxy_used} | 账号已冻结", None
                     print(f"⚠️ 踢出设备失败: {e}")
                 except Exception as e:
