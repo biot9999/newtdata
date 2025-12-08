@@ -43,6 +43,15 @@ print("🔍 Telegram账号检测机器人 V8.0")
 print(f"📅 当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 # ================================
+# 日志配置
+# ================================
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# ================================
 # 环境变量加载
 # ================================
 
@@ -14644,14 +14653,32 @@ class EnhancedBot:
             # 处理每个账号
             for idx, (file_path, file_name) in enumerate(files, 1):
                 try:
-                    # 更新进度
+                    # 更新进度（使用内联按钮）
                     if progress_msg:
                         try:
+                            progress_percent = int((idx / len(files)) * 100)
+                            filled = int(progress_percent / 10)
+                            empty = 10 - filled
+                            progress_bar = "█" * filled + "░" * empty
+                            
+                            keyboard = InlineKeyboardMarkup([
+                                [InlineKeyboardButton(
+                                    f"⏳ 进度: {progress_percent}% ({idx}/{len(files)})",
+                                    callback_data="progress_info"
+                                )],
+                                [InlineKeyboardButton(
+                                    f"📄 {file_name[:25]}...",
+                                    callback_data="file_info"
+                                )]
+                            ])
+                            
                             progress_msg.edit_text(
-                                f"🧹 <b>正在清理账号 {idx}/{len(files)}</b>\n\n"
-                                f"文件: {file_name}\n"
-                                f"进度: {idx}/{len(files)} ({idx/len(files)*100:.1f}%)",
-                                parse_mode='HTML'
+                                f"🧹 <b>正在清理账号</b>\n\n"
+                                f"📄 文件: {file_name}\n"
+                                f"📊 进度: {idx}/{len(files)} ({progress_percent}%)\n"
+                                f"[{progress_bar}]",
+                                parse_mode='HTML',
+                                reply_markup=keyboard
                             )
                         except:
                             pass
@@ -14714,16 +14741,43 @@ class EnhancedBot:
                             results_summary['failed_files'].append((file_path, file_name))
                             continue
                     
-                    # 创建进度回调函数
+                    # 创建进度回调函数（使用内联按钮显示进度）
                     async def update_progress(status_text):
                         if progress_msg:
                             try:
+                                # 计算进度百分比
+                                progress_percent = int((idx / len(files)) * 100)
+                                
+                                # 创建进度条
+                                filled = int(progress_percent / 10)
+                                empty = 10 - filled
+                                progress_bar = "█" * filled + "░" * empty
+                                
+                                # 构建消息文本
+                                message_text = (
+                                    f"🧹 <b>正在清理账号</b>\n\n"
+                                    f"📄 当前: {file_name}\n"
+                                    f"📊 进度: {idx}/{len(files)} ({progress_percent}%)\n"
+                                    f"[{progress_bar}]\n\n"
+                                    f"🔄 状态: {status_text}"
+                                )
+                                
+                                # 创建内联按钮显示进度
+                                keyboard = InlineKeyboardMarkup([
+                                    [InlineKeyboardButton(
+                                        f"⏳ 进度: {progress_percent}% ({idx}/{len(files)})",
+                                        callback_data="progress_info"
+                                    )],
+                                    [InlineKeyboardButton(
+                                        f"🔄 {status_text[:30]}...",
+                                        callback_data="status_info"
+                                    )]
+                                ])
+                                
                                 progress_msg.edit_text(
-                                    f"🧹 <b>清理账号 {idx}/{len(files)}</b>\n\n"
-                                    f"📄 {file_name}\n"
-                                    f"📊 进度: {idx}/{len(files)} ({idx/len(files)*100:.1f}%)\n\n"
-                                    f"🔄 {status_text}",
-                                    parse_mode='HTML'
+                                    message_text,
+                                    parse_mode='HTML',
+                                    reply_markup=keyboard
                                 )
                             except Exception:
                                 pass
