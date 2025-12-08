@@ -14423,24 +14423,31 @@ class EnhancedBot:
                     logger.debug(f"离开 {chat_type}: {title}")
                     
                 except FloodWaitError as e:
-                    logger.warning(f"FloodWait离开{title}: {e.seconds}秒")
-                    await asyncio.sleep(e.seconds)
-                    try:
-                        if isinstance(entity, Channel):
-                            await client(LeaveChannelRequest(entity))
-                        else:
-                            me = await client.get_me()
-                            await client(DeleteChatUserRequest(chat_id, me))
-                        action.actions_done.append('left')
-                        action.status = 'success'
-                        if chat_type == 'channel':
-                            stats['channels_left'] += 1
-                        else:
-                            stats['groups_left'] += 1
-                    except Exception as retry_error:
-                        action.status = 'failed'
-                        action.error = f"重试失败: {str(retry_error)}"
-                        stats['errors'] += 1
+                    # 如果等待时间超过60秒，跳过以避免卡住
+                    if e.seconds > 60:
+                        logger.warning(f"FloodWait离开{title}: {e.seconds}秒 - 跳过以避免卡住")
+                        action.status = 'skipped'
+                        action.error = f"FloodWait {e.seconds}秒，已跳过"
+                        stats['skipped'] += 1
+                    else:
+                        logger.warning(f"FloodWait离开{title}: {e.seconds}秒")
+                        await asyncio.sleep(e.seconds)
+                        try:
+                            if isinstance(entity, Channel):
+                                await client(LeaveChannelRequest(entity))
+                            else:
+                                me = await client.get_me()
+                                await client(DeleteChatUserRequest(chat_id, me))
+                            action.actions_done.append('left')
+                            action.status = 'success'
+                            if chat_type == 'channel':
+                                stats['channels_left'] += 1
+                            else:
+                                stats['groups_left'] += 1
+                        except Exception as retry_error:
+                            action.status = 'failed'
+                            action.error = f"重试失败: {str(retry_error)}"
+                            stats['errors'] += 1
                         
                 except Exception as e:
                     action.status = 'failed'
@@ -14509,22 +14516,29 @@ class EnhancedBot:
                     logger.debug(f"删除历史记录: {title}")
                     
                 except FloodWaitError as e:
-                    logger.warning(f"FloodWait删除{title}: {e.seconds}秒")
-                    await asyncio.sleep(e.seconds)
-                    try:
-                        await client(DeleteHistoryRequest(
-                            peer=entity,
-                            max_id=0,
-                            just_clear=False,
-                            revoke=False
-                        ))
-                        action.actions_done.append('history_deleted')
-                        action.status = 'success'
-                        stats['histories_deleted'] += 1
-                    except Exception as retry_error:
-                        action.status = 'failed'
-                        action.error = f"重试失败: {str(retry_error)}"
-                        stats['errors'] += 1
+                    # 如果等待时间超过60秒，跳过以避免卡住
+                    if e.seconds > 60:
+                        logger.warning(f"FloodWait删除{title}: {e.seconds}秒 - 跳过以避免卡住")
+                        action.status = 'skipped'
+                        action.error = f"FloodWait {e.seconds}秒，已跳过"
+                        stats['skipped'] += 1
+                    else:
+                        logger.warning(f"FloodWait删除{title}: {e.seconds}秒")
+                        await asyncio.sleep(e.seconds)
+                        try:
+                            await client(DeleteHistoryRequest(
+                                peer=entity,
+                                max_id=0,
+                                just_clear=False,
+                                revoke=False
+                            ))
+                            action.actions_done.append('history_deleted')
+                            action.status = 'success'
+                            stats['histories_deleted'] += 1
+                        except Exception as retry_error:
+                            action.status = 'failed'
+                            action.error = f"重试失败: {str(retry_error)}"
+                            stats['errors'] += 1
                         
                 except Exception as e:
                     action.status = 'failed'
@@ -14560,13 +14574,18 @@ class EnhancedBot:
                                 await asyncio.sleep(config.CLEANUP_ACTION_SLEEP * 2)
                                 
                         except FloodWaitError as e:
-                            logger.warning(f"FloodWait删除联系人: {e.seconds}秒")
-                            await asyncio.sleep(e.seconds)
-                            try:
-                                await client(DeleteContactsRequest(id=batch))
-                                stats['contacts_deleted'] += len(batch)
-                            except Exception:
-                                stats['errors'] += 1
+                            # 如果等待时间超过60秒，跳过以避免卡住
+                            if e.seconds > 60:
+                                logger.warning(f"FloodWait删除联系人: {e.seconds}秒 - 跳过以避免卡住")
+                                stats['skipped'] += 1
+                            else:
+                                logger.warning(f"FloodWait删除联系人: {e.seconds}秒")
+                                await asyncio.sleep(e.seconds)
+                                try:
+                                    await client(DeleteContactsRequest(id=batch))
+                                    stats['contacts_deleted'] += len(batch)
+                                except Exception:
+                                    stats['errors'] += 1
                         
                         except Exception as e:
                             stats['errors'] += 1
@@ -14592,13 +14611,18 @@ class EnhancedBot:
                         archived_count += 1
                         await asyncio.sleep(config.CLEANUP_ACTION_SLEEP)
                     except FloodWaitError as e:
-                        logger.warning(f"FloodWait归档: {e.seconds}秒")
-                        await asyncio.sleep(e.seconds)
-                        try:
-                            await client.edit_folder(dialog.entity, folder=1)
-                            archived_count += 1
-                        except Exception:
-                            pass
+                        # 如果等待时间超过60秒，跳过以避免卡住
+                        if e.seconds > 60:
+                            logger.warning(f"FloodWait归档: {e.seconds}秒 - 跳过以避免卡住")
+                            stats['skipped'] += 1
+                        else:
+                            logger.warning(f"FloodWait归档: {e.seconds}秒")
+                            await asyncio.sleep(e.seconds)
+                            try:
+                                await client.edit_folder(dialog.entity, folder=1)
+                                archived_count += 1
+                            except Exception:
+                                pass
                     except Exception as e:
                         logger.debug(f"无法归档对话: {e}")
                 
@@ -14676,10 +14700,26 @@ class EnhancedBot:
                     tdesk = TDesktop(file_path)
                     session_path = file_path.replace('tdata', 'session').replace('.zip', '.session')
                     
-                    client = await tdesk.ToTelethon(
+                    # 创建不接收更新的客户端以提升清理速度
+                    from telethon import TelegramClient as TelethonClient
+                    tdesk = TDesktop(file_path)
+                    session_path = file_path.replace('tdata', 'session').replace('.zip', '.session')
+                    
+                    # 先转换session
+                    temp_client = await tdesk.ToTelethon(
                         session=session_path,
                         flag=UseCurrentSession,
                         api=API.TelegramDesktop
+                    )
+                    await temp_client.connect()
+                    await temp_client.disconnect()
+                    
+                    # 使用转换后的session创建不接收更新的客户端
+                    client = TelethonClient(
+                        os.path.splitext(session_path)[0],
+                        int(config.API_ID),
+                        str(config.API_HASH),
+                        receive_updates=False
                     )
                     await client.connect()
                     
@@ -14707,7 +14747,8 @@ class EnhancedBot:
                         session_path,
                         int(config.API_ID),
                         str(config.API_HASH),
-                        proxy=proxy_dict
+                        proxy=proxy_dict,
+                        receive_updates=False  # 禁用更新接收，提升清理速度
                     )
                     await client.connect()
                     
@@ -14723,7 +14764,7 @@ class EnhancedBot:
             
             # 进度更新节流（避免触发 Telegram 限制）
             last_updated_idx = {'value': 0}
-            UPDATE_BATCH = 10  # 每完成10个账户更新一次
+            UPDATE_BATCH = 50  # 每完成50个账户更新一次
             
             # 创建进度回调函数
             async def update_progress(status_text):
