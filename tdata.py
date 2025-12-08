@@ -159,6 +159,16 @@ except ImportError:
 # ================================
 
 @dataclass
+class CleanupAction:
+    """清理操作记录"""
+    chat_id: int
+    title: str
+    chat_type: str  # 'user', 'group', 'channel', 'bot'
+    actions_done: List[str] = field(default_factory=list)
+    status: str = 'pending'  # 'pending', 'success', 'partial', 'failed', 'skipped'
+    error: Optional[str] = None
+    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+
 # ================================
 # 代理管理器
 # ================================
@@ -14241,6 +14251,379 @@ class EnhancedBot:
             if temp_dir and os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir, ignore_errors=True)
     
+    async def _cleanup_single_account(self, client, account_name: str, file_path: str, progress_callback=None) -> Dict[str, Any]:
+        """清理单个账号"""
+        start_time = time.time()
+        
+        actions = []
+        stats = {
+            'profile_cleared': 0,
+            'groups_left': 0,
+            'channels_left': 0,
+            'histories_deleted': 0,
+            'contacts_deleted': 0,
+            'dialogs_closed': 0,
+            'errors': 0,
+            'skipped': 0
+        }
+        
+        try:
+            # 0. 清理账号资料（头像、名字、简介）
+            logger.info(f"清理账号资料: {account_name}")
+            if progress_callback:
+                await progress_callback("🔄 清理账号资料（头像、名字、简介）...")
+            
+            try:
+                from telethon.tl.functions.account import UpdateProfileRequest
+                from telethon.tl.functions.photos import DeletePhotosRequest, GetUserPhotosRequest
+                
+                # 获取当前账号信息
+                me = await client.get_me()
+                
+                # 清空名字和简介
+                try:
+                    await client(UpdateProfileRequest(
+                        first_name='',  # 清空名字
+                        last_name='',   # 清空姓氏
+                        about=''        # 清空简介
+                    ))
+                    logger.info(f"已清空名字和简介")
+                except Exception as e:
+                    logger.warning(f"清空名字/简介失败: {e}")
+                
+                # 删除所有头像
+                try:
+                    photos = await client(GetUserPhotosRequest(
+                        user_id=me,
+                        offset=0,
+                        max_id=0,
+                        limit=100
+                    ))
+                    
+                    if hasattr(photos, 'photos') and photos.photos:
+                        photo_ids = [photo for photo in photos.photos]
+                        await client(DeletePhotosRequest(id=photo_ids))
+                        logger.info(f"已删除 {len(photo_ids)} 个头像")
+                        stats['profile_cleared'] = 1
+                except Exception as e:
+                    logger.warning(f"删除头像失败: {e}")
+                
+                await asyncio.sleep(config.CLEANUP_ACTION_SLEEP)
+                
+            except Exception as e:
+                logger.error(f"清理账号资料错误: {e}")
+                stats['errors'] += 1
+            
+            # 1. 获取所有对话
+            logger.info(f"获取对话列表: {account_name}")
+            if progress_callback:
+                await progress_callback("📋 获取对话列表...")
+            
+            dialogs = await client.get_dialogs()
+            logger.info(f"找到 {len(dialogs)} 个对话")
+            
+            # 分类对话
+            from telethon.tl.types import Channel, Chat, User
+            groups = []
+            channels = []
+            users = []
+            bots = []
+            
+            for dialog in dialogs:
+                entity = dialog.entity
+                if isinstance(entity, Channel):
+                    if entity.broadcast:
+                        channels.append(dialog)
+                    else:
+                        groups.append(dialog)
+                elif isinstance(entity, Chat):
+                    groups.append(dialog)
+                elif isinstance(entity, User):
+                    if entity.bot:
+                        bots.append(dialog)
+                    else:
+                        users.append(dialog)
+            
+            logger.info(f"分类: {len(groups)}群组, {len(channels)}频道, {len(users)}用户, {len(bots)}机器人")
+            
+            if progress_callback:
+                await progress_callback(f"📊 找到 {len(groups)}群组, {len(channels)}频道, {len(users)}用户")
+            
+            # 1. 离开群组和频道
+            if progress_callback:
+                await progress_callback(f"🚪 开始退出 {len(groups) + len(channels)} 个群组/频道...")
+            from telethon.tl.functions.channels import LeaveChannelRequest
+            from telethon.tl.functions.messages import DeleteChatUserRequest
+            
+            for dialog in groups + channels:
+                entity = dialog.entity
+                chat_id = entity.id
+                title = getattr(entity, 'title', 'Unknown')
+                chat_type = 'channel' if isinstance(entity, Channel) and entity.broadcast else 'group'
+                
+                action = CleanupAction(chat_id=chat_id, title=title, chat_type=chat_type)
+                
+                try:
+                    await asyncio.sleep(config.CLEANUP_ACTION_SLEEP + random.uniform(0, 0.2))
+                    
+                    if isinstance(entity, Channel):
+                        await client(LeaveChannelRequest(entity))
+                    else:
+                        me = await client.get_me()
+                        await client(DeleteChatUserRequest(chat_id, me))
+                    
+                    action.actions_done.append('left')
+                    action.status = 'success'
+                    
+                    if chat_type == 'channel':
+                        stats['channels_left'] += 1
+                    else:
+                        stats['groups_left'] += 1
+                    
+                    logger.debug(f"离开 {chat_type}: {title}")
+                    
+                except FloodWaitError as e:
+                    logger.warning(f"FloodWait离开{title}: {e.seconds}秒")
+                    await asyncio.sleep(e.seconds)
+                    try:
+                        if isinstance(entity, Channel):
+                            await client(LeaveChannelRequest(entity))
+                        else:
+                            me = await client.get_me()
+                            await client(DeleteChatUserRequest(chat_id, me))
+                        action.actions_done.append('left')
+                        action.status = 'success'
+                        if chat_type == 'channel':
+                            stats['channels_left'] += 1
+                        else:
+                            stats['groups_left'] += 1
+                    except Exception as retry_error:
+                        action.status = 'failed'
+                        action.error = f"重试失败: {str(retry_error)}"
+                        stats['errors'] += 1
+                        
+                except Exception as e:
+                    action.status = 'failed'
+                    action.error = str(e)
+                    stats['errors'] += 1
+                    logger.error(f"离开{title}错误: {e}")
+                
+                actions.append(action)
+            
+            # 2. 删除聊天记录
+            if progress_callback:
+                await progress_callback(f"🗑️ 开始删除 {len(users) + len(bots)} 个对话记录...")
+            
+            from telethon.tl.functions.messages import DeleteHistoryRequest
+            
+            for dialog in users + bots:
+                entity = dialog.entity
+                chat_id = entity.id
+                
+                if hasattr(entity, 'first_name') and entity.first_name:
+                    title = entity.first_name
+                elif hasattr(entity, 'username') and entity.username:
+                    title = entity.username
+                else:
+                    title = 'Unknown'
+                
+                chat_type = 'bot' if entity.bot else 'user'
+                action = CleanupAction(chat_id=chat_id, title=title, chat_type=chat_type)
+                
+                try:
+                    await asyncio.sleep(config.CLEANUP_ACTION_SLEEP + random.uniform(0, 0.2))
+                    
+                    # 尝试撤回删除
+                    if config.CLEANUP_REVOKE_DEFAULT:
+                        try:
+                            await client(DeleteHistoryRequest(
+                                peer=entity,
+                                max_id=0,
+                                just_clear=False,
+                                revoke=True
+                            ))
+                            action.actions_done.extend(['history_deleted', 'revoked'])
+                            action.status = 'success'
+                        except Exception:
+                            # 回退到单向删除
+                            await client(DeleteHistoryRequest(
+                                peer=entity,
+                                max_id=0,
+                                just_clear=False,
+                                revoke=False
+                            ))
+                            action.actions_done.append('history_deleted')
+                            action.status = 'partial'
+                            action.error = '部分: 仅删除自己的消息'
+                    else:
+                        await client(DeleteHistoryRequest(
+                            peer=entity,
+                            max_id=0,
+                            just_clear=False,
+                            revoke=False
+                        ))
+                        action.actions_done.append('history_deleted')
+                        action.status = 'success'
+                    
+                    stats['histories_deleted'] += 1
+                    logger.debug(f"删除历史记录: {title}")
+                    
+                except FloodWaitError as e:
+                    logger.warning(f"FloodWait删除{title}: {e.seconds}秒")
+                    await asyncio.sleep(e.seconds)
+                    try:
+                        await client(DeleteHistoryRequest(
+                            peer=entity,
+                            max_id=0,
+                            just_clear=False,
+                            revoke=False
+                        ))
+                        action.actions_done.append('history_deleted')
+                        action.status = 'success'
+                        stats['histories_deleted'] += 1
+                    except Exception as retry_error:
+                        action.status = 'failed'
+                        action.error = f"重试失败: {str(retry_error)}"
+                        stats['errors'] += 1
+                        
+                except Exception as e:
+                    action.status = 'failed'
+                    action.error = str(e)
+                    stats['errors'] += 1
+                    logger.error(f"删除{title}历史记录错误: {e}")
+                
+                actions.append(action)
+            
+            # 3. 删除联系人
+            if progress_callback:
+                await progress_callback("📇 开始删除联系人...")
+            
+            from telethon.tl.functions.contacts import DeleteContactsRequest, GetContactsRequest
+            
+            try:
+                result = await client(GetContactsRequest(hash=0))
+                
+                if hasattr(result, 'users') and result.users:
+                    contact_ids = [user.id for user in result.users]
+                    logger.info(f"删除 {len(contact_ids)} 个联系人...")
+                    
+                    batch_size = 100
+                    for i in range(0, len(contact_ids), batch_size):
+                        batch = contact_ids[i:i + batch_size]
+                        
+                        try:
+                            await client(DeleteContactsRequest(id=batch))
+                            stats['contacts_deleted'] += len(batch)
+                            logger.debug(f"已删除 {len(batch)} 个联系人")
+                            
+                            if i + batch_size < len(contact_ids):
+                                await asyncio.sleep(config.CLEANUP_ACTION_SLEEP * 2)
+                                
+                        except FloodWaitError as e:
+                            logger.warning(f"FloodWait删除联系人: {e.seconds}秒")
+                            await asyncio.sleep(e.seconds)
+                            try:
+                                await client(DeleteContactsRequest(id=batch))
+                                stats['contacts_deleted'] += len(batch)
+                            except Exception:
+                                stats['errors'] += 1
+                        
+                        except Exception as e:
+                            stats['errors'] += 1
+                            logger.error(f"删除联系人批次错误: {e}")
+                    
+                    logger.info(f"已删除 {stats['contacts_deleted']} 个联系人")
+                    
+            except Exception as e:
+                stats['errors'] += 1
+                logger.error(f"获取/删除联系人错误: {e}")
+            
+            # 4. 归档剩余对话
+            if progress_callback:
+                await progress_callback("📁 归档剩余对话...")
+            
+            try:
+                remaining_dialogs = await client.get_dialogs()
+                archived_count = 0
+                
+                for dialog in remaining_dialogs:
+                    try:
+                        await client.edit_folder(dialog.entity, folder=1)
+                        archived_count += 1
+                        await asyncio.sleep(config.CLEANUP_ACTION_SLEEP)
+                    except FloodWaitError as e:
+                        logger.warning(f"FloodWait归档: {e.seconds}秒")
+                        await asyncio.sleep(e.seconds)
+                        try:
+                            await client.edit_folder(dialog.entity, folder=1)
+                            archived_count += 1
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        logger.debug(f"无法归档对话: {e}")
+                
+                stats['dialogs_closed'] = archived_count
+                logger.info(f"已归档 {archived_count} 个对话")
+                
+            except Exception as e:
+                logger.error(f"归档对话错误: {e}")
+            
+            # 生成报告
+            elapsed_time = time.time() - start_time
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # CSV报告
+            csv_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleanup_{account_name}_{timestamp}.csv")
+            try:
+                with open(csv_path, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(['chat_id', 'title', 'type', 'actions_done', 'status', 'error', 'timestamp'])
+                    for action in actions:
+                        writer.writerow([
+                            action.chat_id,
+                            action.title,
+                            action.chat_type,
+                            ', '.join(action.actions_done),
+                            action.status,
+                            action.error or '',
+                            action.timestamp
+                        ])
+                logger.info(f"CSV报告已保存: {csv_path}")
+            except Exception as e:
+                logger.error(f"保存CSV报告错误: {e}")
+            
+            # JSON报告
+            json_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleanup_{account_name}_{timestamp}.json")
+            try:
+                report_data = {
+                    'account_name': account_name,
+                    'timestamp': timestamp,
+                    'elapsed_time_seconds': round(elapsed_time, 2),
+                    'statistics': stats,
+                    'actions': [asdict(action) for action in actions]
+                }
+                with open(json_path, 'w', encoding='utf-8') as f:
+                    json.dump(report_data, f, indent=2, ensure_ascii=False)
+                logger.info(f"JSON报告已保存: {json_path}")
+            except Exception as e:
+                logger.error(f"保存JSON报告错误: {e}")
+            
+            return {
+                'success': True,
+                'elapsed_time': elapsed_time,
+                'statistics': stats,
+                'report_path': json_path,
+                'csv_path': csv_path
+            }
+            
+        except Exception as e:
+            logger.error(f"清理失败: {e}", exc_info=True)
+            return {
+                'success': False,
+                'error': str(e),
+                'statistics': stats
+            }
+    
     def handle_cleanup_confirm(self, update, context, query):
         """确认清理"""
         user_id = query.from_user.id
@@ -14277,18 +14660,6 @@ class EnhancedBot:
         file_type = task['file_type']
         extract_dir = task['extract_dir']
         progress_msg = task.get('progress_msg')
-        
-        # 导入清理服务
-        try:
-            from services.one_click_cleaner import OneClickCleaner
-        except ImportError as e:
-            context.bot.send_message(
-                chat_id=user_id,
-                text=f"❌ <b>清理服务不可用</b>\n\n{str(e)}",
-                parse_mode='HTML'
-            )
-            self.cleanup_cleanup_task(user_id)
-            return
         
         results_summary = {
             'total': len(files),
@@ -14359,21 +14730,27 @@ class EnhancedBot:
                             results_summary['failed'] += 1
                             continue
                     
-                    # 创建清理服务
-                    cleaner = OneClickCleaner(
-                        client=client,
-                        account_name=file_name,
-                        leave_concurrency=config.CLEANUP_LEAVE_CONCURRENCY,
-                        delete_history_concurrency=config.CLEANUP_DELETE_HISTORY_CONCURRENCY,
-                        delete_contacts_concurrency=config.CLEANUP_DELETE_CONTACTS_CONCURRENCY,
-                        action_sleep=config.CLEANUP_ACTION_SLEEP,
-                        min_peer_interval=config.CLEANUP_MIN_PEER_INTERVAL,
-                        revoke_default=config.CLEANUP_REVOKE_DEFAULT,
-                        report_dir=config.CLEANUP_REPORTS_DIR
-                    )
+                    # 创建进度回调函数
+                    async def update_progress(status_text):
+                        if progress_msg:
+                            try:
+                                progress_msg.edit_text(
+                                    f"🧹 <b>清理账号 {idx}/{len(files)}</b>\n\n"
+                                    f"📄 {file_name}\n"
+                                    f"📊 进度: {idx}/{len(files)} ({idx/len(files)*100:.1f}%)\n\n"
+                                    f"🔄 {status_text}",
+                                    parse_mode='HTML'
+                                )
+                            except Exception:
+                                pass
                     
                     # 执行清理
-                    result = await cleaner.run(dry_run=False)
+                    result = await self._cleanup_single_account(
+                        client=client,
+                        account_name=file_name,
+                        file_path=file_path,
+                        progress_callback=update_progress
+                    )
                     
                     # 断开客户端
                     try:
