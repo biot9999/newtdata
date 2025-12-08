@@ -6613,6 +6613,13 @@ class ReauthorizationManager:
                             except PasswordHashInvalidError:
                                 # 密码错误，无法继续重新授权流程
                                 return 'password_error', f"{user_info} | {proxy_used} | 旧密码错误", None
+                            except RPCError as e:
+                                # 检查是否为账号冻结错误
+                                if "FROZEN_METHOD_INVALID" in str(e) or (hasattr(e, 'error_message') and "FROZEN_METHOD_INVALID" in e.error_message):
+                                    return 'frozen', f"{user_info} | {proxy_used} | 账号已冻结", None
+                                # 其他RPC错误，可能是网络问题或账号状态异常
+                                print(f"⚠️ 删除旧密码失败: {e}")
+                                # 继续流程，后续可能需要使用旧密码
                             except Exception as e:
                                 # 其他错误，可能是网络问题或账号状态异常
                                 print(f"⚠️ 删除旧密码失败: {e}")
@@ -6628,6 +6635,11 @@ class ReauthorizationManager:
                     await old_client(ResetAuthorizationsRequest())
                     print(f"✅ 已踢出所有其他设备: {file_name}")
                     await asyncio.sleep(2)  # 等待操作生效
+                except RPCError as e:
+                    # 检查是否为账号冻结错误
+                    if "FROZEN_METHOD_INVALID" in str(e) or (hasattr(e, 'error_message') and "FROZEN_METHOD_INVALID" in e.error_message):
+                        return 'frozen', f"{user_info} | {proxy_used} | 账号已冻结", None
+                    print(f"⚠️ 踢出设备失败: {e}")
                 except Exception as e:
                     print(f"⚠️ 踢出设备失败: {e}")
                 
