@@ -141,6 +141,14 @@ except Exception as e:
     print(f"⚠️ 账号分类模块不可用: {e}")
 
 try:
+    from reauthorization import ReauthorizationManager, get_device_info
+    REAUTH_AVAILABLE = True
+    print("✅ 重新授权模块导入成功")
+except Exception as e:
+    REAUTH_AVAILABLE = False
+    print(f"⚠️ 重新授权模块不可用: {e}")
+
+try:
     import phonenumbers
     print("✅ phonenumbers 导入成功")
 except Exception:
@@ -6673,6 +6681,20 @@ class EnhancedBot:
         
         # 添加2FA待处理任务
         self.pending_add_2fa_tasks: Dict[int, Dict[str, Any]] = {}
+        
+        # 重新授权待处理任务
+        self.pending_reauth_tasks: Dict[int, Dict[str, Any]] = {}
+        
+        # 初始化重新授权管理器
+        if REAUTH_AVAILABLE:
+            try:
+                self.reauth_manager = ReauthorizationManager(config.API_ID, config.API_HASH)
+                print("✅ 重新授权管理器初始化成功")
+            except Exception as e:
+                self.reauth_manager = None
+                print(f"⚠️ 重新授权管理器初始化失败: {e}")
+        else:
+            self.reauth_manager = None
 
         self.updater = Updater(config.TOKEN, use_context=True)
         self.dp = self.updater.dispatcher
@@ -6695,6 +6717,8 @@ class EnhancedBot:
         self.dp.add_handler(CommandHandler("api", self.api_command))
         # 新增：账号分类命令
         self.dp.add_handler(CommandHandler("classify", self.classify_command))
+        # 新增：重新授权命令
+        self.dp.add_handler(CommandHandler("reauth", self.reauth_command))
         # 新增：返回主菜单（优先于通用回调）
         self.dp.add_handler(CallbackQueryHandler(self.on_back_to_main, pattern=r"^back_to_main$"))
         
@@ -8034,6 +8058,8 @@ class EnhancedBot:
             self.handle_api_conversion(query)
         elif data.startswith("classify_") or data == "classify_menu":
             self.handle_classify_callbacks(update, context, query, data)
+        elif data.startswith("reauth_"):
+            self.handle_reauth_callbacks(update, context, query, data)
         elif data == "rename_start":
             self.handle_rename_start(query)
         elif data == "merge_start":
@@ -10684,6 +10710,106 @@ class EnhancedBot:
                 pass
         else:
             self.safe_send_message(update, text, 'HTML', keyboard)
+    
+    # ================================
+    # 重新授权功能
+    # ================================
+    
+    def reauth_command(self, update: Update, context: CallbackContext):
+        """重新授权命令入口"""
+        user_id = update.effective_user.id
+        
+        # 权限检查
+        is_member, _, _ = self.db.check_membership(user_id)
+        if not is_member and not self.db.is_admin(user_id):
+            self.safe_send_message(update, "❌ 需要会员权限才能使用重新授权功能")
+            return
+        
+        if not REAUTH_AVAILABLE or not self.reauth_manager:
+            self.safe_send_message(update, "❌ 重新授权功能不可用\n\n请检查 reauthorization.py 模块和 Telethon 库是否正确安装")
+            return
+        
+        self.handle_reauth_menu(update.callback_query if hasattr(update, 'callback_query') else None, update)
+    
+    def handle_reauth_menu(self, query, update=None):
+        """显示重新授权菜单"""
+        if update is None:
+            update = query.message if query else None
+        
+        user_id = query.from_user.id if query else update.effective_user.id
+        
+        # 权限检查
+        is_member, _, _ = self.db.check_membership(user_id)
+        if not is_member and not self.db.is_admin(user_id):
+            if query:
+                self.safe_edit_message(query, "❌ 需要会员权限")
+            else:
+                self.safe_send_message(update, "❌ 需要会员权限")
+            return
+        
+        if not REAUTH_AVAILABLE or not self.reauth_manager:
+            msg = "❌ 重新授权功能不可用\n\n请检查依赖库是否正确安装"
+            if query:
+                self.safe_edit_message(query, msg)
+            else:
+                self.safe_send_message(update, msg)
+            return
+        
+        text = """
+🔄 <b>账号重新授权</b>
+
+🎯 <b>功能说明</b>
+完全自动化的账号重新授权流程，适用于需要更换Session或被其他设备挤下线的情况
+
+📋 <b>核心功能</b>
+1️⃣ <b>会话重置</b>
+   • 踢掉所有其他设备的登录
+   • 确保只有当前会话有效
+   • 防止账号被多人同时使用
+
+2️⃣ <b>自动重新登录</b>
+   • 自动获取验证码（从Telegram 777000）
+   • 无需人工输入验证码
+   • 支持2FA密码
+   • 生成新的Session文件
+   • 可选：转换为TData格式
+
+💡 <b>使用场景</b>
+• 账号被其他设备登录
+• 需要更换Session文件
+• Session文件损坏需要重建
+• 统一所有账号的2FA密码
+
+⚙️ <b>处理流程</b>
+1. 连接旧Session并重置所有会话
+2. 创建新客户端请求验证码
+3. 旧Session自动读取验证码
+4. 新Session使用验证码登录
+5. 登出旧Session并更新配置
+6. 可选：转换为TData格式
+
+⚠️ <b>注意事项</b>
+• 需要上传可用的Session文件（带JSON配置）
+• 旧Session必须能接收消息（777000）
+• 支持2FA统一密码
+• 处理完成后旧Session将失效
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 开始重新授权", callback_data="reauth_start")],
+            [InlineKeyboardButton("📖 查看详细说明", callback_data="reauth_help")],
+            [InlineKeyboardButton("◀️ 返回主菜单", callback_data="back_to_main")]
+        ])
+        
+        if query:
+            query.answer()
+            try:
+                query.edit_message_text(text, parse_mode='HTML', reply_markup=keyboard)
+            except:
+                pass
+        else:
+            self.safe_send_message(update, text, 'HTML', keyboard)
+    
     def on_back_to_main(self, update: Update, context: CallbackContext):
         """处理“返回主菜单”按钮"""
         query = update.callback_query
