@@ -15218,7 +15218,6 @@ class EnhancedBot:
         self.safe_edit_message(query, "❌ 已取消合并操作")
         
         # 返回主菜单
-        import time
         time.sleep(1)
         fake_update = type('obj', (object,), {
             'effective_user': type('obj', (object,), {'id': user_id})()
