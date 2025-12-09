@@ -2967,6 +2967,12 @@ class FileProcessor:
             for root, dirs, files in os.walk(task_upload_dir):
                 for file in files:
                     if file.endswith('.session'):
+                        # 【修复】过滤掉系统文件和临时文件
+                        # 排除: tdata.session (系统文件), batch_validate_*.session (临时文件)
+                        if file == 'tdata.session' or file.startswith('batch_validate_') or file.startswith('temp_'):
+                            print(f"⏭️ 跳过系统/临时文件: {file}")
+                            continue
+                        
                         file_full_path = os.path.join(root, file)
                         session_files.append((file_full_path, file))
                         
@@ -7362,8 +7368,10 @@ class BatchCreatorService:
             
             # 如果客户端未连接，重新连接
             if not account.client:
+                # 【关键修复】移除.session后缀（如果有），因为TelegramClient会自动添加
+                session_base = account.session_path.replace('.session', '') if account.session_path.endswith('.session') else account.session_path
                 account.client = TelegramClient(
-                    account.session_path,
+                    session_base,
                     account.api_id,
                     account.api_hash,
                     proxy=account.proxy_dict,
@@ -7540,8 +7548,12 @@ class BatchCreatorService:
                     else:
                         session_path = account.session_path
                     
+                    # 【关键修复】移除.session后缀（如果有），因为TelegramClient会自动添加
+                    # 这样可以确保验证和创建阶段使用相同的session文件
+                    session_base = session_path.replace('.session', '') if session_path.endswith('.session') else session_path
+                    
                     account.client = TelegramClient(
-                        session_path,
+                        session_base,
                         account.api_id,
                         account.api_hash,
                         proxy=account.proxy_dict,
