@@ -7319,7 +7319,8 @@ class BatchCreatorService:
                 invite_link = f"https://t.me/{actual_username}"
             else:
                 try:
-                    invite_result = await client(functions.channels.ExportInviteRequest(peer=group.id))
+                    # 使用正确的API：ExportChatInviteRequest
+                    invite_result = await client(functions.messages.ExportChatInviteRequest(peer=group.id))
                     invite_link = invite_result.link
                 except RPCError as e:
                     logger.warning(f"⚠️ 获取邀请链接失败: {e}")
@@ -7366,7 +7367,8 @@ class BatchCreatorService:
                 invite_link = f"https://t.me/{actual_username}"
             else:
                 try:
-                    invite_result = await client(functions.channels.ExportInviteRequest(peer=channel.id))
+                    # 使用正确的API：ExportChatInviteRequest
+                    invite_result = await client(functions.messages.ExportChatInviteRequest(peer=channel.id))
                     invite_link = invite_result.link
                 except RPCError as e:
                     logger.warning(f"⚠️ 获取邀请链接失败: {e}")
