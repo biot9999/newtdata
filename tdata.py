@@ -7345,6 +7345,9 @@ class BatchCreatorService:
         index: int
     ) -> BatchCreationResult:
         """使用新配置结构为单个账号创建一个群组/频道"""
+        logger.info(f"🎯 开始创建 #{index+1} - 账号: {account.phone}")
+        print(f"🎯 开始创建 #{index+1} - 账号: {account.phone}", flush=True)
+        
         result = BatchCreationResult(
             account_name=account.file_name,
             phone=account.phone or "未知",
@@ -7354,6 +7357,8 @@ class BatchCreatorService:
         
         try:
             if account.daily_remaining <= 0:
+                logger.warning(f"⏭️ 跳过创建 #{index+1}: 账号 {account.phone} 已达每日上限")
+                print(f"⏭️ 跳过创建 #{index+1}: 账号 {account.phone} 已达每日上限", flush=True)
                 result.status = 'skipped'
                 result.error = '已达每日创建上限'
                 return result
@@ -7374,9 +7379,13 @@ class BatchCreatorService:
                 name_idx = index % len(config.group_names)
                 name = config.group_names[name_idx]
                 description = config.group_descriptions[name_idx] if name_idx < len(config.group_descriptions) else ""
+                logger.info(f"📝 使用名称: {name}")
+                print(f"📝 使用名称: {name}", flush=True)
             else:
                 name = f"Group {index + 1}"
                 description = ""
+                logger.info(f"📝 使用默认名称: {name}")
+                print(f"📝 使用默认名称: {name}", flush=True)
             
             result.name = name
             result.description = description
@@ -7386,10 +7395,18 @@ class BatchCreatorService:
             if config.username_mode == 'custom' and config.custom_usernames:
                 username_idx = index % len(config.custom_usernames)
                 username = config.custom_usernames[username_idx]
+                logger.info(f"🔗 使用自定义用户名: {username}")
+                print(f"🔗 使用自定义用户名: {username}", flush=True)
             elif config.username_mode == 'auto':
                 username = self.generate_random_username()
+                logger.info(f"🎲 生成随机用户名: {username}")
+                print(f"🎲 生成随机用户名: {username}", flush=True)
             
             # 创建群组或频道
+            type_text = "群组" if config.creation_type == 'group' else "频道"
+            logger.info(f"🚀 开始创建{type_text}: {name} (用户名: {username or '无'})")
+            print(f"🚀 开始创建{type_text}: {name} (用户名: {username or '无'})", flush=True)
+            
             if config.creation_type == 'group':
                 success, invite_link, actual_username, error = await self.create_group(
                     account.client, name, username, description
@@ -7400,6 +7417,9 @@ class BatchCreatorService:
                 )
             
             if success:
+                logger.info(f"✅ 创建成功 #{index+1}: {name} - {invite_link}")
+                print(f"✅ 创建成功 #{index+1}: {name} - {invite_link}", flush=True)
+                
                 result.status = 'success'
                 result.invite_link = invite_link
                 result.username = actual_username
@@ -7409,6 +7429,8 @@ class BatchCreatorService:
                 
                 # 添加管理员（如果指定）
                 if config.admin_username:
+                    logger.info(f"👤 尝试添加管理员: {config.admin_username}")
+                    print(f"👤 尝试添加管理员: {config.admin_username}", flush=True)
                     # 获取刚创建的群组/频道的ID
                     if actual_username:
                         try:
@@ -7419,21 +7441,28 @@ class BatchCreatorService:
                             )
                             if admin_success:
                                 result.admin_username = config.admin_username
+                                logger.info(f"✅ 管理员添加成功: {config.admin_username}")
+                                print(f"✅ 管理员添加成功: {config.admin_username}", flush=True)
                             else:
                                 logger.warning(f"⚠️ 添加管理员失败: {admin_error}")
+                                print(f"⚠️ 添加管理员失败: {admin_error}", flush=True)
                         except Exception as e:
                             logger.warning(f"⚠️ 获取群组实体失败: {e}")
+                            print(f"⚠️ 获取群组实体失败: {e}", flush=True)
                 
                 self.db.record_creation(account.phone, config.creation_type, name, invite_link, actual_username, me.id)
                 account.daily_created += 1
                 account.daily_remaining -= 1
             else:
+                logger.error(f"❌ 创建失败 #{index+1}: {name} - {error}")
+                print(f"❌ 创建失败 #{index+1}: {name} - {error}", flush=True)
                 result.status = 'failed'
                 result.error = error
         except Exception as e:
             result.status = 'failed'
             result.error = str(e)
-            logger.error(f"❌ 创建失败: {e}")
+            logger.error(f"❌ 创建异常 #{index+1}: {type(e).__name__}: {e}")
+            print(f"❌ 创建异常 #{index+1}: {type(e).__name__}: {e}", flush=True)
             import traceback
             traceback.print_exc()
         
@@ -7704,12 +7733,14 @@ class EnhancedBot:
                 else:
                     # 非网络错误，直接返回
                     try:
-                        error_msg = f"❌ 发送消息失败: {type(e).__name__}: {str(e)}"
+                        error_str = str(e) if str(e) else "(空错误消息)"
+                        error_msg = f"❌ 发送消息失败: {type(e).__name__}: {error_str}"
                     except:
                         error_msg = f"❌ 发送消息失败: {type(e).__name__} (无法获取错误详情)"
                     print(error_msg, flush=True)
                     import traceback
                     import sys
+                    print(f"详细堆栈跟踪:", flush=True)
                     traceback.print_exc()
                     sys.stdout.flush()
                     sys.stderr.flush()
@@ -7859,9 +7890,11 @@ class EnhancedBot:
                         return None
                 else:
                     # 非网络错误，直接返回
-                    print(f"❌ 编辑消息失败: {type(e).__name__}: {e}", flush=True)
+                    error_str = str(e) if str(e) else "(空错误消息)"
+                    print(f"❌ 编辑消息失败: {type(e).__name__}: {error_str}", flush=True)
                     import traceback
                     import sys
+                    print(f"详细堆栈跟踪:", flush=True)
                     traceback.print_exc()
                     sys.stdout.flush()
                     sys.stderr.flush()
@@ -16536,9 +16569,8 @@ game_lovers_group</code>
         """创建一个假的update对象用于内部调用"""
         return type('obj', (object,), {
             'effective_chat': type('obj', (object,), {'id': user_id})(),
-            'message': type('obj', (object,), {
-                'reply_text': lambda text, **kwargs: None
-            })()
+            'effective_user': type('obj', (object,), {'id': user_id})(),
+            'message': None  # 设置为None，强制使用bot.send_message而不是reply_text
         })()
     
     def _ask_for_group_names(self, update: Update, user_id: int):
@@ -16864,6 +16896,9 @@ game_lovers_group</code>
                     keyboard = InlineKeyboardMarkup([
                         [InlineKeyboardButton("📊 实时进度", callback_data="batch_create_noop")]
                     ])
+                    logger.info(f"📊 更新进度: {current}/{total} ({progress}%)")
+                    print(f"📊 更新进度: {current}/{total} ({progress}%)", flush=True)
+                    
                     context.bot.edit_message_text(
                         chat_id=user_id,
                         message_id=progress_msg.message_id,
@@ -16872,35 +16907,55 @@ game_lovers_group</code>
                         reply_markup=keyboard
                     )
                     last_update_count = current
-                except:
-                    pass
+                except Exception as e:
+                    logger.warning(f"⚠️ 更新进度消息失败: {e}")
+                    print(f"⚠️ 更新进度消息失败: {e}", flush=True)
         
         try:
             # 批量创建
+            logger.info(f"📊 开始批量创建 - 用户ID: {user_id}")
+            print(f"📊 开始批量创建 - 用户ID: {user_id}", flush=True)
+            
             results = []
             valid_accounts = [acc for acc in accounts if acc.is_valid and acc.daily_remaining > 0]
             
+            logger.info(f"📋 有效账号数: {len(valid_accounts)}")
+            print(f"📋 有效账号数: {len(valid_accounts)}", flush=True)
+            
             # 限制并发为10个账号
             batch_size = min(len(valid_accounts), config.BATCH_CREATE_CONCURRENT)
+            logger.info(f"⚡ 批次大小: {batch_size} 个账号并发")
+            print(f"⚡ 批次大小: {batch_size} 个账号并发", flush=True)
             
             # 计算每个账号需要创建多少个
             count_per_account = batch_config.count_per_account
+            logger.info(f"🔢 每账号创建数: {count_per_account}")
+            print(f"🔢 每账号创建数: {count_per_account}", flush=True)
             
             # 为每个账号创建指定数量的群组/频道
             account_idx = 0
             creation_idx = 0
             
             while creation_idx < total_to_create and account_idx < len(valid_accounts):
+                logger.info(f"🔄 准备批次 - 当前进度: {creation_idx}/{total_to_create}")
+                print(f"🔄 准备批次 - 当前进度: {creation_idx}/{total_to_create}", flush=True)
+                
                 # 收集本批次的任务（最多10个账号并发）
                 batch_tasks = []
                 batch_end_idx = min(account_idx + batch_size, len(valid_accounts))
                 
                 for acc_i in range(account_idx, batch_end_idx):
                     account = valid_accounts[acc_i]
+                    logger.info(f"👤 处理账号: {account.phone} (索引 {acc_i+1}/{len(valid_accounts)})")
+                    print(f"👤 处理账号: {account.phone} (索引 {acc_i+1}/{len(valid_accounts)})", flush=True)
+                    
                     # 为这个账号创建 count_per_account 个
                     for j in range(count_per_account):
                         if creation_idx >= total_to_create:
                             break
+                        
+                        logger.info(f"➕ 添加创建任务 #{creation_idx+1}: 账号 {account.phone}")
+                        print(f"➕ 添加创建任务 #{creation_idx+1}: 账号 {account.phone}", flush=True)
                         
                         batch_tasks.append(
                             self.batch_creator.create_single_new(
@@ -16918,15 +16973,25 @@ game_lovers_group</code>
                     break
                 
                 # 执行批次
+                logger.info(f"🚀 执行批次: {len(batch_tasks)} 个任务")
+                print(f"🚀 执行批次: {len(batch_tasks)} 个任务", flush=True)
+                
                 batch_results = loop.run_until_complete(asyncio.gather(*batch_tasks))
                 results.extend(batch_results)
                 
-                progress_callback(len(results), total_to_create, "创建中...")
+                # 统计本批次结果
+                batch_success = sum(1 for r in batch_results if r.status == 'success')
+                batch_failed = sum(1 for r in batch_results if r.status == 'failed')
+                logger.info(f"✅ 批次完成: 成功 {batch_success}, 失败 {batch_failed}")
+                print(f"✅ 批次完成: 成功 {batch_success}, 失败 {batch_failed}", flush=True)
+                
+                progress_callback(len(results), total_to_create, f"已完成 {len(results)} 个")
                 
                 # 添加批次之间的延迟以避免频率限制
                 if creation_idx < total_to_create:
                     delay = random.uniform(2, 4)
-                    logger.info(f"批次完成，等待 {delay:.1f} 秒后继续...")
+                    logger.info(f"⏳ 批次完成，等待 {delay:.1f} 秒后继续...")
+                    print(f"⏳ 批次完成，等待 {delay:.1f} 秒后继续...", flush=True)
                     time.sleep(delay)
                 
                 account_idx = batch_end_idx
