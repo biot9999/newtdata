@@ -2949,6 +2949,7 @@ class FileProcessor:
         session_files = []
         tdata_folders = []
         seen_tdata_paths = set()  # 防止重复计数TData目录
+        seen_session_files = set()  # 防止重复计数Session文件（基于规范化路径）
         
         # 在uploads目录下为每个任务创建专属文件夹
         task_upload_dir = os.path.join(config.UPLOADS_DIR, f"task_{task_id}")
@@ -2967,7 +2968,23 @@ class FileProcessor:
             for root, dirs, files in os.walk(task_upload_dir):
                 for file in files:
                     if file.endswith('.session'):
+                        # 【修复】过滤掉系统文件和临时文件
+                        # 排除: tdata.session (系统文件), batch_validate_*.session (临时文件)
+                        if file == 'tdata.session' or file.startswith('batch_validate_') or file.startswith('temp_') or file.startswith('user_'):
+                            print(f"⏭️ 跳过系统/临时文件: {file}")
+                            continue
+                        
                         file_full_path = os.path.join(root, file)
+                        
+                        # 【关键修复】使用规范化路径防止重复计数
+                        # 处理符号链接、硬链接、相对路径等情况
+                        normalized_path = os.path.normpath(os.path.abspath(file_full_path))
+                        
+                        if normalized_path in seen_session_files:
+                            print(f"⏭️ 跳过重复Session文件: {file}")
+                            continue
+                        
+                        seen_session_files.add(normalized_path)
                         session_files.append((file_full_path, file))
                         
                         # 检查是否有对应的JSON文件
@@ -2981,8 +2998,27 @@ class FileProcessor:
                     dir_path = os.path.join(root, dir_name)
                     d877_check_path = os.path.join(dir_path, "D877F783D5D3EF8C")
                     if os.path.exists(d877_check_path):
+                        # 【修复】验证这是真正的TData目录，不是空文件夹
+                        # 检查必需的TData文件是否存在
+                        maps_file = os.path.join(d877_check_path, "maps")
+                        key_data_file = os.path.join(d877_check_path, "key_data")
+                        
+                        # 如果没有必需的TData文件，跳过（可能是空文件夹或假TData结构）
+                        if not os.path.exists(maps_file) or not os.path.exists(key_data_file):
+                            print(f"⚠️ 跳过无效TData目录（缺少必需文件）: {dir_name}")
+                            continue
+                        
+                        # 检查maps文件大小（有效的TData maps文件通常大于30字节）
+                        try:
+                            maps_size = os.path.getsize(maps_file)
+                            if maps_size < 30:
+                                print(f"⚠️ 跳过无效TData目录（maps文件过小: {maps_size}字节）: {dir_name}")
+                                continue
+                        except:
+                            print(f"⚠️ 跳过无效TData目录（无法读取maps文件）: {dir_name}")
+                            continue
+                        
                         # 使用规范化路径防止重复计数（处理符号链接和相对路径）
-                        # 只在确定是TData目录后才进行规范化，提高性能
                         normalized_path = os.path.normpath(os.path.abspath(dir_path))
                         
                         # 检查是否已经添加过此TData目录
@@ -7033,7 +7069,8 @@ class BatchCreationConfig:
     """批量创建配置"""
     creation_type: str  # 'group' or 'channel'
     count_per_account: int  # 每个账号创建的数量
-    admin_username: str = ""  # 管理员用户名（可选）
+    admin_username: str = ""  # 管理员用户名（单个，向后兼容）
+    admin_usernames: List[str] = field(default_factory=list)  # 管理员用户名列表（支持多个）
     group_names: List[str] = field(default_factory=list)  # 群组/频道名称列表
     group_descriptions: List[str] = field(default_factory=list)  # 群组/频道简介列表
     username_mode: str = "auto"  # 'auto' (自动生成), 'custom' (自定义)
@@ -7054,7 +7091,9 @@ class BatchCreationResult:
     error: Optional[str] = None
     creator_id: Optional[int] = None
     creator_username: Optional[str] = None
-    admin_username: Optional[str] = None
+    admin_username: Optional[str] = None  # 向后兼容，保留单个
+    admin_usernames: List[str] = field(default_factory=list)  # 成功添加的管理员列表
+    admin_failures: List[str] = field(default_factory=list)  # 添加失败的管理员及原因
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -7141,7 +7180,8 @@ class BatchCreatorService:
         account: BatchAccountInfo,
         api_id: int,
         api_hash: str,
-        proxy_dict: Optional[Dict] = None
+        proxy_dict: Optional[Dict] = None,
+        user_id: Optional[int] = None
     ) -> Tuple[bool, Optional[str]]:
         """验证账号有效性 - 支持TData自动转换"""
         client = None
@@ -7164,9 +7204,12 @@ class BatchCreatorService:
                     if not tdesk.isLoaded():
                         return False, "TData未授权或无效"
                     
-                    # 创建临时Session
+                    # 创建临时Session（使用用户ID前缀，确保隔离）
                     os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
-                    temp_session_name = f"batch_validate_{time.time_ns()}"
+                    if user_id:
+                        temp_session_name = f"user_{user_id}_batch_{time.time_ns()}"
+                    else:
+                        temp_session_name = f"batch_validate_{time.time_ns()}"
                     temp_session_path = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
                     
                     # 转换TData到Session
@@ -7276,7 +7319,8 @@ class BatchCreatorService:
                 invite_link = f"https://t.me/{actual_username}"
             else:
                 try:
-                    invite_result = await client(functions.channels.ExportInviteRequest(peer=group.id))
+                    # 使用正确的API：ExportChatInviteRequest
+                    invite_result = await client(functions.messages.ExportChatInviteRequest(peer=group.id))
                     invite_link = invite_result.link
                 except RPCError as e:
                     logger.warning(f"⚠️ 获取邀请链接失败: {e}")
@@ -7323,7 +7367,8 @@ class BatchCreatorService:
                 invite_link = f"https://t.me/{actual_username}"
             else:
                 try:
-                    invite_result = await client(functions.channels.ExportInviteRequest(peer=channel.id))
+                    # 使用正确的API：ExportChatInviteRequest
+                    invite_result = await client(functions.messages.ExportChatInviteRequest(peer=channel.id))
                     invite_link = invite_result.link
                 except RPCError as e:
                     logger.warning(f"⚠️ 获取邀请链接失败: {e}")
@@ -7362,8 +7407,10 @@ class BatchCreatorService:
             
             # 如果客户端未连接，重新连接
             if not account.client:
+                # 【关键修复】移除.session后缀（如果有），因为TelegramClient会自动添加
+                session_base = account.session_path.replace('.session', '') if account.session_path.endswith('.session') else account.session_path
                 account.client = TelegramClient(
-                    account.session_path,
+                    session_base,
                     account.api_id,
                     account.api_hash,
                     proxy=account.proxy_dict,
@@ -7416,7 +7463,11 @@ class BatchCreatorService:
         chat_id: int,
         admin_username: str
     ) -> Tuple[bool, Optional[str]]:
-        """添加管理员到群组/频道（带Flood错误处理和重试）"""
+        """添加管理员到群组/频道（直接设置管理员权限，自动邀请用户）
+        
+        优化方案：不单独邀请，直接使用 EditAdminRequest 设置管理员权限
+        EditAdminRequest 会自动邀请用户到群组/频道，减少API调用和频率限制
+        """
         try:
             if not admin_username:
                 return True, None
@@ -7424,43 +7475,18 @@ class BatchCreatorService:
             # 查找用户
             try:
                 user = await client.get_entity(admin_username)
+            except ValueError:
+                return False, f"用户名 @{admin_username} 不存在或无效"
             except Exception as e:
-                return False, f"找不到用户 @{admin_username}: {str(e)}"
+                error_msg = str(e).lower()
+                if "username not" in error_msg or "no user" in error_msg:
+                    return False, f"用户 @{admin_username} 不存在"
+                elif "username invalid" in error_msg:
+                    return False, f"用户名 @{admin_username} 格式无效"
+                return False, f"无法找到用户 @{admin_username}: {str(e)}"
             
-            # 邀请用户（带Flood错误处理）
+            # 直接设置为管理员（EditAdminRequest 会自动邀请用户到群组）
             max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    await client(functions.channels.InviteToChannelRequest(
-                        channel=chat_id,
-                        users=[user]
-                    ))
-                    await asyncio.sleep(1.0)  # 增加延迟避免flood
-                    break  # 成功则跳出循环
-                except FloodWaitError as e:
-                    wait_seconds = e.seconds
-                    logger.warning(f"⚠️ 邀请用户触发频率限制，需等待 {wait_seconds} 秒")
-                    print(f"⚠️ 邀请用户触发频率限制，需等待 {wait_seconds} 秒", flush=True)
-                    if attempt < max_retries - 1 and wait_seconds < self.config.BATCH_CREATE_MAX_FLOOD_WAIT:
-                        # 如果等待时间不超过60秒，则等待后重试
-                        await asyncio.sleep(wait_seconds + 1)
-                    else:
-                        return False, f"邀请用户失败: 频率限制 ({wait_seconds}秒)"
-                except Exception as e:
-                    error_msg = str(e).lower()
-                    logger.warning(f"⚠️ 邀请用户失败: {e}")
-                    # 如果用户已在群组中或其他非致命错误，继续尝试设置管理员
-                    if "already" in error_msg or "participant" in error_msg:
-                        break
-                    # 其他错误，继续尝试
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(2.0)
-                    else:
-                        # 最后一次尝试失败，但继续尝试设置管理员
-                        logger.warning(f"⚠️ 邀请用户失败但继续: {e}")
-                        break
-            
-            # 设置为管理员（带Flood错误处理）
             for attempt in range(max_retries):
                 try:
                     await client(functions.channels.EditAdminRequest(
@@ -7486,14 +7512,43 @@ class BatchCreatorService:
                     if attempt < max_retries - 1 and wait_seconds < self.config.BATCH_CREATE_MAX_FLOOD_WAIT:
                         await asyncio.sleep(wait_seconds + 1)
                     else:
-                        return False, f"设置管理员失败: 频率限制 ({wait_seconds}秒)"
+                        return False, f"设置失败: 操作触发频率限制 ({wait_seconds}秒)"
                 except Exception as e:
+                    error_msg = str(e).lower()
+                    
+                    # 检查是否是 "Too many requests" 错误
+                    if "too many requests" in error_msg or "flood" in error_msg:
+                        logger.warning(f"⚠️ 设置管理员触发频率限制，等待5秒后重试")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(5.0)
+                            continue
+                        else:
+                            return False, f"设置失败: 频率限制，请稍后手动添加管理员"
+                    
+                    # 提供更详细的错误信息
+                    if "chat_admin_required" in error_msg or "admin" in error_msg:
+                        return False, f"设置失败: 权限不足（Basic Group无法添加管理员，需先升级为SuperGroup）"
+                    elif "user_not_participant" in error_msg:
+                        # EditAdminRequest 应该会自动邀请，如果出现此错误可能是权限问题
+                        return False, f"设置失败: 无法邀请 @{admin_username} 加入（可能是隐私设置或群组限制）"
+                    elif "user_privacy_restricted" in error_msg or "privacy" in error_msg:
+                        return False, f"设置失败: @{admin_username} 隐私设置不允许被添加"
+                    elif "user_channels_too_much" in error_msg:
+                        return False, f"设置失败: @{admin_username} 加入的群组数量已达上限"
+                    elif "user_bot_required" in error_msg or "peer_id_invalid" in error_msg:
+                        return False, f"设置失败: @{admin_username} 账号无效"
+                    elif "chat_not_modified" in error_msg:
+                        # 用户已经是管理员
+                        return True, None
+                    elif "bot" in error_msg and "cannot" in error_msg:
+                        return False, f"设置失败: @{admin_username} 是机器人，无法添加为管理员"
+                    
                     if attempt < max_retries - 1:
                         await asyncio.sleep(2.0)
                     else:
-                        return False, f"设置管理员失败: {str(e)}"
+                        return False, f"设置失败: {str(e)[:200]}"
             
-            return False, "设置管理员失败: 达到最大重试次数"
+            return False, "设置失败: 达到最大重试次数"
         except Exception as e:
             return False, str(e)
     
@@ -7540,8 +7595,12 @@ class BatchCreatorService:
                     else:
                         session_path = account.session_path
                     
+                    # 【关键修复】移除.session后缀（如果有），因为TelegramClient会自动添加
+                    # 这样可以确保验证和创建阶段使用相同的session文件
+                    session_base = session_path.replace('.session', '') if session_path.endswith('.session') else session_path
+                    
                     account.client = TelegramClient(
-                        session_path,
+                        session_base,
                         account.api_id,
                         account.api_hash,
                         proxy=account.proxy_dict,
@@ -7621,31 +7680,56 @@ class BatchCreatorService:
                 result.creator_id = me.id
                 result.creator_username = me.username or f"用户{me.id}"
                 
-                # 添加管理员（如果指定）
-                if config.admin_username:
-                    # 添加延迟避免频率限制
-                    await asyncio.sleep(random.uniform(1.5, 2.5))
+                # 添加管理员（支持多个管理员）
+                admin_list = []
+                if config.admin_usernames:
+                    admin_list = config.admin_usernames
+                elif config.admin_username:  # 向后兼容
+                    admin_list = [config.admin_username]
+                
+                if admin_list and actual_username:
+                    # 添加延迟避免频率限制（增加到3-5秒）
+                    await asyncio.sleep(random.uniform(3.0, 5.0))
                     
-                    logger.info(f"👤 尝试添加管理员: {config.admin_username}")
-                    print(f"👤 尝试添加管理员: {config.admin_username}", flush=True)
-                    # 获取刚创建的群组/频道的ID
-                    if actual_username:
-                        try:
-                            entity = await account.client.get_entity(actual_username)
-                            chat_id = entity.id
+                    try:
+                        entity = await account.client.get_entity(actual_username)
+                        chat_id = entity.id
+                        
+                        # 逐个添加管理员
+                        for idx, admin_username in enumerate(admin_list):
+                            if not admin_username:
+                                continue
+                            
+                            logger.info(f"👤 尝试添加管理员 [{idx+1}/{len(admin_list)}]: {admin_username}")
+                            print(f"👤 尝试添加管理员 [{idx+1}/{len(admin_list)}]: {admin_username}", flush=True)
+                            
                             admin_success, admin_error = await self.add_admin_to_group(
-                                account.client, chat_id, config.admin_username
+                                account.client, chat_id, admin_username
                             )
+                            
                             if admin_success:
-                                result.admin_username = config.admin_username
-                                logger.info(f"✅ 管理员添加成功: {config.admin_username}")
-                                print(f"✅ 管理员添加成功: {config.admin_username}", flush=True)
+                                result.admin_usernames.append(admin_username)
+                                if not result.admin_username:  # 向后兼容，记录第一个
+                                    result.admin_username = admin_username
+                                logger.info(f"✅ 管理员添加成功 [{idx+1}/{len(admin_list)}]: {admin_username}")
+                                print(f"✅ 管理员添加成功 [{idx+1}/{len(admin_list)}]: {admin_username}", flush=True)
                             else:
-                                logger.warning(f"⚠️ 添加管理员失败: {admin_error}")
-                                print(f"⚠️ 添加管理员失败: {admin_error}", flush=True)
-                        except Exception as e:
-                            logger.warning(f"⚠️ 获取群组实体失败: {e}")
-                            print(f"⚠️ 获取群组实体失败: {e}", flush=True)
+                                result.admin_failures.append(f"{admin_username}: {admin_error}")
+                                logger.warning(f"⚠️ 添加管理员失败 [{idx+1}/{len(admin_list)}] {admin_username}: {admin_error}")
+                                print(f"⚠️ 添加管理员失败 [{idx+1}/{len(admin_list)}] {admin_username}: {admin_error}", flush=True)
+                            
+                            # 多个管理员之间添加更长延迟，避免频率限制（增加到5-8秒）
+                            if idx < len(admin_list) - 1:  # 不是最后一个
+                                delay = random.uniform(5.0, 8.0)
+                                logger.info(f"⏳ 管理员添加间隔：等待 {delay:.1f} 秒...")
+                                print(f"⏳ 管理员添加间隔：等待 {delay:.1f} 秒...", flush=True)
+                                await asyncio.sleep(delay)
+                                
+                    except Exception as e:
+                        logger.warning(f"⚠️ 获取群组实体失败: {e}")
+                        print(f"⚠️ 获取群组实体失败: {e}", flush=True)
+                        for admin_username in admin_list:
+                            result.admin_failures.append(f"{admin_username}: 无法获取群组信息")
                 
                 self.db.record_creation(account.phone, config.creation_type, name, invite_link, actual_username, me.id)
                 account.daily_created += 1
@@ -7694,7 +7778,20 @@ class BatchCreatorService:
                     lines.append(f"创建者账号: {r.phone}")
                     lines.append(f"创建者用户名: @{r.creator_username or '未知'}")
                     lines.append(f"创建者ID: {r.creator_id or '未知'}")
-                    lines.append(f"管理员: @{r.admin_username or '无'}\n")
+                    
+                    # 管理员信息（支持多个）
+                    if r.admin_usernames:
+                        lines.append(f"管理员: {', '.join([f'@{u}' for u in r.admin_usernames])}")
+                    else:
+                        lines.append(f"管理员: @{r.admin_username or '无'}")
+                    
+                    # 管理员添加失败信息
+                    if r.admin_failures:
+                        lines.append(f"管理员添加失败:")
+                        for failure in r.admin_failures:
+                            lines.append(f"  - {failure}")
+                    
+                    lines.append("")
         
         if failed > 0:
             lines.append("失败列表:")
@@ -16419,6 +16516,55 @@ class EnhancedBot:
         # 清除用户状态
         self.db.save_user(user_id, "", "", "")
     
+    def _cleanup_user_temp_sessions(self, user_id: int):
+        """清理指定用户的临时session文件和旧上传目录
+        
+        这确保每次上传只使用当前上传的账号，不会重复登录之前的账号
+        """
+        try:
+            # 1. 清理临时session文件
+            if os.path.exists(config.SESSIONS_BAK_DIR):
+                user_prefix = f"user_{user_id}_"
+                cleaned_count = 0
+                
+                for filename in os.listdir(config.SESSIONS_BAK_DIR):
+                    if filename.startswith(user_prefix):
+                        file_path = os.path.join(config.SESSIONS_BAK_DIR, filename)
+                        try:
+                            if os.path.isfile(file_path):
+                                os.remove(file_path)
+                                cleaned_count += 1
+                                logger.info(f"🧹 清理旧临时文件: {filename}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ 清理文件失败 {filename}: {e}")
+                
+                if cleaned_count > 0:
+                    logger.info(f"✅ 清理了 {cleaned_count} 个用户 {user_id} 的旧临时session文件")
+                    print(f"✅ 清理了 {cleaned_count} 个用户 {user_id} 的旧临时session文件")
+            
+            # 2. 【新增】清理用户的旧上传目录（防止累积）
+            if os.path.exists(config.UPLOADS_DIR):
+                # 匹配两种格式: task_{user_id}_batch (旧格式) 和 task_{user_id}_batch_{timestamp} (新格式)
+                old_prefix = f"task_{user_id}_batch"
+                cleaned_dirs = 0
+                
+                for dirname in os.listdir(config.UPLOADS_DIR):
+                    if dirname.startswith(old_prefix):
+                        dir_path = os.path.join(config.UPLOADS_DIR, dirname)
+                        try:
+                            if os.path.isdir(dir_path):
+                                shutil.rmtree(dir_path)
+                                cleaned_dirs += 1
+                                logger.info(f"🧹 清理旧上传目录: {dirname}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ 清理目录失败 {dirname}: {e}")
+                
+                if cleaned_dirs > 0:
+                    logger.info(f"✅ 清理了 {cleaned_dirs} 个用户 {user_id} 的旧上传目录")
+                    print(f"✅ 清理了 {cleaned_dirs} 个用户 {user_id} 的旧上传目录")
+        except Exception as e:
+            logger.error(f"❌ 清理临时文件失败: {e}")
+    
     # ================================
     # 批量创建群组/频道功能
     # ================================
@@ -16433,13 +16579,21 @@ class EnhancedBot:
         
         temp_zip = None
         try:
+            # 【关键修复】在处理新上传前，清理该用户的旧临时session文件
+            # 这确保每次上传只使用当前上传的账号，不会重复登录之前的账号
+            self._cleanup_user_temp_sessions(user_id)
+            
+            # 【关键修复】为每次上传创建唯一的任务ID，确保完全隔离
+            # 使用时间戳确保每次上传都有独立的目录，不会混淆
+            unique_task_id = f"{user_id}_batch_{int(time.time() * 1000)}"
+            
             # 下载文件
             temp_dir = tempfile.mkdtemp(prefix="batch_create_")
             temp_zip = os.path.join(temp_dir, document.file_name)
             document.get_file().download(temp_zip)
             
-            # 扫描文件
-            files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, f"{user_id}_batch")
+            # 扫描文件 - 使用唯一任务ID，确保只提取当前上传的账号
+            files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, unique_task_id)
             
             if not files:
                 self.safe_edit_message_text(progress_msg, "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
@@ -16491,9 +16645,9 @@ class EnhancedBot:
                             proxy_info.get('password')
                         )
                 
-                # 验证账号
+                # 验证账号（传入user_id以确保临时文件隔离）
                 is_valid, error = await self.batch_creator.validate_account(
-                    account, api_id, api_hash, proxy_dict
+                    account, api_id, api_hash, proxy_dict, user_id
                 )
                 
                 accounts.append(account)
@@ -16725,12 +16879,22 @@ game_lovers_group</code>
             text = f"""
 ✅ <b>数量已设置：{count} 个/{type_name}/账号</b>
 
-<b>步骤 2/4：设置管理员（可选）</b>
+<b>步骤 2/4：设置管理员（可选，支持多个）</b>
 
-请发送需要添加为管理员的用户名（可放空）：
+请发送需要添加为管理员的用户名：
 
-💡 <i>直接发送用户名（如 @username 或 username）</i>
-💡 <i>如不需要添加管理员，发送 "跳过" 或 "无"</i>
+<b>格式：</b>
+• 单个管理员：直接输入用户名
+• 多个管理员：<b>每行一个用户名</b>
+
+<b>示例：</b>
+<code>admin1
+admin2
+admin3</code>
+
+💡 <i>可以带或不带@符号</i>
+💡 <i>不需要添加管理员，发送 "跳过" 或 "无"</i>
+💡 <i>失败的管理员会在报告中显示详细原因</i>
 """
             
             keyboard = InlineKeyboardMarkup([
@@ -16745,7 +16909,7 @@ game_lovers_group</code>
             self.safe_send_message(update, "❌ 请输入有效的数字（1-10）")
     
     def handle_batch_create_admin_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
-        """处理管理员用户名输入"""
+        """处理管理员用户名输入（支持多个管理员，每行一个）"""
         if user_id not in self.pending_batch_create:
             self.safe_send_message(update, "❌ 会话已过期，请重新开始")
             return
@@ -16754,11 +16918,23 @@ game_lovers_group</code>
         
         text = text.strip()
         if text.lower() in ['跳过', '无', 'skip', 'none', '']:
-            task['admin_username'] = ""
+            task['admin_usernames'] = []
+            task['admin_username'] = ""  # 向后兼容
         else:
-            # 移除 @ 前缀
-            admin_username = text.lstrip('@')
-            task['admin_username'] = admin_username
+            # 解析多个管理员（每行一个）
+            lines = text.split('\n')
+            admin_usernames = []
+            for line in lines:
+                line = line.strip()
+                if line and line.lower() not in ['跳过', '无', 'skip', 'none']:
+                    # 移除 @ 前缀
+                    admin_username = line.lstrip('@')
+                    if admin_username:
+                        admin_usernames.append(admin_username)
+            
+            task['admin_usernames'] = admin_usernames
+            # 向后兼容：保存第一个管理员
+            task['admin_username'] = admin_usernames[0] if admin_usernames else ""
         
         self._ask_for_group_names(update, user_id)
     
@@ -16777,8 +16953,12 @@ game_lovers_group</code>
         
         total_to_create = task['valid_accounts'] * task['count_per_account']
         
+        admin_usernames = task.get('admin_usernames', [])
+        admin_display = ', '.join([f"@{u}" for u in admin_usernames]) if admin_usernames else '无'
+        
         text = f"""
-✅ <b>管理员已设置：{task.get('admin_username', '无')}</b>
+✅ <b>管理员已设置：{admin_display}</b>
+<i>（共 {len(admin_usernames)} 个）</i>
 
 <b>步骤 3/4：设置{type_name}名称和简介</b>
 
@@ -16916,6 +17096,12 @@ game_lovers_group</code>
         
         username_mode_text = "自动生成" if task.get('username_mode', 'auto') == 'auto' else f"自定义（已提供{len(task.get('custom_usernames', []))}个）"
         
+        admin_usernames = task.get('admin_usernames', [])
+        if admin_usernames:
+            admin_text = f"{len(admin_usernames)} 个 ({', '.join([f'@{u}' for u in admin_usernames[:3]])}{'...' if len(admin_usernames) > 3 else ''})"
+        else:
+            admin_text = "无"
+        
         text = f"""
 📋 <b>最终确认</b>
 
@@ -16927,7 +17113,7 @@ game_lovers_group</code>
 • 预计创建总数：{total_to_create} 个
 
 <b>配置信息：</b>
-• 管理员：{task.get('admin_username', '无')}
+• 管理员：{admin_text}
 • 名称数量：{len(task.get('group_names', []))} 个
 • 链接模式：{username_mode_text}
 
@@ -17057,7 +17243,8 @@ game_lovers_group</code>
         batch_config = BatchCreationConfig(
             creation_type=creation_type,
             count_per_account=task['count_per_account'],
-            admin_username=task.get('admin_username', ''),
+            admin_username=task.get('admin_username', ''),  # 向后兼容
+            admin_usernames=task.get('admin_usernames', []),  # 新增：支持多个管理员
             group_names=task.get('group_names', []),
             group_descriptions=task.get('group_descriptions', []),
             username_mode=task.get('username_mode', 'auto'),
