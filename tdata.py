@@ -83,7 +83,7 @@ except ImportError as e:
     sys.exit(1)
 
 try:
-    from telethon import TelegramClient, functions
+    from telethon import TelegramClient, functions, types
     from telethon.errors import (
         FloodWaitError, SessionPasswordNeededError, RPCError,
         UserDeactivatedBanError, UserDeactivatedError, AuthKeyUnregisteredError,
@@ -6980,14 +6980,12 @@ class DeviceParamsLoader:
 class BatchCreationConfig:
     """批量创建配置"""
     creation_type: str  # 'group' or 'channel'
-    total_count: int
-    name_template: str = "Group {n}"  # 命名模板，支持 {n} 或 {num}
-    name_prefix: str = ""
-    name_suffix: str = ""
-    start_number: int = 1
-    description: str = ""
-    username_mode: str = "random"  # 'random', 'custom', 'none'
-    custom_username_template: str = ""  # 支持 {n} 占位符
+    count_per_account: int  # 每个账号创建的数量
+    admin_username: str = ""  # 管理员用户名（可选）
+    group_names: List[str] = field(default_factory=list)  # 群组/频道名称列表
+    group_descriptions: List[str] = field(default_factory=list)  # 群组/频道简介列表
+    username_mode: str = "auto"  # 'auto' (自动生成), 'custom' (自定义)
+    custom_usernames: List[str] = field(default_factory=list)  # 自定义用户名列表
 
 
 @dataclass
@@ -6997,11 +6995,14 @@ class BatchCreationResult:
     phone: str
     creation_type: str  # 'group' or 'channel'
     name: str
+    description: str = ""
     username: Optional[str] = None
     invite_link: Optional[str] = None
     status: str = 'pending'  # 'success', 'failed', 'skipped'
     error: Optional[str] = None
     creator_id: Optional[int] = None
+    creator_username: Optional[str] = None
+    admin_username: Optional[str] = None
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -7286,6 +7287,154 @@ class BatchCreatorService:
         
         return result
     
+    async def add_admin_to_group(
+        self,
+        client: TelegramClient,
+        chat_id: int,
+        admin_username: str
+    ) -> Tuple[bool, Optional[str]]:
+        """添加管理员到群组/频道"""
+        try:
+            if not admin_username:
+                return True, None
+            
+            # 查找用户
+            try:
+                user = await client.get_entity(admin_username)
+            except Exception as e:
+                return False, f"找不到用户 @{admin_username}: {str(e)}"
+            
+            # 邀请用户
+            try:
+                await client(functions.channels.InviteToChannelRequest(
+                    channel=chat_id,
+                    users=[user]
+                ))
+                await asyncio.sleep(0.5)
+            except Exception as e:
+                logger.warning(f"⚠️ 邀请用户失败: {e}")
+                # 继续尝试设置为管理员，可能用户已经在群里
+            
+            # 设置为管理员
+            try:
+                await client(functions.channels.EditAdminRequest(
+                    channel=chat_id,
+                    user_id=user,
+                    admin_rights=types.ChatAdminRights(
+                        change_info=True,
+                        post_messages=True,
+                        edit_messages=True,
+                        delete_messages=True,
+                        ban_users=True,
+                        invite_users=True,
+                        pin_messages=True,
+                        add_admins=False
+                    ),
+                    rank=""
+                ))
+                return True, None
+            except Exception as e:
+                return False, f"设置管理员失败: {str(e)}"
+        except Exception as e:
+            return False, str(e)
+    
+    async def create_single_new(
+        self,
+        account: BatchAccountInfo,
+        config: BatchCreationConfig,
+        index: int
+    ) -> BatchCreationResult:
+        """使用新配置结构为单个账号创建一个群组/频道"""
+        result = BatchCreationResult(
+            account_name=account.file_name,
+            phone=account.phone or "未知",
+            creation_type=config.creation_type,
+            name=""
+        )
+        
+        try:
+            if account.daily_remaining <= 0:
+                result.status = 'skipped'
+                result.error = '已达每日创建上限'
+                return result
+            
+            # 如果客户端未连接，重新连接
+            if not account.client:
+                account.client = TelegramClient(
+                    account.session_path,
+                    account.api_id,
+                    account.api_hash,
+                    proxy=account.proxy_dict,
+                    timeout=15
+                )
+                await account.client.connect()
+            
+            # 获取名称和描述（循环使用列表）
+            name_idx = index % len(config.group_names) if config.group_names else 0
+            name = config.group_names[name_idx] if config.group_names else f"Group {index + 1}"
+            description = config.group_descriptions[name_idx] if name_idx < len(config.group_descriptions) else ""
+            
+            result.name = name
+            result.description = description
+            
+            # 获取用户名
+            username = None
+            if config.username_mode == 'custom' and config.custom_usernames:
+                username_idx = index % len(config.custom_usernames)
+                username = config.custom_usernames[username_idx]
+            elif config.username_mode == 'auto':
+                username = self.generate_random_username()
+            
+            # 创建群组或频道
+            if config.creation_type == 'group':
+                success, invite_link, actual_username, error = await self.create_group(
+                    account.client, name, username, description
+                )
+            else:
+                success, invite_link, actual_username, error = await self.create_channel(
+                    account.client, name, username, description
+                )
+            
+            if success:
+                result.status = 'success'
+                result.invite_link = invite_link
+                result.username = actual_username
+                me = await account.client.get_me()
+                result.creator_id = me.id
+                result.creator_username = me.username or f"用户{me.id}"
+                
+                # 添加管理员（如果指定）
+                if config.admin_username:
+                    # 获取刚创建的群组/频道的ID
+                    if actual_username:
+                        try:
+                            entity = await account.client.get_entity(actual_username)
+                            chat_id = entity.id
+                            admin_success, admin_error = await self.add_admin_to_group(
+                                account.client, chat_id, config.admin_username
+                            )
+                            if admin_success:
+                                result.admin_username = config.admin_username
+                            else:
+                                logger.warning(f"⚠️ 添加管理员失败: {admin_error}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ 获取群组实体失败: {e}")
+                
+                self.db.record_creation(account.phone, config.creation_type, name, invite_link, actual_username, me.id)
+                account.daily_created += 1
+                account.daily_remaining -= 1
+            else:
+                result.status = 'failed'
+                result.error = error
+        except Exception as e:
+            result.status = 'failed'
+            result.error = str(e)
+            logger.error(f"❌ 创建失败: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        return result
+    
     def generate_report(self, results: List[BatchCreationResult]) -> str:
         """生成创建报告"""
         lines = ["=" * 60, "批量创建群组/频道 - 结果报告", "=" * 60]
@@ -7309,10 +7458,13 @@ class BatchCreatorService:
                 if r.status == 'success':
                     lines.append(f"类型: {r.creation_type}")
                     lines.append(f"名称: {r.name}")
+                    lines.append(f"简介: {r.description or '无'}")
                     lines.append(f"用户名: {r.username or '无'}")
                     lines.append(f"链接: {r.invite_link or '无'}")
-                    lines.append(f"账号: {r.phone}")
-                    lines.append(f"创建者ID: {r.creator_id or '未知'}\n")
+                    lines.append(f"创建者账号: {r.phone}")
+                    lines.append(f"创建者用户名: @{r.creator_username or '未知'}")
+                    lines.append(f"创建者ID: {r.creator_id or '未知'}")
+                    lines.append(f"管理员: @{r.admin_username or '无'}\n")
         
         if failed > 0:
             lines.append("失败列表:")
@@ -7320,8 +7472,9 @@ class BatchCreatorService:
             for r in results:
                 if r.status == 'failed':
                     lines.append(f"名称: {r.name}")
-                    lines.append(f"账号: {r.phone}")
-                    lines.append(f"错误: {r.error}\n")
+                    lines.append(f"简介: {r.description or '无'}")
+                    lines.append(f"创建者账号: {r.phone}")
+                    lines.append(f"失败原因: {r.error}\n")
         
         lines.append("=" * 60)
         return "\n".join(lines)
@@ -9786,6 +9939,8 @@ class EnhancedBot:
                 "waiting_add_2fa_file",
                 "waiting_cleanup_file",
                 "batch_create_upload",
+                "batch_create_names",
+                "batch_create_usernames",
             ]:
                 self.safe_send_message(update, "❌ 请先点击相应的功能按钮")
                 return
@@ -9938,6 +10093,12 @@ class EnhancedBot:
                     traceback.print_exc()
             thread = threading.Thread(target=process_batch_create, daemon=True)
             thread.start()
+        elif user_status == "batch_create_names":
+            # 处理群组名称文件上传
+            self.process_batch_create_names_file(update, context, document, user_id)
+        elif user_status == "batch_create_usernames":
+            # 处理用户名文件上传
+            self.process_batch_create_usernames_file(update, context, document, user_id)
         # 清空用户状态
         self.db.save_user(
             user_id,
@@ -11213,8 +11374,17 @@ class EnhancedBot:
                 elif user_status == "waiting_rename_newname":
                     self.handle_rename_newname_input(update, context, user_id, text)
                     return
-                elif user_status == "batch_create_config":
-                    self.handle_batch_create_config_input(update, context, user_id, text)
+                elif user_status == "batch_create_count":
+                    self.handle_batch_create_count_input(update, context, user_id, text)
+                    return
+                elif user_status == "batch_create_admin":
+                    self.handle_batch_create_admin_input(update, context, user_id, text)
+                    return
+                elif user_status == "batch_create_names":
+                    self.handle_batch_create_names_input(update, context, user_id, text)
+                    return
+                elif user_status == "batch_create_usernames":
+                    self.handle_batch_create_usernames_input(update, context, user_id, text)
                     return
         except Exception as e:
             print(f"❌ 检查广播状态失败: {e}")
@@ -16127,8 +16297,46 @@ class EnhancedBot:
             self.handle_batch_create_select_type(query, user_id, "group")
         elif data == "batch_create_type_channel":
             self.handle_batch_create_select_type(query, user_id, "channel")
-        elif data == "batch_create_config_done":
-            self.handle_batch_create_show_confirm(query, user_id)
+        elif data == "batch_create_skip_admin":
+            query.answer()
+            if user_id in self.pending_batch_create:
+                self.pending_batch_create[user_id]['admin_username'] = ""
+                # 创建一个假的update对象来调用_ask_for_group_names
+                fake_update = type('obj', (object,), {'effective_chat': type('obj', (object,), {'id': user_id})()})()
+                self._ask_for_group_names(fake_update, user_id)
+        elif data == "batch_create_username_custom":
+            query.answer()
+            if user_id in self.pending_batch_create:
+                self.pending_batch_create[user_id]['username_mode'] = 'custom'
+                type_name = "群组" if self.pending_batch_create[user_id]['creation_type'] == 'group' else "频道"
+                text = f"""
+<b>上传自定义用户名</b>
+
+请上传包含用户名的TXT文件，或直接输入：
+
+<b>格式：</b>每行一个用户名
+
+<b>示例：</b>
+<code>tech_community_001
+programming_hub
+game_lovers_group</code>
+
+💡 <i>可以带或不带@符号</i>
+💡 <i>如用户名已存在将自动跳过</i>
+"""
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("◀️ 返回", callback_data="batch_create_cancel")]
+                ])
+                query.edit_message_text(text, parse_mode='HTML', reply_markup=keyboard)
+                self.db.save_user(user_id, "", "", "batch_create_usernames")
+        elif data == "batch_create_username_auto":
+            query.answer()
+            if user_id in self.pending_batch_create:
+                self.pending_batch_create[user_id]['username_mode'] = 'auto'
+                self.pending_batch_create[user_id]['custom_usernames'] = []
+                # 创建假update来调用确认
+                fake_update = type('obj', (object,), {'effective_chat': type('obj', (object,), {'id': user_id})()})()
+                self._show_batch_create_confirm(fake_update, user_id)
         elif data == "batch_create_confirm":
             self.handle_batch_create_execute(update, context, query, user_id)
         elif data == "batch_create_cancel":
@@ -16158,34 +16366,22 @@ class EnhancedBot:
 • 有效账号：{task['valid_accounts']}
 • 今日可创建：{task['total_remaining']} 个
 
-<b>配置参数：</b>
-请输入配置信息（JSON格式），或使用默认配置：
+<b>步骤 1/4：设置创建数量</b>
 
-<code>{{"total_count": 10, "name_template": "{type_name}{{n}}", "name_prefix": "", "name_suffix": "", "start_number": 1, "description": "", "username_mode": "random", "custom_username_template": ""}}</code>
+请输入每个账号创建的数量（1-10）：
 
-<b>参数说明：</b>
-• total_count: 创建总数
-• name_template: 命名模板（{{n}} 或 {{num}} 为序号占位符）
-• name_prefix: 名称前缀
-• name_suffix: 名称后缀
-• start_number: 起始序号
-• description: 简介（可选）
-• username_mode: random(随机) / custom(自定义) / none(无)
-• custom_username_template: 自定义用户名模板（支持{{n}}占位符）
-
-💡 发送配置JSON或直接确认使用默认配置
+💡 <i>例如：输入 5 表示每个有效账号创建5个{type_name}</i>
 """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 使用默认配置", callback_data="batch_create_config_done")],
             [InlineKeyboardButton("◀️ 返回", callback_data="batch_create_cancel")]
         ])
         
         self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
-        self.db.save_user(user_id, "", "", "batch_create_config")
+        self.db.save_user(user_id, "", "", "batch_create_count")
     
-    def handle_batch_create_config_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
-        """处理批量创建配置输入"""
+    def handle_batch_create_count_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
+        """处理每账号创建数量输入"""
         if user_id not in self.pending_batch_create:
             self.safe_send_message(update, "❌ 会话已过期，请重新开始")
             return
@@ -16193,98 +16389,225 @@ class EnhancedBot:
         task = self.pending_batch_create[user_id]
         
         try:
-            # 解析JSON配置
-            config_data = json.loads(text)
+            count = int(text.strip())
+            if count < 1 or count > 10:
+                self.safe_send_message(update, "❌ 数量必须在1-10之间，请重新输入")
+                return
             
-            # 验证必需字段
-            required_fields = ['total_count', 'name_template']
-            for field in required_fields:
-                if field not in config_data:
-                    self.safe_send_message(
-                        update,
-                        f"❌ 配置错误：缺少必需字段 {field}"
-                    )
-                    return
+            task['count_per_account'] = count
             
-            # 保存配置
-            task['config'] = config_data
-            
-            # 显示确认对话框
             type_name = "群组" if task['creation_type'] == 'group' else "频道"
             
             text = f"""
-✅ <b>配置已保存</b>
+✅ <b>数量已设置：{count} 个/{type_name}/账号</b>
 
-<b>创建信息：</b>
-• 类型：{type_name}
-• 数量：{config_data['total_count']} 个
-• 命名：{config_data['name_template']}
-• 前缀：{config_data.get('name_prefix', '无')}
-• 后缀：{config_data.get('name_suffix', '无')}
-• 起始序号：{config_data.get('start_number', 1)}
-• 用户名：{config_data.get('username_mode', 'random')}
+<b>步骤 2/4：设置管理员（可选）</b>
 
-<b>准备创建？</b>
+请发送需要添加为管理员的用户名（可放空）：
+
+💡 <i>直接发送用户名（如 @username 或 username）</i>
+💡 <i>如不需要添加管理员，发送 "跳过" 或 "无"</i>
 """
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ 确认创建", callback_data="batch_create_config_done")],
-                [InlineKeyboardButton("❌ 取消", callback_data="batch_create_cancel")]
+                [InlineKeyboardButton("⏭️ 跳过", callback_data="batch_create_skip_admin")],
+                [InlineKeyboardButton("◀️ 返回", callback_data="batch_create_cancel")]
+            ])
+            
+            self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
+            self.db.save_user(user_id, "", "", "batch_create_admin")
+            
+        except ValueError:
+            self.safe_send_message(update, "❌ 请输入有效的数字（1-10）")
+    
+    def handle_batch_create_admin_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
+        """处理管理员用户名输入"""
+        if user_id not in self.pending_batch_create:
+            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            return
+        
+        task = self.pending_batch_create[user_id]
+        
+        text = text.strip()
+        if text.lower() in ['跳过', '无', 'skip', 'none', '']:
+            task['admin_username'] = ""
+        else:
+            # 移除 @ 前缀
+            admin_username = text.lstrip('@')
+            task['admin_username'] = admin_username
+        
+        self._ask_for_group_names(update, user_id)
+    
+    def _ask_for_group_names(self, update: Update, user_id: int):
+        """询问群组名称和简介"""
+        task = self.pending_batch_create[user_id]
+        type_name = "群组" if task['creation_type'] == 'group' else "频道"
+        
+        total_to_create = task['valid_accounts'] * task['count_per_account']
+        
+        text = f"""
+✅ <b>管理员已设置：{task.get('admin_username', '无')}</b>
+
+<b>步骤 3/4：设置{type_name}名称和简介</b>
+
+请上传包含{type_name}名称和简介的TXT文件，或直接手动输入（少量）
+
+<b>格式：</b>
+<code>{type_name}名称|{type_name}简介</code>
+
+<b>示例：</b>
+<code>科技交流群|欢迎讨论最新科技资讯
+编程学习|一起学习编程技术
+游戏爱好者|</code>
+
+💡 <i>简介可以为空（如第3行）</i>
+💡 <i>需要准备至少 {total_to_create} 行</i>
+💡 <i>如果行数不足，将循环使用已有的名称</i>
+
+<b>请上传TXT文件或直接输入：</b>
+"""
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("◀️ 返回", callback_data="batch_create_cancel")]
+        ])
+        
+        self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
+        self.db.save_user(user_id, "", "", "batch_create_names")
+    
+    def handle_batch_create_names_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
+        """处理群组名称和简介输入"""
+        if user_id not in self.pending_batch_create:
+            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            return
+        
+        task = self.pending_batch_create[user_id]
+        
+        try:
+            lines = text.strip().split('\n')
+            group_names = []
+            group_descriptions = []
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                if '|' in line:
+                    parts = line.split('|', 1)
+                    name = parts[0].strip()
+                    desc = parts[1].strip() if len(parts) > 1 else ""
+                else:
+                    name = line
+                    desc = ""
+                
+                if name:
+                    group_names.append(name)
+                    group_descriptions.append(desc)
+            
+            if not group_names:
+                self.safe_send_message(update, "❌ 未找到有效的名称，请重新输入")
+                return
+            
+            task['group_names'] = group_names
+            task['group_descriptions'] = group_descriptions
+            
+            type_name = "群组" if task['creation_type'] == 'group' else "频道"
+            
+            text = f"""
+✅ <b>已保存 {len(group_names)} 个{type_name}名称</b>
+
+<b>步骤 4/4：设置{type_name}链接</b>
+
+请选择{type_name}链接设置方式：
+
+• <b>自定义上传</b>：上传包含自定义用户名的TXT文件
+• <b>自动生成</b>：系统自动随机生成唯一的用户名
+
+💡 <i>自定义用户名格式：一行一个，可带或不带@</i>
+💡 <i>如果用户名已存在或不可用，将自动跳过</i>
+"""
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📝 自定义上传", callback_data="batch_create_username_custom")],
+                [InlineKeyboardButton("🎲 自动生成", callback_data="batch_create_username_auto")],
+                [InlineKeyboardButton("◀️ 返回", callback_data="batch_create_cancel")]
             ])
             
             self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
             
-        except json.JSONDecodeError:
-            self.safe_send_message(
-                update,
-                "❌ JSON格式错误\n\n请检查配置格式是否正确"
-            )
         except Exception as e:
-            self.safe_send_message(
-                update,
-                f"❌ 配置错误：{str(e)}"
-            )
+            self.safe_send_message(update, f"❌ 解析失败：{str(e)}")
     
-    def handle_batch_create_show_confirm(self, query, user_id: int):
-        """显示确认对话框"""
-        query.answer()
-        
+    def handle_batch_create_usernames_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
+        """处理自定义用户名输入"""
         if user_id not in self.pending_batch_create:
-            self.safe_edit_message(query, "❌ 会话已过期，请重新开始")
+            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
             return
         
         task = self.pending_batch_create[user_id]
-        config_data = task.get('config', {})
         
-        creation_type = task['creation_type']
-        type_name = "群组" if creation_type == "group" else "频道"
+        try:
+            lines = text.strip().split('\n')
+            custom_usernames = []
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # 移除 @ 前缀
+                username = line.lstrip('@')
+                if username:
+                    custom_usernames.append(username)
+            
+            if not custom_usernames:
+                self.safe_send_message(update, "❌ 未找到有效的用户名，请重新输入")
+                return
+            
+            task['custom_usernames'] = custom_usernames
+            
+            # 显示确认信息
+            self._show_batch_create_confirm(update, user_id)
+            
+        except Exception as e:
+            self.safe_send_message(update, f"❌ 解析失败：{str(e)}")
+    
+    def _show_batch_create_confirm(self, update: Update, user_id: int):
+        """显示最终确认信息"""
+        if user_id not in self.pending_batch_create:
+            return
         
-        total_count = config_data.get('total_count', 10)
-        name_template = config_data.get('name_template', f'{type_name}{{n}}')
-        username_mode = config_data.get('username_mode', 'random')
+        task = self.pending_batch_create[user_id]
+        type_name = "群组" if task['creation_type'] == 'group' else "频道"
+        
+        total_to_create = task['valid_accounts'] * task['count_per_account']
+        
+        username_mode_text = "自动生成" if task.get('username_mode', 'auto') == 'auto' else f"自定义（已提供{len(task.get('custom_usernames', []))}个）"
         
         text = f"""
-📦 <b>确认批量创建{type_name}</b>
+📋 <b>最终确认</b>
 
-<b>创建信息：</b>
-• 类型：{type_name}
-• 数量：{total_count} 个
-• 命名：{name_template}
-• 用户名：{'随机生成' if username_mode == 'random' else '自定义' if username_mode == 'custom' else '不设置'}
+<b>创建类型：</b>{type_name}
 
-<b>账号信息：</b>
-• 有效账号：{task['valid_accounts']}
-• 今日可创建：{task['total_remaining']} 个
+<b>账号统计：</b>
+• 有效账号数：{task['valid_accounts']} 个
+• 每账号创建：{task['count_per_account']} 个
+• 预计创建总数：{total_to_create} 个
 
-<b>预计结果：</b>
-• 将使用 {min(task['valid_accounts'], 10)} 个账号并发创建
-• 预计可创建：{min(total_count, task['total_remaining'])} 个
+<b>配置信息：</b>
+• 管理员：{task.get('admin_username', '无')}
+• 名称数量：{len(task.get('group_names', []))} 个
+• 链接模式：{username_mode_text}
+
+<b>并发设置：</b>
+• 并发账号数：{min(task['valid_accounts'], 10)} 个
+• 线程数：10
 
 ⚠️ <b>重要提示：</b>
 • 创建操作不可撤销
-• 请确保账号信息正确
-• 创建过程可能需要几分钟
-• 请勿关闭机器人
+• 将自动处理创建间隔避免频率限制
+• 如用户名已存在将自动跳过
+• 完成后将生成详细报告
 
 <b>确认开始创建？</b>
 """
@@ -16294,7 +16617,74 @@ class EnhancedBot:
             [InlineKeyboardButton("❌ 取消", callback_data="batch_create_cancel")]
         ])
         
-        self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
+        self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
+    
+    def process_batch_create_names_file(self, update: Update, context: CallbackContext, document, user_id: int):
+        """处理群组名称文件上传"""
+        if user_id not in self.pending_batch_create:
+            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            return
+        
+        try:
+            # 下载文件
+            file = document.get_file()
+            temp_file = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt', encoding='utf-8')
+            file.download(temp_file.name)
+            temp_file.close()
+            
+            # 读取文件内容
+            with open(temp_file.name, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 清理临时文件
+            os.unlink(temp_file.name)
+            
+            # 使用现有的处理逻辑
+            fake_update = type('obj', (object,), {
+                'effective_chat': type('obj', (object,), {'id': user_id})(),
+                'message': type('obj', (object,), {'reply_text': lambda text, **kwargs: context.bot.send_message(chat_id=user_id, text=text, **kwargs)})()
+            })()
+            self.handle_batch_create_names_input(fake_update, context, user_id, content)
+            
+        except Exception as e:
+            logger.error(f"处理名称文件失败: {e}")
+            self.safe_send_message(update, f"❌ 文件处理失败：{str(e)}")
+    
+    def process_batch_create_usernames_file(self, update: Update, context: CallbackContext, document, user_id: int):
+        """处理用户名文件上传"""
+        if user_id not in self.pending_batch_create:
+            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            return
+        
+        try:
+            # 下载文件
+            file = document.get_file()
+            temp_file = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt', encoding='utf-8')
+            file.download(temp_file.name)
+            temp_file.close()
+            
+            # 读取文件内容
+            with open(temp_file.name, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # 清理临时文件
+            os.unlink(temp_file.name)
+            
+            # 使用现有的处理逻辑
+            fake_update = type('obj', (object,), {
+                'effective_chat': type('obj', (object,), {'id': user_id})(),
+                'message': type('obj', (object,), {'reply_text': lambda text, **kwargs: context.bot.send_message(chat_id=user_id, text=text, **kwargs)})()
+            })()
+            self.handle_batch_create_usernames_input(fake_update, context, user_id, content)
+            
+        except Exception as e:
+            logger.error(f"处理用户名文件失败: {e}")
+            self.safe_send_message(update, f"❌ 文件处理失败：{str(e)}")
+    
+    def handle_batch_create_show_confirm(self, query, user_id: int):
+        """显示确认对话框 - 已废弃，由 _show_batch_create_confirm 替代"""
+        # 这个方法保留是为了兼容性，实际上新流程使用 _show_batch_create_confirm
+        pass
     
     def handle_batch_create_execute(self, update: Update, context: CallbackContext, query, user_id: int):
         """执行批量创建"""
@@ -16338,44 +16728,58 @@ class EnhancedBot:
         import asyncio
         
         accounts = task['accounts']
-        config_data = task.get('config', {})
         creation_type = task['creation_type']
         
         # 构建配置
         batch_config = BatchCreationConfig(
             creation_type=creation_type,
-            total_count=config_data.get('total_count', 10),
-            name_template=config_data.get('name_template', f'{"Group" if creation_type == "group" else "Channel"}{{n}}'),
-            name_prefix=config_data.get('name_prefix', ''),
-            name_suffix=config_data.get('name_suffix', ''),
-            start_number=config_data.get('start_number', 1),
-            description=config_data.get('description', ''),
-            username_mode=config_data.get('username_mode', 'random'),
-            custom_username_template=config_data.get('custom_username_template', '')
+            count_per_account=task['count_per_account'],
+            admin_username=task.get('admin_username', ''),
+            group_names=task.get('group_names', []),
+            group_descriptions=task.get('group_descriptions', []),
+            username_mode=task.get('username_mode', 'auto'),
+            custom_usernames=task.get('custom_usernames', [])
         )
         
-        # 创建进度消息
+        # 创建进度消息（使用内联按钮）
+        total_to_create = task['valid_accounts'] * task['count_per_account']
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📊 查看日志", callback_data="batch_create_noop")]
+        ])
+        
         progress_msg = context.bot.send_message(
             chat_id=user_id,
-            text="🚀 <b>开始批量创建</b>\n\n进度: 0%",
-            parse_mode='HTML'
+            text=f"🚀 <b>开始批量创建</b>\n\n进度: 0/{total_to_create} (0%)\n状态: 准备中...",
+            parse_mode='HTML',
+            reply_markup=keyboard
         )
         
         # 执行批量创建
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
+        last_update_count = 0
+        
         def progress_callback(current, total, message):
-            try:
-                progress = int(current / total * 100)
-                context.bot.edit_message_text(
-                    chat_id=user_id,
-                    message_id=progress_msg.message_id,
-                    text=f"🚀 <b>批量创建中</b>\n\n进度: {current}/{total} ({progress}%)\n{message}",
-                    parse_mode='HTML'
-                )
-            except:
-                pass
+            nonlocal last_update_count
+            # 每10个更新一次，或者是最后一个
+            if current - last_update_count >= 10 or current == total:
+                try:
+                    progress = int(current / total * 100)
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("📊 实时进度", callback_data="batch_create_noop")]
+                    ])
+                    context.bot.edit_message_text(
+                        chat_id=user_id,
+                        message_id=progress_msg.message_id,
+                        text=f"🚀 <b>批量创建中</b>\n\n进度: {current}/{total} ({progress}%)\n状态: {message}",
+                        parse_mode='HTML',
+                        reply_markup=keyboard
+                    )
+                    last_update_count = current
+                except:
+                    pass
         
         try:
             # 批量创建
@@ -16385,34 +16789,53 @@ class EnhancedBot:
             # 限制并发为10个账号
             batch_size = min(len(valid_accounts), config.BATCH_CREATE_CONCURRENT)
             
-            for i in range(0, len(valid_accounts), batch_size):
-                batch_accounts = valid_accounts[i:i+batch_size]
+            # 计算每个账号需要创建多少个
+            count_per_account = batch_config.count_per_account
+            
+            # 为每个账号创建指定数量的群组/频道
+            account_idx = 0
+            creation_idx = 0
+            
+            while creation_idx < total_to_create and account_idx < len(valid_accounts):
+                # 收集本批次的任务（最多10个账号并发）
+                batch_tasks = []
+                batch_end_idx = min(account_idx + batch_size, len(valid_accounts))
                 
-                # 为每个账号分配创建任务
-                tasks_list = []
-                for account in batch_accounts:
-                    tasks_list.append(
-                        self.batch_creator.create_single(
-                            account,
-                            batch_config,
-                            batch_config.start_number + len(results)
+                for acc_i in range(account_idx, batch_end_idx):
+                    account = valid_accounts[acc_i]
+                    # 为这个账号创建 count_per_account 个
+                    for j in range(count_per_account):
+                        if creation_idx >= total_to_create:
+                            break
+                        
+                        batch_tasks.append(
+                            self.batch_creator.create_single_new(
+                                account,
+                                batch_config,
+                                creation_idx
+                            )
                         )
-                    )
+                        creation_idx += 1
+                    
+                    if creation_idx >= total_to_create:
+                        break
+                
+                if not batch_tasks:
+                    break
                 
                 # 执行批次
-                batch_results = loop.run_until_complete(asyncio.gather(*tasks_list))
+                batch_results = loop.run_until_complete(asyncio.gather(*batch_tasks))
                 results.extend(batch_results)
                 
-                progress_callback(len(results), batch_config.total_count, "创建中...")
+                progress_callback(len(results), total_to_create, "创建中...")
                 
                 # 添加批次之间的延迟以避免频率限制
-                if i + batch_size < len(valid_accounts) and len(results) < batch_config.total_count:
+                if creation_idx < total_to_create:
                     delay = random.uniform(2, 4)
                     logger.info(f"批次完成，等待 {delay:.1f} 秒后继续...")
                     time.sleep(delay)
                 
-                if len(results) >= batch_config.total_count:
-                    break
+                account_idx = batch_end_idx
             
             # 关闭客户端
             async def disconnect_clients():
