@@ -88,7 +88,8 @@ try:
         FloodWaitError, SessionPasswordNeededError, RPCError,
         UserDeactivatedBanError, UserDeactivatedError, AuthKeyUnregisteredError,
         PhoneNumberBannedError, UserBannedInChannelError,
-        PasswordHashInvalidError, PhoneCodeInvalidError, AuthRestartError
+        PasswordHashInvalidError, PhoneCodeInvalidError, AuthRestartError,
+        UsernameOccupiedError, UsernameInvalidError
     )
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
     from telethon.tl.functions.account import GetPasswordRequest
@@ -7042,9 +7043,17 @@ class BatchCreatorService:
     
     def parse_name_template(self, template: str, number: int, prefix: str = "", suffix: str = "") -> str:
         """解析命名模板"""
+        # 检查原始模板中是否有占位符
+        has_placeholder = '{n}' in template or '{num}' in template
+        
+        # 替换占位符
         name = template.replace('{n}', str(number)).replace('{num}', str(number))
-        if '{n}' not in template and '{num}' not in template:
+        
+        # 如果原始模板中没有占位符，在末尾添加序号
+        if not has_placeholder:
             name = f"{template}{number}"
+        
+        # 添加前缀和后缀
         if prefix:
             name = f"{prefix}{name}"
         if suffix:
@@ -7099,7 +7108,16 @@ class BatchCreatorService:
     ) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
         """创建群组"""
         try:
-            result = await client(functions.messages.CreateChatRequest(users=['me'], title=name))
+            # 获取"Telegram"官方账号作为初始成员（所有人都有这个联系人）
+            # 或者创建一个空的基础群组（需要先升级为超级群组才能设置username）
+            try:
+                telegram_bot = await client.get_entity('telegram')
+                users_to_add = [telegram_bot]
+            except:
+                # 如果无法获取telegram账号，尝试使用Saved Messages
+                users_to_add = ['me']
+            
+            result = await client(functions.messages.CreateChatRequest(users=users_to_add, title=name))
             chat = result.chats[0]
             chat_id = chat.id
             
@@ -16124,26 +16142,17 @@ class EnhancedBot:
 <b>配置参数：</b>
 请输入配置信息（JSON格式），或使用默认配置：
 
-<code>{{
-  "total_count": 10,
-  "name_template": "{type_name}{{n}}",
-  "name_prefix": "",
-  "name_suffix": "",
-  "start_number": 1,
-  "description": "",
-  "username_mode": "random",
-  "custom_username_template": ""
-}}</code>
+<code>{{"total_count": 10, "name_template": "{type_name}{{n}}", "name_prefix": "", "name_suffix": "", "start_number": 1, "description": "", "username_mode": "random", "custom_username_template": ""}}</code>
 
 <b>参数说明：</b>
 • total_count: 创建总数
-• name_template: 命名模板（{{n}} 为序号占位符）
+• name_template: 命名模板（{{n}} 或 {{num}} 为序号占位符）
 • name_prefix: 名称前缀
 • name_suffix: 名称后缀
 • start_number: 起始序号
 • description: 简介（可选）
 • username_mode: random(随机) / custom(自定义) / none(无)
-• custom_username_template: 自定义用户名模板
+• custom_username_template: 自定义用户名模板（支持{{n}}占位符）
 
 💡 发送配置JSON或直接确认使用默认配置
 """
