@@ -7499,7 +7499,7 @@ class BatchCreatorService:
                         # 如果等待时间不超过60秒，则等待后重试
                         await asyncio.sleep(wait_seconds + 1)
                     else:
-                        return False, f"邀请失败: 创建账号触发频率限制 ({wait_seconds}秒)"
+                        return False, f"邀请失败: 操作触发频率限制 ({wait_seconds}秒)"
                 except Exception as e:
                     error_msg = str(e).lower()
                     invite_error = str(e)
@@ -7549,12 +7549,12 @@ class BatchCreatorService:
                     if attempt < max_retries - 1 and wait_seconds < self.config.BATCH_CREATE_MAX_FLOOD_WAIT:
                         await asyncio.sleep(wait_seconds + 1)
                     else:
-                        return False, f"设置失败: 创建账号触发频率限制 ({wait_seconds}秒)"
+                        return False, f"设置失败: 操作触发频率限制 ({wait_seconds}秒)"
                 except Exception as e:
                     error_msg = str(e).lower()
                     # 提供更详细的错误信息
                     if "chat_admin_required" in error_msg or "admin" in error_msg:
-                        return False, f"设置失败: 创建账号权限不足（可能是Basic Group需要先升级为SuperGroup）"
+                        return False, f"设置失败: 权限不足（Basic Group无法添加管理员，需先升级为SuperGroup）"
                     elif "user_not_participant" in error_msg:
                         if invite_error:
                             return False, f"设置失败: 用户未加入群组（邀请失败: {invite_error}）"
@@ -7570,7 +7570,7 @@ class BatchCreatorService:
                     if attempt < max_retries - 1:
                         await asyncio.sleep(2.0)
                     else:
-                        return False, f"设置失败: {str(e)[:100]}"
+                        return False, f"设置失败: {str(e)[:200]}"
             
             return False, "设置失败: 达到最大重试次数"
         except Exception as e:
