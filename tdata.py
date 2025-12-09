@@ -7166,7 +7166,8 @@ class BatchCreatorService:
         account: BatchAccountInfo,
         api_id: int,
         api_hash: str,
-        proxy_dict: Optional[Dict] = None
+        proxy_dict: Optional[Dict] = None,
+        user_id: Optional[int] = None
     ) -> Tuple[bool, Optional[str]]:
         """验证账号有效性 - 支持TData自动转换"""
         client = None
@@ -7189,9 +7190,12 @@ class BatchCreatorService:
                     if not tdesk.isLoaded():
                         return False, "TData未授权或无效"
                     
-                    # 创建临时Session
+                    # 创建临时Session（使用用户ID前缀，确保隔离）
                     os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
-                    temp_session_name = f"batch_validate_{time.time_ns()}"
+                    if user_id:
+                        temp_session_name = f"user_{user_id}_batch_{time.time_ns()}"
+                    else:
+                        temp_session_name = f"batch_validate_{time.time_ns()}"
                     temp_session_path = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
                     
                     # 转换TData到Session
@@ -16450,6 +16454,37 @@ class EnhancedBot:
         # 清除用户状态
         self.db.save_user(user_id, "", "", "")
     
+    def _cleanup_user_temp_sessions(self, user_id: int):
+        """清理指定用户的临时session文件
+        
+        这确保每次上传只使用当前上传的账号，不会重复登录之前的账号
+        """
+        try:
+            if not os.path.exists(config.SESSIONS_BAK_DIR):
+                return
+            
+            # 清理该用户的临时文件（以 user_{user_id}_ 开头的文件）
+            user_prefix = f"user_{user_id}_"
+            cleaned_count = 0
+            
+            for filename in os.listdir(config.SESSIONS_BAK_DIR):
+                if filename.startswith(user_prefix):
+                    file_path = os.path.join(config.SESSIONS_BAK_DIR, filename)
+                    try:
+                        # 删除session文件和journal文件
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                            cleaned_count += 1
+                            logger.info(f"🧹 清理旧临时文件: {filename}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ 清理文件失败 {filename}: {e}")
+            
+            if cleaned_count > 0:
+                logger.info(f"✅ 清理了 {cleaned_count} 个用户 {user_id} 的旧临时session文件")
+                print(f"✅ 清理了 {cleaned_count} 个用户 {user_id} 的旧临时session文件")
+        except Exception as e:
+            logger.error(f"❌ 清理临时文件失败: {e}")
+    
     # ================================
     # 批量创建群组/频道功能
     # ================================
@@ -16464,6 +16499,10 @@ class EnhancedBot:
         
         temp_zip = None
         try:
+            # 【关键修复】在处理新上传前，清理该用户的旧临时session文件
+            # 这确保每次上传只使用当前上传的账号，不会重复登录之前的账号
+            self._cleanup_user_temp_sessions(user_id)
+            
             # 下载文件
             temp_dir = tempfile.mkdtemp(prefix="batch_create_")
             temp_zip = os.path.join(temp_dir, document.file_name)
@@ -16522,9 +16561,9 @@ class EnhancedBot:
                             proxy_info.get('password')
                         )
                 
-                # 验证账号
+                # 验证账号（传入user_id以确保临时文件隔离）
                 is_valid, error = await self.batch_creator.validate_account(
-                    account, api_id, api_hash, proxy_dict
+                    account, api_id, api_hash, proxy_dict, user_id
                 )
                 
                 accounts.append(account)
