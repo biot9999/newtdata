@@ -7831,6 +7831,13 @@ class EnhancedBot:
     MESSAGE_RETRY_MAX = 3       # 默认最大重试次数
     MESSAGE_RETRY_BACKOFF = 2   # 指数退避基数
     
+    # 重新授权相关常量
+    REAUTH_CODE_RETRIES = 5
+    REAUTH_CODE_POLL_INTERVAL = 2
+    TELEGRAM_CODE_SENDER = 777000
+    REAUTH_PROGRESS_STEP = 50
+    REAUTH_FAILURE_CATEGORIES = {"冻结", "封禁", "旧密码错误", "网络错误"}
+    
     def _is_network_error(self, error: Exception) -> bool:
         """判断异常是否是网络相关的错误
         
@@ -9886,7 +9893,7 @@ class EnhancedBot:
 
 <b>密码输入</b>
 • 仅新密码（自动识别旧密码）示例：<code>NewPass123</code>
-• 旧密码+新密码  示例：<code>OldPass123 NewPass123</code>
+• 旧密码+新密码 示例：<code>OldPass123 NewPass123</code>
 • 支持从 JSON / 2fa.txt 自动识别旧密码
 
 <b>结果分类</b>
@@ -10059,7 +10066,7 @@ class EnhancedBot:
                 failure_list.append(result)
             
             # 进度更新（每50个或最后一个）
-            if progress_msg and (((idx + 1) % 50 == 0) or (idx + 1 == total)):
+            if progress_msg and (((idx + 1) % self.REAUTH_PROGRESS_STEP == 0) or (idx + 1 == total)):
                 try:
                     progress_msg.edit_text(
                         f"⏳ <b>重新授权中</b>\n\n进度: {idx + 1}/{total}",
@@ -10185,7 +10192,7 @@ class EnhancedBot:
             
             last_code_id = None
             try:
-                msgs = await old_client.get_messages(777000, limit=1)
+                msgs = await old_client.get_messages(self.TELEGRAM_CODE_SENDER, limit=1)
                 if msgs:
                     last_code_id = msgs[0].id
             except Exception:
@@ -10215,9 +10222,9 @@ class EnhancedBot:
             sent = await new_client.send_code_request(phone_e164)
             
             code = None
-            for _ in range(5):
-                await asyncio.sleep(2)
-                msgs = await old_client.get_messages(777000, limit=1)
+            for _ in range(self.REAUTH_CODE_RETRIES):
+                await asyncio.sleep(self.REAUTH_CODE_POLL_INTERVAL)
+                msgs = await old_client.get_messages(self.TELEGRAM_CODE_SENDER, limit=1)
                 if msgs:
                     msg = msgs[0]
                     if (last_code_id is None) or (msg.id > last_code_id):
@@ -10341,11 +10348,10 @@ class EnhancedBot:
         
         if failure_list:
             failure_zip = os.path.join(run_dir, f"授权失败{len(failure_list)}.zip")
-            categories = {"冻结", "封禁", "旧密码错误", "网络错误"}
             with zipfile.ZipFile(failure_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for item in failure_list:
                     cat = item.get("category", "网络错误")
-                    if cat not in categories:
+                    if cat not in self.REAUTH_FAILURE_CATEGORIES:
                         cat = "网络错误"
                     base_arc = os.path.join(cat, item.get("file_name", "unknown"))
                     path = item.get("file_path")
