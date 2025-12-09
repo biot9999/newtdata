@@ -15946,7 +15946,7 @@ class EnhancedBot:
             api_id = device_config.get('api_id', config.API_ID)
             api_hash = device_config.get('api_hash', config.API_HASH)
             
-            for i, (file_path, file_name, info) in enumerate(files):
+            for i, (file_path, file_name) in enumerate(files):
                 # 更新进度
                 if (i + 1) % 5 == 0:
                     try:
