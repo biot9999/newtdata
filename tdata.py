@@ -7069,7 +7069,8 @@ class BatchCreationConfig:
     """批量创建配置"""
     creation_type: str  # 'group' or 'channel'
     count_per_account: int  # 每个账号创建的数量
-    admin_username: str = ""  # 管理员用户名（可选）
+    admin_username: str = ""  # 管理员用户名（单个，向后兼容）
+    admin_usernames: List[str] = field(default_factory=list)  # 管理员用户名列表（支持多个）
     group_names: List[str] = field(default_factory=list)  # 群组/频道名称列表
     group_descriptions: List[str] = field(default_factory=list)  # 群组/频道简介列表
     username_mode: str = "auto"  # 'auto' (自动生成), 'custom' (自定义)
@@ -7090,7 +7091,9 @@ class BatchCreationResult:
     error: Optional[str] = None
     creator_id: Optional[int] = None
     creator_username: Optional[str] = None
-    admin_username: Optional[str] = None
+    admin_username: Optional[str] = None  # 向后兼容，保留单个
+    admin_usernames: List[str] = field(default_factory=list)  # 成功添加的管理员列表
+    admin_failures: List[str] = field(default_factory=list)  # 添加失败的管理员及原因
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
@@ -7458,7 +7461,7 @@ class BatchCreatorService:
         chat_id: int,
         admin_username: str
     ) -> Tuple[bool, Optional[str]]:
-        """添加管理员到群组/频道（带Flood错误处理和重试）"""
+        """添加管理员到群组/频道（带Flood错误处理和重试及详细错误信息）"""
         try:
             if not admin_username:
                 return True, None
@@ -7466,11 +7469,19 @@ class BatchCreatorService:
             # 查找用户
             try:
                 user = await client.get_entity(admin_username)
+            except ValueError:
+                return False, f"用户名 @{admin_username} 不存在或无效"
             except Exception as e:
-                return False, f"找不到用户 @{admin_username}: {str(e)}"
+                error_msg = str(e).lower()
+                if "username not" in error_msg or "no user" in error_msg:
+                    return False, f"用户 @{admin_username} 不存在"
+                elif "username invalid" in error_msg:
+                    return False, f"用户名 @{admin_username} 格式无效"
+                return False, f"无法找到用户 @{admin_username}: {str(e)}"
             
-            # 邀请用户（带Flood错误处理）
+            # 邀请用户（带Flood错误处理及详细错误信息）
             max_retries = 3
+            invite_error = None
             for attempt in range(max_retries):
                 try:
                     await client(functions.channels.InviteToChannelRequest(
@@ -7478,6 +7489,7 @@ class BatchCreatorService:
                         users=[user]
                     ))
                     await asyncio.sleep(1.0)  # 增加延迟避免flood
+                    invite_error = None
                     break  # 成功则跳出循环
                 except FloodWaitError as e:
                     wait_seconds = e.seconds
@@ -7487,22 +7499,31 @@ class BatchCreatorService:
                         # 如果等待时间不超过60秒，则等待后重试
                         await asyncio.sleep(wait_seconds + 1)
                     else:
-                        return False, f"邀请用户失败: 频率限制 ({wait_seconds}秒)"
+                        return False, f"邀请失败: 创建账号触发频率限制 ({wait_seconds}秒)"
                 except Exception as e:
                     error_msg = str(e).lower()
+                    invite_error = str(e)
                     logger.warning(f"⚠️ 邀请用户失败: {e}")
-                    # 如果用户已在群组中或其他非致命错误，继续尝试设置管理员
+                    # 如果用户已在群组中，继续尝试设置管理员
                     if "already" in error_msg or "participant" in error_msg:
+                        invite_error = None  # 不是真正的错误
                         break
+                    # 检查是否是权限问题
+                    if "privacy" in error_msg or "private" in error_msg:
+                        return False, f"邀请失败: @{admin_username} 隐私设置不允许被邀请"
+                    if "bot" in error_msg and "cannot" in error_msg:
+                        return False, f"邀请失败: @{admin_username} 是机器人，无法添加为管理员"
+                    if "user_channels_too_much" in error_msg:
+                        return False, f"邀请失败: @{admin_username} 加入的群组数量已达上限"
                     # 其他错误，继续尝试
                     if attempt < max_retries - 1:
                         await asyncio.sleep(2.0)
                     else:
-                        # 最后一次尝试失败，但继续尝试设置管理员
-                        logger.warning(f"⚠️ 邀请用户失败但继续: {e}")
+                        # 最后一次尝试失败，但继续尝试设置管理员（可能用户已在群中）
+                        logger.warning(f"⚠️ 邀请用户失败但继续尝试设置管理员: {e}")
                         break
             
-            # 设置为管理员（带Flood错误处理）
+            # 设置为管理员（带Flood错误处理及详细错误信息）
             for attempt in range(max_retries):
                 try:
                     await client(functions.channels.EditAdminRequest(
@@ -7528,14 +7549,30 @@ class BatchCreatorService:
                     if attempt < max_retries - 1 and wait_seconds < self.config.BATCH_CREATE_MAX_FLOOD_WAIT:
                         await asyncio.sleep(wait_seconds + 1)
                     else:
-                        return False, f"设置管理员失败: 频率限制 ({wait_seconds}秒)"
+                        return False, f"设置失败: 创建账号触发频率限制 ({wait_seconds}秒)"
                 except Exception as e:
+                    error_msg = str(e).lower()
+                    # 提供更详细的错误信息
+                    if "chat_admin_required" in error_msg or "admin" in error_msg:
+                        return False, f"设置失败: 创建账号权限不足（可能是Basic Group需要先升级为SuperGroup）"
+                    elif "user_not_participant" in error_msg:
+                        if invite_error:
+                            return False, f"设置失败: 用户未加入群组（邀请失败: {invite_error}）"
+                        return False, f"设置失败: @{admin_username} 未加入群组"
+                    elif "user_privacy_restricted" in error_msg:
+                        return False, f"设置失败: @{admin_username} 隐私设置限制"
+                    elif "user_bot_required" in error_msg or "peer_id_invalid" in error_msg:
+                        return False, f"设置失败: @{admin_username} 账号无效"
+                    elif "chat_not_modified" in error_msg:
+                        # 用户已经是管理员
+                        return True, None
+                    
                     if attempt < max_retries - 1:
                         await asyncio.sleep(2.0)
                     else:
-                        return False, f"设置管理员失败: {str(e)}"
+                        return False, f"设置失败: {str(e)[:100]}"
             
-            return False, "设置管理员失败: 达到最大重试次数"
+            return False, "设置失败: 达到最大重试次数"
         except Exception as e:
             return False, str(e)
     
@@ -7667,31 +7704,53 @@ class BatchCreatorService:
                 result.creator_id = me.id
                 result.creator_username = me.username or f"用户{me.id}"
                 
-                # 添加管理员（如果指定）
-                if config.admin_username:
+                # 添加管理员（支持多个管理员）
+                admin_list = []
+                if config.admin_usernames:
+                    admin_list = config.admin_usernames
+                elif config.admin_username:  # 向后兼容
+                    admin_list = [config.admin_username]
+                
+                if admin_list and actual_username:
                     # 添加延迟避免频率限制
                     await asyncio.sleep(random.uniform(1.5, 2.5))
                     
-                    logger.info(f"👤 尝试添加管理员: {config.admin_username}")
-                    print(f"👤 尝试添加管理员: {config.admin_username}", flush=True)
-                    # 获取刚创建的群组/频道的ID
-                    if actual_username:
-                        try:
-                            entity = await account.client.get_entity(actual_username)
-                            chat_id = entity.id
+                    try:
+                        entity = await account.client.get_entity(actual_username)
+                        chat_id = entity.id
+                        
+                        # 逐个添加管理员
+                        for admin_username in admin_list:
+                            if not admin_username:
+                                continue
+                            
+                            logger.info(f"👤 尝试添加管理员: {admin_username}")
+                            print(f"👤 尝试添加管理员: {admin_username}", flush=True)
+                            
                             admin_success, admin_error = await self.add_admin_to_group(
-                                account.client, chat_id, config.admin_username
+                                account.client, chat_id, admin_username
                             )
+                            
                             if admin_success:
-                                result.admin_username = config.admin_username
-                                logger.info(f"✅ 管理员添加成功: {config.admin_username}")
-                                print(f"✅ 管理员添加成功: {config.admin_username}", flush=True)
+                                result.admin_usernames.append(admin_username)
+                                if not result.admin_username:  # 向后兼容，记录第一个
+                                    result.admin_username = admin_username
+                                logger.info(f"✅ 管理员添加成功: {admin_username}")
+                                print(f"✅ 管理员添加成功: {admin_username}", flush=True)
                             else:
-                                logger.warning(f"⚠️ 添加管理员失败: {admin_error}")
-                                print(f"⚠️ 添加管理员失败: {admin_error}", flush=True)
-                        except Exception as e:
-                            logger.warning(f"⚠️ 获取群组实体失败: {e}")
-                            print(f"⚠️ 获取群组实体失败: {e}", flush=True)
+                                result.admin_failures.append(f"{admin_username}: {admin_error}")
+                                logger.warning(f"⚠️ 添加管理员失败 {admin_username}: {admin_error}")
+                                print(f"⚠️ 添加管理员失败 {admin_username}: {admin_error}", flush=True)
+                            
+                            # 多个管理员之间添加延迟
+                            if len(admin_list) > 1:
+                                await asyncio.sleep(random.uniform(2.0, 3.0))
+                                
+                    except Exception as e:
+                        logger.warning(f"⚠️ 获取群组实体失败: {e}")
+                        print(f"⚠️ 获取群组实体失败: {e}", flush=True)
+                        for admin_username in admin_list:
+                            result.admin_failures.append(f"{admin_username}: 无法获取群组信息")
                 
                 self.db.record_creation(account.phone, config.creation_type, name, invite_link, actual_username, me.id)
                 account.daily_created += 1
@@ -7740,7 +7799,20 @@ class BatchCreatorService:
                     lines.append(f"创建者账号: {r.phone}")
                     lines.append(f"创建者用户名: @{r.creator_username or '未知'}")
                     lines.append(f"创建者ID: {r.creator_id or '未知'}")
-                    lines.append(f"管理员: @{r.admin_username or '无'}\n")
+                    
+                    # 管理员信息（支持多个）
+                    if r.admin_usernames:
+                        lines.append(f"管理员: {', '.join([f'@{u}' for u in r.admin_usernames])}")
+                    else:
+                        lines.append(f"管理员: @{r.admin_username or '无'}")
+                    
+                    # 管理员添加失败信息
+                    if r.admin_failures:
+                        lines.append(f"管理员添加失败:")
+                        for failure in r.admin_failures:
+                            lines.append(f"  - {failure}")
+                    
+                    lines.append("")
         
         if failed > 0:
             lines.append("失败列表:")
@@ -16828,12 +16900,22 @@ game_lovers_group</code>
             text = f"""
 ✅ <b>数量已设置：{count} 个/{type_name}/账号</b>
 
-<b>步骤 2/4：设置管理员（可选）</b>
+<b>步骤 2/4：设置管理员（可选，支持多个）</b>
 
-请发送需要添加为管理员的用户名（可放空）：
+请发送需要添加为管理员的用户名：
 
-💡 <i>直接发送用户名（如 @username 或 username）</i>
-💡 <i>如不需要添加管理员，发送 "跳过" 或 "无"</i>
+<b>格式：</b>
+• 单个管理员：直接输入用户名
+• 多个管理员：<b>每行一个用户名</b>
+
+<b>示例：</b>
+<code>admin1
+admin2
+admin3</code>
+
+💡 <i>可以带或不带@符号</i>
+💡 <i>不需要添加管理员，发送 "跳过" 或 "无"</i>
+💡 <i>失败的管理员会在报告中显示详细原因</i>
 """
             
             keyboard = InlineKeyboardMarkup([
@@ -16848,7 +16930,7 @@ game_lovers_group</code>
             self.safe_send_message(update, "❌ 请输入有效的数字（1-10）")
     
     def handle_batch_create_admin_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
-        """处理管理员用户名输入"""
+        """处理管理员用户名输入（支持多个管理员，每行一个）"""
         if user_id not in self.pending_batch_create:
             self.safe_send_message(update, "❌ 会话已过期，请重新开始")
             return
@@ -16857,11 +16939,23 @@ game_lovers_group</code>
         
         text = text.strip()
         if text.lower() in ['跳过', '无', 'skip', 'none', '']:
-            task['admin_username'] = ""
+            task['admin_usernames'] = []
+            task['admin_username'] = ""  # 向后兼容
         else:
-            # 移除 @ 前缀
-            admin_username = text.lstrip('@')
-            task['admin_username'] = admin_username
+            # 解析多个管理员（每行一个）
+            lines = text.split('\n')
+            admin_usernames = []
+            for line in lines:
+                line = line.strip()
+                if line and line.lower() not in ['跳过', '无', 'skip', 'none']:
+                    # 移除 @ 前缀
+                    admin_username = line.lstrip('@')
+                    if admin_username:
+                        admin_usernames.append(admin_username)
+            
+            task['admin_usernames'] = admin_usernames
+            # 向后兼容：保存第一个管理员
+            task['admin_username'] = admin_usernames[0] if admin_usernames else ""
         
         self._ask_for_group_names(update, user_id)
     
@@ -16880,8 +16974,12 @@ game_lovers_group</code>
         
         total_to_create = task['valid_accounts'] * task['count_per_account']
         
+        admin_usernames = task.get('admin_usernames', [])
+        admin_display = ', '.join([f"@{u}" for u in admin_usernames]) if admin_usernames else '无'
+        
         text = f"""
-✅ <b>管理员已设置：{task.get('admin_username', '无')}</b>
+✅ <b>管理员已设置：{admin_display}</b>
+<i>（共 {len(admin_usernames)} 个）</i>
 
 <b>步骤 3/4：设置{type_name}名称和简介</b>
 
@@ -17019,6 +17117,12 @@ game_lovers_group</code>
         
         username_mode_text = "自动生成" if task.get('username_mode', 'auto') == 'auto' else f"自定义（已提供{len(task.get('custom_usernames', []))}个）"
         
+        admin_usernames = task.get('admin_usernames', [])
+        if admin_usernames:
+            admin_text = f"{len(admin_usernames)} 个 ({', '.join([f'@{u}' for u in admin_usernames[:3]])}{'...' if len(admin_usernames) > 3 else ''})"
+        else:
+            admin_text = "无"
+        
         text = f"""
 📋 <b>最终确认</b>
 
@@ -17030,7 +17134,7 @@ game_lovers_group</code>
 • 预计创建总数：{total_to_create} 个
 
 <b>配置信息：</b>
-• 管理员：{task.get('admin_username', '无')}
+• 管理员：{admin_text}
 • 名称数量：{len(task.get('group_names', []))} 个
 • 链接模式：{username_mode_text}
 
@@ -17160,7 +17264,8 @@ game_lovers_group</code>
         batch_config = BatchCreationConfig(
             creation_type=creation_type,
             count_per_account=task['count_per_account'],
-            admin_username=task.get('admin_username', ''),
+            admin_username=task.get('admin_username', ''),  # 向后兼容
+            admin_usernames=task.get('admin_usernames', []),  # 新增：支持多个管理员
             group_names=task.get('group_names', []),
             group_descriptions=task.get('group_descriptions', []),
             username_mode=task.get('username_mode', 'auto'),
