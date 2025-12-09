@@ -765,9 +765,9 @@ class Config:
         # 批量创建功能配置
         self.ENABLE_BATCH_CREATE = os.getenv("ENABLE_BATCH_CREATE", "true").lower() == "true"
         self.BATCH_CREATE_DAILY_LIMIT = int(os.getenv("BATCH_CREATE_DAILY_LIMIT", "10"))  # 每个账号每日创建上限
-        self.BATCH_CREATE_CONCURRENT = int(os.getenv("BATCH_CREATE_CONCURRENT", "10"))  # 同时处理的账户数（已弃用，现在串行处理）
         self.BATCH_CREATE_MIN_INTERVAL = int(os.getenv("BATCH_CREATE_MIN_INTERVAL", "60"))  # 创建间隔最小秒数
         self.BATCH_CREATE_MAX_INTERVAL = int(os.getenv("BATCH_CREATE_MAX_INTERVAL", "120"))  # 创建间隔最大秒数
+        self.BATCH_CREATE_MAX_FLOOD_WAIT = int(os.getenv("BATCH_CREATE_MAX_FLOOD_WAIT", "60"))  # 最大可接受的flood等待时间（秒）
         
         # 获取当前脚本目录
         self.SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -857,9 +857,9 @@ CLEANUP_REVOKE_DEFAULT=true
 # 批量创建功能配置
 ENABLE_BATCH_CREATE=true
 BATCH_CREATE_DAILY_LIMIT=10  # 每个账号每日创建上限
-BATCH_CREATE_CONCURRENT=10  # 同时处理的账户数（已弃用，现串行处理）
 BATCH_CREATE_MIN_INTERVAL=60  # 创建间隔最小秒数（避免频率限制）
 BATCH_CREATE_MAX_INTERVAL=120  # 创建间隔最大秒数（避免频率限制）
+BATCH_CREATE_MAX_FLOOD_WAIT=60  # 最大可接受的flood等待时间（秒）
 """
             with open(".env", "w", encoding="utf-8") as f:
                 f.write(env_content)
@@ -7323,7 +7323,7 @@ class BatchCreatorService:
                     wait_seconds = e.seconds
                     logger.warning(f"⚠️ 邀请用户触发频率限制，需等待 {wait_seconds} 秒")
                     print(f"⚠️ 邀请用户触发频率限制，需等待 {wait_seconds} 秒", flush=True)
-                    if attempt < max_retries - 1 and wait_seconds < 60:
+                    if attempt < max_retries - 1 and wait_seconds < self.config.BATCH_CREATE_MAX_FLOOD_WAIT:
                         # 如果等待时间不超过60秒，则等待后重试
                         await asyncio.sleep(wait_seconds + 1)
                     else:
@@ -7365,7 +7365,7 @@ class BatchCreatorService:
                     wait_seconds = e.seconds
                     logger.warning(f"⚠️ 设置管理员触发频率限制，需等待 {wait_seconds} 秒")
                     print(f"⚠️ 设置管理员触发频率限制，需等待 {wait_seconds} 秒", flush=True)
-                    if attempt < max_retries - 1 and wait_seconds < 60:
+                    if attempt < max_retries - 1 and wait_seconds < self.config.BATCH_CREATE_MAX_FLOOD_WAIT:
                         await asyncio.sleep(wait_seconds + 1)
                     else:
                         return False, f"设置管理员失败: 频率限制 ({wait_seconds}秒)"
@@ -17040,7 +17040,7 @@ game_lovers_group</code>
                         time.sleep(delay)
                 
                 # 统计当前账号结果
-                account_results = [r for r in results[-count_per_account:] if len(results) >= count_per_account]
+                account_results = results[-count_per_account:] if len(results) >= count_per_account else results
                 account_success = sum(1 for r in account_results if r.status == 'success')
                 account_failed = sum(1 for r in account_results if r.status == 'failed')
                 logger.info(f"✅ 账号 {account.phone} 完成: 成功 {account_success}, 失败 {account_failed}")
