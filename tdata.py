@@ -7504,6 +7504,20 @@ class BatchCreatorService:
                     error_msg = str(e).lower()
                     invite_error = str(e)
                     logger.warning(f"⚠️ 邀请用户失败: {e}")
+                    
+                    # 检查是否是 "Too many requests" 错误（频率限制但没有wait_seconds）
+                    if "too many requests" in error_msg or "flood" in error_msg:
+                        logger.warning(f"⚠️ 检测到频率限制错误，等待5秒后重试")
+                        if attempt < max_retries - 1:
+                            # 默认等待5秒后重试
+                            await asyncio.sleep(5.0)
+                            continue
+                        else:
+                            # 最后一次仍然失败，但不返回错误，尝试直接设置管理员
+                            logger.warning(f"⚠️ 邀请频率限制，跳过邀请步骤，直接尝试设置管理员")
+                            invite_error = "频率限制"
+                            break
+                    
                     # 如果用户已在群组中，继续尝试设置管理员
                     if "already" in error_msg or "participant" in error_msg:
                         invite_error = None  # 不是真正的错误
@@ -7552,6 +7566,16 @@ class BatchCreatorService:
                         return False, f"设置失败: 操作触发频率限制 ({wait_seconds}秒)"
                 except Exception as e:
                     error_msg = str(e).lower()
+                    
+                    # 检查是否是 "Too many requests" 错误
+                    if "too many requests" in error_msg or "flood" in error_msg:
+                        logger.warning(f"⚠️ 设置管理员触发频率限制，等待5秒后重试")
+                        if attempt < max_retries - 1:
+                            await asyncio.sleep(5.0)
+                            continue
+                        else:
+                            return False, f"设置失败: 频率限制，请稍后手动添加管理员"
+                    
                     # 提供更详细的错误信息
                     if "chat_admin_required" in error_msg or "admin" in error_msg:
                         return False, f"设置失败: 权限不足（Basic Group无法添加管理员，需先升级为SuperGroup）"
@@ -7712,20 +7736,20 @@ class BatchCreatorService:
                     admin_list = [config.admin_username]
                 
                 if admin_list and actual_username:
-                    # 添加延迟避免频率限制
-                    await asyncio.sleep(random.uniform(1.5, 2.5))
+                    # 添加延迟避免频率限制（增加到3-5秒）
+                    await asyncio.sleep(random.uniform(3.0, 5.0))
                     
                     try:
                         entity = await account.client.get_entity(actual_username)
                         chat_id = entity.id
                         
                         # 逐个添加管理员
-                        for admin_username in admin_list:
+                        for idx, admin_username in enumerate(admin_list):
                             if not admin_username:
                                 continue
                             
-                            logger.info(f"👤 尝试添加管理员: {admin_username}")
-                            print(f"👤 尝试添加管理员: {admin_username}", flush=True)
+                            logger.info(f"👤 尝试添加管理员 [{idx+1}/{len(admin_list)}]: {admin_username}")
+                            print(f"👤 尝试添加管理员 [{idx+1}/{len(admin_list)}]: {admin_username}", flush=True)
                             
                             admin_success, admin_error = await self.add_admin_to_group(
                                 account.client, chat_id, admin_username
@@ -7735,16 +7759,19 @@ class BatchCreatorService:
                                 result.admin_usernames.append(admin_username)
                                 if not result.admin_username:  # 向后兼容，记录第一个
                                     result.admin_username = admin_username
-                                logger.info(f"✅ 管理员添加成功: {admin_username}")
-                                print(f"✅ 管理员添加成功: {admin_username}", flush=True)
+                                logger.info(f"✅ 管理员添加成功 [{idx+1}/{len(admin_list)}]: {admin_username}")
+                                print(f"✅ 管理员添加成功 [{idx+1}/{len(admin_list)}]: {admin_username}", flush=True)
                             else:
                                 result.admin_failures.append(f"{admin_username}: {admin_error}")
-                                logger.warning(f"⚠️ 添加管理员失败 {admin_username}: {admin_error}")
-                                print(f"⚠️ 添加管理员失败 {admin_username}: {admin_error}", flush=True)
+                                logger.warning(f"⚠️ 添加管理员失败 [{idx+1}/{len(admin_list)}] {admin_username}: {admin_error}")
+                                print(f"⚠️ 添加管理员失败 [{idx+1}/{len(admin_list)}] {admin_username}: {admin_error}", flush=True)
                             
-                            # 多个管理员之间添加延迟
-                            if len(admin_list) > 1:
-                                await asyncio.sleep(random.uniform(2.0, 3.0))
+                            # 多个管理员之间添加更长延迟，避免频率限制（增加到5-8秒）
+                            if idx < len(admin_list) - 1:  # 不是最后一个
+                                delay = random.uniform(5.0, 8.0)
+                                logger.info(f"⏳ 管理员添加间隔：等待 {delay:.1f} 秒...")
+                                print(f"⏳ 管理员添加间隔：等待 {delay:.1f} 秒...", flush=True)
+                                await asyncio.sleep(delay)
                                 
                     except Exception as e:
                         logger.warning(f"⚠️ 获取群组实体失败: {e}")
