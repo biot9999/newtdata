@@ -7901,6 +7901,9 @@ class EnhancedBot:
         # 添加2FA待处理任务
         self.pending_add_2fa_tasks: Dict[int, Dict[str, Any]] = {}
         
+        # 重新授权待处理任务
+        self.pending_reauth_tasks: Dict[int, Dict[str, Any]] = {}
+        
         # 一键清理待处理任务
         self.pending_cleanup: Dict[int, Dict[str, Any]] = {}
         
@@ -8353,6 +8356,7 @@ class EnhancedBot:
 
         # 底部功能按钮（如果已把“帮助”放到第三行左侧，可将这里的帮助去掉或改为“⚙️ 状态”）
         buttons.append([
+            InlineKeyboardButton("♻️ 重新授权", callback_data="reauth_start"),
             InlineKeyboardButton("⚙️ 状态", callback_data="status")
         ])
 
@@ -9367,6 +9371,8 @@ class EnhancedBot:
             self.handle_forget_2fa(query)
         elif data == "add_2fa":
             self.handle_add_2fa(query)
+        elif data == "reauth_start":
+            self.handle_reauth_start(query)
         elif data == "convert_tdata_to_session":
             self.handle_convert_tdata_to_session(query)
         elif data == "convert_session_to_tdata":
@@ -9465,6 +9471,12 @@ class EnhancedBot:
                     InlineKeyboardButton("👑 管理员面板", callback_data="admin_panel"),
                     InlineKeyboardButton("📡 代理管理", callback_data="proxy_panel")
                 ])
+            
+            # 底部状态/重新授权
+            buttons.append([
+                InlineKeyboardButton("♻️ 重新授权", callback_data="reauth_start"),
+                InlineKeyboardButton("⚙️ 状态", callback_data="status")
+            ])
             
             keyboard = InlineKeyboardMarkup(buttons)
             query.edit_message_text(
@@ -9842,6 +9854,515 @@ class EnhancedBot:
         # 设置用户状态 - 等待上传文件
         self.db.save_user(user_id, query.from_user.username or "", 
                          query.from_user.first_name or "", "waiting_add_2fa_file")
+    
+    def handle_reauth_start(self, query):
+        """处理重新授权流程入口"""
+        query.answer()
+        user_id = query.from_user.id
+        
+        # 权限检查
+        is_member, _, _ = self.db.check_membership(user_id)
+        if not is_member and not self.db.is_admin(user_id):
+            self.safe_edit_message(query, "❌ 需要会员权限才能使用重新授权功能")
+            return
+        
+        if not TELETHON_AVAILABLE:
+            self.safe_edit_message(query, "❌ 重新授权功能不可用\n\n原因: Telethon库未安装")
+            return
+        
+        proxy_info = ""
+        if config.USE_PROXY:
+            proxy_info = f"\n📡 代理模式: {'🟢启用' if self.proxy_manager.is_proxy_mode_active(self.db) else '🔴本地连接'}"
+            proxy_info += f"\n📦 可用代理: {len(self.proxy_manager.proxies)} 个"
+        
+        text = f"""
+♻️ <b>重新授权</b>
+
+<b>流程说明</b>
+1️⃣ 重置其他设备会话
+2️⃣ 用旧会话读取验证码并登录新Session
+3️⃣ 设置新密码并登出旧Session
+4️⃣ 按成功/失败分类打包结果
+
+<b>密码输入</b>
+• 仅新密码（自动识别旧密码）示例：<code>NewPass123</code>
+• 旧密码+新密码  示例：<code>OldPass123 NewPass123</code>
+• 支持从 JSON / 2fa.txt 自动识别旧密码
+
+<b>结果分类</b>
+• 成功：授权成功的Session文件
+• 失败：冻结 / 封禁 / 旧密码错误 / 网络错误
+{proxy_info}
+
+📤 请上传包含 Session 或 TData 的 ZIP 文件
+"""
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+        ])
+        self.safe_edit_message(query, text, 'HTML', keyboard)
+        
+        # 设置用户状态 - 等待上传
+        self.db.save_user(user_id, query.from_user.username or "", 
+                          query.from_user.first_name or "", "waiting_reauth_file")
+    
+    async def process_reauth_stage1(self, update, context, document):
+        """重新授权 - 阶段1：解析文件并等待密码输入"""
+        user_id = update.effective_user.id
+        start_time = time.time()
+        task_id = f"{user_id}_reauth_{int(start_time)}"
+        
+        progress_msg = self.safe_send_message(update, "📥 <b>正在解析文件...</b>", 'HTML')
+        if not progress_msg:
+            return
+        
+        temp_zip = None
+        temp_dir = None
+        try:
+            temp_dir = tempfile.mkdtemp(prefix="reauth_")
+            temp_zip = os.path.join(temp_dir, document.file_name)
+            document.get_file().download(temp_zip)
+            
+            files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, task_id)
+            if not files:
+                try:
+                    progress_msg.edit_text("❌ <b>未找到有效账号文件</b>\n\n请确认ZIP中包含 .session 或 tdata 目录", parse_mode='HTML')
+                except:
+                    pass
+                return
+            
+            prompt = f"""
+✅ <b>找到 {len(files)} 个账号文件</b>
+• 类型: {file_type.upper()}
+
+👉 请在 <b>5分钟</b> 内发送密码：
+1️⃣ 仅新密码（推荐）<code>NewPass123</code>
+2️⃣ 旧密码 新密码 <code>OldPass123 NewPass123</code>
+
+系统会自动尝试从 JSON / 2fa.txt 识别旧密码
+"""
+            try:
+                progress_msg.edit_text(prompt, parse_mode='HTML')
+            except:
+                pass
+            
+            # 记录待处理任务
+            self.pending_reauth_tasks[user_id] = {
+                "files": files,
+                "file_type": file_type,
+                "extract_dir": extract_dir,
+                "temp_dir": temp_dir,
+                "task_id": task_id,
+                "start_time": start_time,
+                "progress_msg": progress_msg
+            }
+            
+            # 更新状态等待密码
+            self.db.save_user(
+                user_id,
+                update.effective_user.username or "",
+                update.effective_user.first_name or "",
+                "waiting_reauth_password"
+            )
+        
+        except Exception as e:
+            logger.error(f"process_reauth_stage1 failed: {e}")
+            import traceback
+            traceback.print_exc()
+            try:
+                progress_msg.edit_text(f"❌ <b>处理失败</b>\n\n错误: {str(e)[:200]}", parse_mode='HTML')
+            except:
+                pass
+        # temp_dir 由后续阶段清理
+    
+    def handle_reauth_password_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
+        """处理重新授权密码输入"""
+        task = self.pending_reauth_tasks.get(user_id)
+        if not task:
+            self.safe_send_message(update, "❌ 没有待处理的重新授权任务，请重新开始")
+            return
+        
+        parts = (text or "").strip().split()
+        if not parts:
+            self.safe_send_message(update, "❌ 密码不能为空，请重新输入")
+            return
+        
+        if len(parts) == 1:
+            old_password = None
+            new_password = parts[0]
+        else:
+            old_password = parts[0]
+            new_password = " ".join(parts[1:]).strip()
+        
+        if not new_password:
+            self.safe_send_message(update, "❌ 新密码不能为空，请重新输入")
+            return
+        
+        self.safe_send_message(
+            update,
+            "⏳ <b>开始重新授权</b>\n\n"
+            f"旧密码: {old_password or '自动检测'}\n"
+            f"新密码: {new_password}",
+            'HTML'
+        )
+        
+        # 启动异步处理
+        def _run():
+            asyncio.run(self.execute_reauth(update, context, user_id, old_password, new_password))
+        threading.Thread(target=_run, daemon=True).start()
+    
+    async def execute_reauth(self, update, context, user_id: int, old_password: Optional[str], new_password: str):
+        """执行重新授权主流程"""
+        task = self.pending_reauth_tasks.pop(user_id, None)
+        # 清理用户状态
+        self.db.save_user(
+            user_id,
+            update.effective_user.username or "",
+            update.effective_user.first_name or "",
+            ""
+        )
+        
+        if not task:
+            self.safe_send_message(update, "❌ 任务已过期，请重新开始")
+            return
+        
+        files = task.get("files", [])
+        file_type = task.get("file_type", "session")
+        extract_dir = task.get("extract_dir")
+        temp_dir = task.get("temp_dir")
+        progress_msg = task.get("progress_msg")
+        
+        run_dir = os.path.join(config.RESULTS_DIR, f"reauth_{int(time.time())}")
+        os.makedirs(run_dir, exist_ok=True)
+        
+        success_list = []
+        failure_list = []
+        total = len(files)
+        
+        for idx, (file_path, file_name) in enumerate(files):
+            try:
+                result = await self._reauthorize_single(
+                    file_path, file_name, file_type, old_password, new_password, run_dir
+                )
+            except Exception as e:
+                result = {
+                    "success": False,
+                    "category": "网络错误",
+                    "message": str(e),
+                    "file_path": file_path,
+                    "file_name": file_name
+                }
+                logger.error(f"Reauth exception for {file_name}: {e}")
+            
+            if result.get("success"):
+                success_list.append(result)
+            else:
+                failure_list.append(result)
+            
+            # 进度更新（每50个或最后一个）
+            if progress_msg and (((idx + 1) % 50 == 0) or (idx + 1 == total)):
+                try:
+                    progress_msg.edit_text(
+                        f"⏳ <b>重新授权中</b>\n\n进度: {idx + 1}/{total}",
+                        parse_mode='HTML'
+                    )
+                except Exception as e:
+                    logger.warning(f"更新进度失败: {e}")
+        
+        success_zip, failure_zip = self._package_reauth_results(success_list, failure_list, run_dir)
+        
+        summary = f"""
+✅ 完成重新授权
+
+• 成功: {len(success_list)}
+• 失败: {len(failure_list)}
+"""
+        self.safe_send_message(update, summary, 'HTML')
+        
+        if success_zip and os.path.exists(success_zip):
+            self.send_document_safely(
+                update.effective_chat.id,
+                success_zip,
+                caption=f"授权成功 {len(success_list)} 个"
+            )
+        if failure_zip and os.path.exists(failure_zip):
+            self.send_document_safely(
+                update.effective_chat.id,
+                failure_zip,
+                caption=f"授权失败 {len(failure_list)} 个（含分类）"
+            )
+        
+        # 清理临时目录
+        try:
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            if extract_dir and os.path.exists(extract_dir):
+                shutil.rmtree(extract_dir, ignore_errors=True)
+        except Exception as e:
+            logger.warning(f"清理重新授权临时目录失败: {e}")
+    
+    async def _reauthorize_single(self, file_path: str, file_name: str, file_type: str,
+                                  old_password: Optional[str], new_password: str,
+                                  output_dir: str) -> Dict[str, Any]:
+        """处理单个账号重新授权"""
+        result: Dict[str, Any] = {
+            "success": False,
+            "file_path": file_path,
+            "file_name": file_name,
+            "category": "网络错误",
+            "message": ""
+        }
+        
+        detected_old_password = None
+        try:
+            detected_old_password = self.two_factor_manager.password_detector.detect_password(
+                file_path, file_type
+            )
+        except Exception:
+            pass
+        
+        actual_old_password = detected_old_password or old_password
+        
+        session_path = file_path
+        session_owner = os.path.splitext(file_name)[0]
+        original_type = file_type
+        
+        # 如果是TData，先转换为Session
+        if file_type == "tdata":
+            status, info, _ = await self.converter.convert_tdata_to_session(
+                file_path,
+                file_name,
+                int(config.API_ID),
+                str(config.API_HASH)
+            )
+            if status != "转换成功":
+                result["category"] = "网络错误"
+                result["message"] = info
+                return result
+            
+            phone_match = re.search(r"手机号:\s*([^\s|]+)", info)
+            if phone_match:
+                session_owner = phone_match.group(1)
+            session_path = os.path.join(config.SESSIONS_DIR, f"{session_owner}.session")
+            original_type = "session"
+        
+        # 代理
+        proxy_dict = None
+        try:
+            if self.proxy_manager.is_proxy_mode_active(self.db):
+                proxy_info = self.proxy_manager.get_next_proxy()
+                proxy_dict = self.checker.create_proxy_dict(proxy_info) if proxy_info else None
+        except Exception as e:
+            logger.warning(f"代理配置失败: {e}")
+        
+        old_client = None
+        new_client = None
+        try:
+            session_base = session_path.replace(".session", "") if session_path.endswith(".session") else session_path
+            old_client = TelegramClient(
+                session_base,
+                int(config.API_ID),
+                str(config.API_HASH),
+                proxy=proxy_dict,
+                timeout=30
+            )
+            await asyncio.wait_for(old_client.connect(), timeout=15)
+            if not await old_client.is_user_authorized():
+                result["category"] = "网络错误"
+                result["message"] = "账号未授权或Session失效"
+                return result
+            
+            me = await old_client.get_me()
+            phone = me.phone or session_owner
+            phone_e164 = phone if phone.startswith("+") else f"+{phone}"
+            
+            # 重置其他授权
+            try:
+                sessions = await old_client(functions.account.GetAuthorizationsRequest())
+                if len(getattr(sessions, "authorizations", [])) > 1:
+                    await old_client(functions.auth.ResetAuthorizationsRequest())
+            except Exception as e:
+                logger.warning(f"Reset authorizations failed: {e}")
+            
+            last_code_id = None
+            try:
+                msgs = await old_client.get_messages(777000, limit=1)
+                if msgs:
+                    last_code_id = msgs[0].id
+            except Exception:
+                pass
+            
+            # 新客户端
+            device_conf = self.device_loader.get_random_device_config()
+            api_id = int(device_conf.get("api_id", config.API_ID) or config.API_ID)
+            api_hash = str(device_conf.get("api_hash", config.API_HASH) or config.API_HASH)
+            new_session_name = f"{phone}_reauth"
+            new_session_base = os.path.join(output_dir, new_session_name)
+            
+            new_client = TelegramClient(
+                new_session_base,
+                api_id,
+                api_hash,
+                device_model=device_conf.get("device_model"),
+                system_version=device_conf.get("system_version"),
+                app_version=device_conf.get("app_version"),
+                lang_code=device_conf.get("lang_code"),
+                system_lang_code=device_conf.get("system_lang_code"),
+                proxy=proxy_dict,
+                timeout=30
+            )
+            await asyncio.wait_for(new_client.connect(), timeout=15)
+            
+            sent = await new_client.send_code_request(phone_e164)
+            
+            code = None
+            for _ in range(5):
+                await asyncio.sleep(2)
+                msgs = await old_client.get_messages(777000, limit=1)
+                if msgs:
+                    msg = msgs[0]
+                    if (last_code_id is None) or (msg.id > last_code_id):
+                        match = re.search(r"\b\d{5,6}\b", msg.message or "")
+                        if match:
+                            code = match.group(0)
+                            break
+            if not code:
+                result["category"] = "网络错误"
+                result["message"] = "未收到验证码"
+                return result
+            
+            try:
+                await new_client.sign_in(phone=phone_e164, code=code, phone_code_hash=sent.phone_code_hash)
+            except SessionPasswordNeededError:
+                if not actual_old_password:
+                    result["category"] = "旧密码错误"
+                    result["message"] = "需要旧密码才能登录"
+                    return result
+                try:
+                    await new_client.sign_in(password=actual_old_password)
+                except PasswordHashInvalidError:
+                    result["category"] = "旧密码错误"
+                    result["message"] = "旧密码不正确"
+                    return result
+            
+            # 设置新密码
+            try:
+                await new_client.edit_2fa(
+                    current_password=actual_old_password if actual_old_password else None,
+                    new_password=new_password,
+                    hint=f"reauth {datetime.now().strftime('%Y-%m-%d')}"
+                )
+            except PasswordHashInvalidError:
+                result["category"] = "旧密码错误"
+                result["message"] = "旧密码验证失败（修改密码阶段）"
+                return result
+            except SessionPasswordNeededError:
+                result["category"] = "旧密码错误"
+                result["message"] = "需要旧密码修改2FA"
+                return result
+            
+            new_session_path = f"{new_session_base}.session"
+            await self.two_factor_manager._update_password_files(new_session_path, new_password, 'session')
+            if file_type == "tdata":
+                try:
+                    await self.two_factor_manager._update_password_files(file_path, new_password, 'tdata')
+                except Exception:
+                    pass
+            
+            try:
+                await old_client.log_out()
+            except Exception:
+                pass
+            
+            result.update({
+                "success": True,
+                "category": "成功",
+                "message": "重新授权成功",
+                "new_session_path": new_session_path,
+                "phone": phone_e164
+            })
+            return result
+        
+        except (UserDeactivatedBanError, PhoneNumberBannedError, UserBannedInChannelError):
+            result["category"] = "封禁"
+            result["message"] = "账号被封禁"
+            return result
+        except UserDeactivatedError:
+            result["category"] = "冻结"
+            result["message"] = "账号被冻结"
+            return result
+        except FloodWaitError as e:
+            result["category"] = "网络错误"
+            result["message"] = f"频率限制: {e}"
+            return result
+        except AuthRestartError as e:
+            result["category"] = "网络错误"
+            result["message"] = f"认证重试: {e}"
+            return result
+        except Exception as e:
+            err = str(e)
+            if "password" in err.lower():
+                result["category"] = "旧密码错误"
+            elif any(key.lower() in err.lower() for key in self.FROZEN_KEYWORDS):
+                result["category"] = "冻结"
+            result["message"] = err[:200]
+            return result
+        finally:
+            if old_client:
+                try:
+                    await old_client.disconnect()
+                except Exception:
+                    pass
+            if new_client:
+                try:
+                    await new_client.disconnect()
+                except Exception:
+                    pass
+    
+    def _package_reauth_results(self, success_list: List[Dict[str, Any]], failure_list: List[Dict[str, Any]], run_dir: str) -> Tuple[Optional[str], Optional[str]]:
+        """打包重新授权结果"""
+        success_zip = None
+        failure_zip = None
+        
+        if success_list:
+            success_zip = os.path.join(run_dir, f"授权成功{len(success_list)}.zip")
+            with zipfile.ZipFile(success_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for item in success_list:
+                    ses_path = item.get("new_session_path")
+                    if not ses_path or not os.path.exists(ses_path):
+                        continue
+                    ses_name = os.path.basename(ses_path)
+                    zipf.write(ses_path, arcname=os.path.join("success", ses_name))
+                    journal = ses_path + "-journal"
+                    if os.path.exists(journal):
+                        zipf.write(journal, arcname=os.path.join("success", os.path.basename(journal)))
+                    json_path = ses_path.replace(".session", ".json")
+                    if os.path.exists(json_path):
+                        zipf.write(json_path, arcname=os.path.join("success", os.path.basename(json_path)))
+        
+        if failure_list:
+            failure_zip = os.path.join(run_dir, f"授权失败{len(failure_list)}.zip")
+            categories = {"冻结", "封禁", "旧密码错误", "网络错误"}
+            with zipfile.ZipFile(failure_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for item in failure_list:
+                    cat = item.get("category", "网络错误")
+                    if cat not in categories:
+                        cat = "网络错误"
+                    base_arc = os.path.join(cat, item.get("file_name", "unknown"))
+                    path = item.get("file_path")
+                    if path and os.path.exists(path) and os.path.isfile(path):
+                        zipf.write(path, arcname=base_arc)
+                        journal = path + "-journal"
+                        if os.path.exists(journal):
+                            zipf.write(journal, arcname=base_arc + "-journal")
+                        json_path = path.replace(".session", ".json")
+                        if os.path.exists(json_path):
+                            zipf.write(json_path, arcname=os.path.join(cat, os.path.basename(json_path)))
+                    else:
+                        zipf.writestr(base_arc + ".txt", item.get("message", "失败"))
+                    # 写入错误说明
+                    zipf.writestr(os.path.join(cat, f"{item.get('file_name','unknown')}_error.txt"),
+                                  item.get("message", ""))
+        return success_zip, failure_zip
     
     def handle_help_callback(self, query):
         query.answer()
@@ -10365,6 +10886,7 @@ class EnhancedBot:
                 "batch_create_upload",
                 "batch_create_names",
                 "batch_create_usernames",
+                "waiting_reauth_file",
             ]:
                 self.safe_send_message(update, "❌ 请先点击相应的功能按钮")
                 return
@@ -10503,6 +11025,19 @@ class EnhancedBot:
                     import traceback
                     traceback.print_exc()
             thread = threading.Thread(target=process_cleanup, daemon=True)
+            thread.start()
+        elif user_status == "waiting_reauth_file":
+            # 重新授权处理
+            def process_reauth():
+                try:
+                    asyncio.run(self.process_reauth_stage1(update, context, document))
+                except asyncio.CancelledError:
+                    print(f"[process_reauth] 任务被取消")
+                except Exception as e:
+                    print(f"[process_reauth] 处理异常: {e}")
+                    import traceback
+                    traceback.print_exc()
+            thread = threading.Thread(target=process_reauth, daemon=True)
             thread.start()
         elif user_status == "batch_create_upload":
             # 批量创建文件处理
@@ -11812,6 +12347,9 @@ class EnhancedBot:
                 elif user_status == "batch_create_usernames":
                     self.handle_batch_create_usernames_input(update, context, user_id, text)
                     return
+                elif user_status == "waiting_reauth_password":
+                    self.handle_reauth_password_input(update, context, user_id, text)
+                    return
         except Exception as e:
             print(f"❌ 检查广播状态失败: {e}")
         
@@ -11827,6 +12365,10 @@ class EnhancedBot:
                 asyncio.run(self.continue_api_conversion(update, context, user_id, two_fa_input))
             threading.Thread(target=go_next, daemon=True).start()
             return        
+        # 重新授权密码输入
+        if user_id in getattr(self, "pending_reauth_tasks", {}):
+            self.handle_reauth_password_input(update, context, user_id, text)
+            return
         # 检查是否是2FA密码输入
         if user_id in self.two_factor_manager.pending_2fa_tasks:
             # 用户正在等待输入密码
