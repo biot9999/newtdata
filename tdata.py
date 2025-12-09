@@ -7074,6 +7074,8 @@ class BatchAccountInfo:
     api_id: Optional[int] = None
     api_hash: Optional[str] = None
     proxy_dict: Optional[Any] = None
+    # TData转换后的Session路径（仅用于TData类型）
+    converted_session_path: Optional[str] = None
 
 
 class BatchCreatorService:
@@ -7128,11 +7130,57 @@ class BatchCreatorService:
         api_hash: str,
         proxy_dict: Optional[Dict] = None
     ) -> Tuple[bool, Optional[str]]:
-        """验证账号有效性"""
+        """验证账号有效性 - 支持TData自动转换"""
         client = None
+        temp_session_path = None
+        
         try:
+            # 问题1: TData格式需要先转换为Session
+            session_path = account.session_path
+            
+            if account.file_type == "tdata":
+                # TData需要转换为临时Session
+                print(f"🔄 [批量创建] [{account.file_name}] 开始TData转Session转换...")
+                
+                if not OPENTELE_AVAILABLE:
+                    return False, "opentele库未安装，无法转换TData"
+                
+                try:
+                    # 加载TData
+                    tdesk = TDesktop(account.session_path)
+                    if not tdesk.isLoaded():
+                        return False, "TData未授权或无效"
+                    
+                    # 创建临时Session
+                    os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
+                    temp_session_name = f"batch_validate_{time.time_ns()}"
+                    temp_session_path = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
+                    
+                    # 转换TData到Session
+                    temp_client = await tdesk.ToTelethon(
+                        session=temp_session_path,
+                        flag=UseCurrentSession,
+                        api=API.TelegramDesktop
+                    )
+                    await temp_client.disconnect()
+                    
+                    session_path = f"{temp_session_path}.session"
+                    if not os.path.exists(session_path):
+                        return False, "Session转换失败：文件未生成"
+                    
+                    print(f"✅ [批量创建] [{account.file_name}] TData转换完成")
+                    
+                except Exception as e:
+                    error_msg = f"TData转换失败: {str(e)[:50]}"
+                    logger.error(f"❌ {error_msg} - {account.file_name}")
+                    return False, error_msg
+            
+            # 使用Session进行验证（无论是原始Session还是从TData转换的）
+            # 移除.session后缀（如果有）因为TelegramClient会自动添加
+            session_base = session_path.replace('.session', '') if session_path.endswith('.session') else session_path
+            
             client = TelegramClient(
-                account.session_path,
+                session_base,
                 api_id,
                 api_hash,
                 proxy=proxy_dict,
@@ -7153,11 +7201,17 @@ class BatchCreatorService:
             account.daily_created = self.db.get_daily_creation_count(account.phone)
             account.daily_remaining = max(0, self.daily_limit - account.daily_created)
             
+            # 对于TData，保存转换后的Session路径
+            if account.file_type == "tdata" and temp_session_path:
+                account.converted_session_path = temp_session_path
+                print(f"💾 [批量创建] [{account.file_name}] 已保存转换后的Session路径")
+            
             # 断开连接，稍后在执行阶段重新连接
             await client.disconnect()
             account.client = None
             
             return True, None
+            
         except Exception as e:
             error_msg = str(e)
             logger.error(f"❌ 验证账号失败 {account.file_name}: {error_msg}")
@@ -7167,6 +7221,10 @@ class BatchCreatorService:
                 except:
                     pass
             return False, error_msg
+        finally:
+            # 注意: 不要删除临时Session文件，因为批量创建时还需要使用
+            # 会在批量创建完成后统一清理
+            pass
     
     async def create_group(
         self,
@@ -7460,8 +7518,17 @@ class BatchCreatorService:
                 if not account.client:
                     logger.info(f"🔌 创建新客户端连接: {account.phone}")
                     print(f"🔌 创建新客户端连接: {account.phone}", flush=True)
+                    
+                    # 问题1: 对于TData账号，使用转换后的Session路径
+                    if account.file_type == "tdata" and account.converted_session_path:
+                        session_path = account.converted_session_path
+                        logger.info(f"📂 使用TData转换的Session: {account.phone}")
+                        print(f"📂 使用TData转换的Session: {account.phone}", flush=True)
+                    else:
+                        session_path = account.session_path
+                    
                     account.client = TelegramClient(
-                        account.session_path,
+                        session_path,
                         account.api_id,
                         account.api_hash,
                         proxy=account.proxy_dict,
@@ -17267,6 +17334,20 @@ game_lovers_group</code>
             # 清理临时文件
             if task.get('temp_dir') and os.path.exists(task['temp_dir']):
                 shutil.rmtree(task['temp_dir'], ignore_errors=True)
+            
+            # 清理TData转换的临时Session文件
+            for account in accounts:
+                if account.file_type == "tdata" and account.converted_session_path:
+                    try:
+                        session_file = f"{account.converted_session_path}.session"
+                        if os.path.exists(session_file):
+                            os.remove(session_file)
+                        session_journal = f"{account.converted_session_path}.session-journal"
+                        if os.path.exists(session_journal):
+                            os.remove(session_journal)
+                        logger.info(f"🧹 已清理TData转换的临时Session: {account.file_name}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ 清理临时Session失败 {account.file_name}: {e}")
     
     def run(self):
         print("🚀 启动增强版机器人（速度优化版）...")
