@@ -7122,7 +7122,11 @@ class BatchCreatorService:
         username: Optional[str] = None,
         description: Optional[str] = None
     ) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
-        """创建群组（超级群组）"""
+        """创建超级群组（使用 megagroup 模式）
+        
+        注意：此方法创建的是超级群组，而非基础群组。
+        超级群组支持用户名、更多成员、更多功能。
+        """
         try:
             # 直接创建超级群组（megagroup），避免基础群组的限制
             # 使用 CreateChannelRequest 与 megagroup=True 创建超级群组
