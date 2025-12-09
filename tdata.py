@@ -91,6 +91,7 @@ try:
         PasswordHashInvalidError, PhoneCodeInvalidError, AuthRestartError,
         UsernameOccupiedError, UsernameInvalidError
     )
+    from telethon.tl.types import User
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
     from telethon.tl.functions.account import GetPasswordRequest
     from telethon.tl.functions.auth import ResetAuthorizationsRequest
@@ -7025,6 +7026,9 @@ class BatchAccountInfo:
 class BatchCreatorService:
     """批量创建服务"""
     
+    # 常量定义
+    MAX_CONTACTS_TO_CHECK = 10  # 检查联系人列表时的最大数量
+    
     def __init__(self, db, proxy_manager, device_loader, config_obj):
         """初始化批量创建服务"""
         self.db = db
@@ -7118,45 +7122,37 @@ class BatchCreatorService:
         username: Optional[str] = None,
         description: Optional[str] = None
     ) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
-        """创建群组"""
+        """创建超级群组（使用 megagroup 模式）
+        
+        注意：此方法创建的是超级群组，而非基础群组。
+        超级群组支持用户名、更多成员、更多功能。
+        """
         try:
-            # 获取"Telegram"官方账号作为初始成员（所有人都有这个联系人）
-            # 或者创建一个空的基础群组（需要先升级为超级群组才能设置username）
-            try:
-                telegram_bot = await client.get_entity('telegram')
-                users_to_add = [telegram_bot]
-            except:
-                # 如果无法获取telegram账号，尝试使用Saved Messages
-                users_to_add = ['me']
-            
-            result = await client(functions.messages.CreateChatRequest(users=users_to_add, title=name))
-            chat = result.chats[0]
-            chat_id = chat.id
+            # 直接创建超级群组（megagroup），避免基础群组的限制
+            # 使用 CreateChannelRequest 与 megagroup=True 创建超级群组
+            # 这样可以直接设置用户名和描述，无需迁移
+            result = await client(functions.channels.CreateChannelRequest(
+                title=name,
+                about=description or "",
+                megagroup=True  # True = 超级群组, False = 频道
+            ))
+            group = result.chats[0]
             
             actual_username = None
             if username:
                 try:
-                    result = await client(functions.messages.MigrateChatRequest(chat_id=chat_id))
-                    channel = result.chats[0]
-                    await client(functions.channels.UpdateUsernameRequest(channel=channel, username=username))
+                    await client(functions.channels.UpdateUsernameRequest(channel=group, username=username))
                     actual_username = username
-                    chat_id = channel.id
                 except (UsernameOccupiedError, UsernameInvalidError) as e:
                     logger.warning(f"⚠️ 用户名 '{username}' 设置失败: {e}")
                 except RPCError as e:
                     logger.warning(f"⚠️ 设置用户名失败: {e}")
             
-            if description and username:
-                try:
-                    await client(functions.channels.EditAboutRequest(peer=chat_id, about=description))
-                except RPCError as e:
-                    logger.warning(f"⚠️ 设置描述失败: {e}")
-            
             if actual_username:
                 invite_link = f"https://t.me/{actual_username}"
             else:
                 try:
-                    invite_result = await client(functions.channels.ExportInviteRequest(peer=chat_id))
+                    invite_result = await client(functions.channels.ExportInviteRequest(peer=group.id))
                     invite_link = invite_result.link
                 except RPCError as e:
                     logger.warning(f"⚠️ 获取邀请链接失败: {e}")
@@ -16419,12 +16415,15 @@ class EnhancedBot:
                     break
             
             # 关闭客户端
-            for account in accounts:
-                if account.client:
-                    try:
-                        loop.run_until_complete(account.client.disconnect())
-                    except Exception as e:
-                        logger.warning(f"⚠️ 关闭客户端失败: {e}")
+            async def disconnect_clients():
+                for account in accounts:
+                    if account.client:
+                        try:
+                            await account.client.disconnect()
+                        except Exception as e:
+                            logger.warning(f"⚠️ 关闭客户端失败: {e}")
+            
+            loop.run_until_complete(disconnect_clients())
             
             # 生成报告
             report = self.batch_creator.generate_report(results)
