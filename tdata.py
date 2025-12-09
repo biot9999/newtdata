@@ -7099,46 +7099,48 @@ class BatchCreatorService:
     ) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
         """创建群组"""
         try:
-            from telethon.tl.functions.messages import CreateChatRequest
-            result = await client(CreateChatRequest(users=['me'], title=name))
+            result = await client(functions.messages.CreateChatRequest(users=['me'], title=name))
             chat = result.chats[0]
             chat_id = chat.id
             
             actual_username = None
             if username:
                 try:
-                    from telethon.tl.functions.messages import MigrateChatRequest
-                    from telethon.tl.functions.channels import UpdateUsernameRequest
-                    result = await client(MigrateChatRequest(chat_id=chat_id))
+                    result = await client(functions.messages.MigrateChatRequest(chat_id=chat_id))
                     channel = result.chats[0]
-                    await client(UpdateUsernameRequest(channel=channel, username=username))
+                    await client(functions.channels.UpdateUsernameRequest(channel=channel, username=username))
                     actual_username = username
                     chat_id = channel.id
-                except Exception as e:
+                except (UsernameOccupiedError, UsernameInvalidError) as e:
+                    logger.warning(f"⚠️ 用户名 '{username}' 设置失败: {e}")
+                except RPCError as e:
                     logger.warning(f"⚠️ 设置用户名失败: {e}")
             
             if description and username:
                 try:
-                    from telethon.tl.functions.channels import EditAboutRequest
-                    await client(EditAboutRequest(peer=chat_id, about=description))
-                except:
-                    pass
+                    await client(functions.channels.EditAboutRequest(peer=chat_id, about=description))
+                except RPCError as e:
+                    logger.warning(f"⚠️ 设置描述失败: {e}")
             
             if actual_username:
                 invite_link = f"https://t.me/{actual_username}"
             else:
                 try:
-                    from telethon.tl.functions.channels import ExportInviteRequest
-                    invite_result = await client(ExportInviteRequest(peer=chat_id))
+                    invite_result = await client(functions.channels.ExportInviteRequest(peer=chat_id))
                     invite_link = invite_result.link
-                except:
+                except RPCError as e:
+                    logger.warning(f"⚠️ 获取邀请链接失败: {e}")
                     invite_link = None
             
             await asyncio.sleep(random.uniform(0.5, 1.5))
             return True, invite_link, actual_username, None
         except FloodWaitError as e:
             return False, None, None, f"频率限制，需等待 {e.seconds} 秒"
+        except RPCError as e:
+            logger.error(f"❌ 创建群组失败 (RPC错误): {e}")
+            return False, None, None, str(e)
         except Exception as e:
+            logger.error(f"❌ 创建群组失败: {e}")
             return False, None, None, str(e)
     
     async def create_channel(
@@ -7150,8 +7152,7 @@ class BatchCreatorService:
     ) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
         """创建频道"""
         try:
-            from telethon.tl.functions.channels import CreateChannelRequest, UpdateUsernameRequest
-            result = await client(CreateChannelRequest(
+            result = await client(functions.channels.CreateChannelRequest(
                 title=name,
                 about=description or "",
                 megagroup=False
@@ -7161,26 +7162,32 @@ class BatchCreatorService:
             actual_username = None
             if username:
                 try:
-                    await client(UpdateUsernameRequest(channel=channel, username=username))
+                    await client(functions.channels.UpdateUsernameRequest(channel=channel, username=username))
                     actual_username = username
-                except:
-                    logger.warning(f"⚠️ 设置用户名失败")
+                except (UsernameOccupiedError, UsernameInvalidError) as e:
+                    logger.warning(f"⚠️ 用户名 '{username}' 设置失败: {e}")
+                except RPCError as e:
+                    logger.warning(f"⚠️ 设置用户名失败: {e}")
             
             if actual_username:
                 invite_link = f"https://t.me/{actual_username}"
             else:
                 try:
-                    from telethon.tl.functions.channels import ExportInviteRequest
-                    invite_result = await client(ExportInviteRequest(peer=channel.id))
+                    invite_result = await client(functions.channels.ExportInviteRequest(peer=channel.id))
                     invite_link = invite_result.link
-                except:
+                except RPCError as e:
+                    logger.warning(f"⚠️ 获取邀请链接失败: {e}")
                     invite_link = None
             
             await asyncio.sleep(random.uniform(0.5, 1.5))
             return True, invite_link, actual_username, None
         except FloodWaitError as e:
             return False, None, None, f"频率限制，需等待 {e.seconds} 秒"
+        except RPCError as e:
+            logger.error(f"❌ 创建频道失败 (RPC错误): {e}")
+            return False, None, None, str(e)
         except Exception as e:
+            logger.error(f"❌ 创建频道失败: {e}")
             return False, None, None, str(e)
     
     async def create_single(
@@ -16370,6 +16377,12 @@ class EnhancedBot:
                 
                 progress_callback(len(results), batch_config.total_count, "创建中...")
                 
+                # 添加批次之间的延迟以避免频率限制
+                if i + batch_size < len(valid_accounts) and len(results) < batch_config.total_count:
+                    delay = random.uniform(2, 4)
+                    logger.info(f"批次完成，等待 {delay:.1f} 秒后继续...")
+                    time.sleep(delay)
+                
                 if len(results) >= batch_config.total_count:
                     break
             
@@ -16378,8 +16391,8 @@ class EnhancedBot:
                 if account.client:
                     try:
                         loop.run_until_complete(account.client.disconnect())
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"⚠️ 关闭客户端失败: {e}")
             
             # 生成报告
             report = self.batch_creator.generate_report(results)
