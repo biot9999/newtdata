@@ -9379,8 +9379,12 @@ class EnhancedBot:
             self.handle_rename_start(query)
         elif data == "merge_start":
             self.handle_merge_start(query)
+        elif data == "merge_continue":
+            self.handle_merge_continue(query)
         elif data == "merge_finish":
             self.handle_merge_finish(update, context, query)
+        elif data == "merge_cancel":
+            self.handle_merge_cancel(query)
         elif data == "cleanup_start":
             self.handle_cleanup_start(query)
         elif data == "cleanup_confirm":
@@ -15153,15 +15157,73 @@ class EnhancedBot:
             task['files'].append(filename)
             
             total_files = len(task['files'])
+            
+            # 创建即时操作按钮
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ 继续上传文件", callback_data="merge_continue")],
+                [InlineKeyboardButton("✅ 完成合并", callback_data="merge_finish")],
+                [InlineKeyboardButton("❌ 取消", callback_data="merge_cancel")]
+            ])
+            
             self.safe_send_message(
                 update,
                 f"✅ <b>已接收 ZIP 文件 {total_files}</b>\n\n"
                 f"文件名: <code>{filename}</code>\n\n"
-                "继续上传或点击 \"✅ 完成合并\"",
-                'HTML'
+                f"<b>请选择下一步操作：</b>\n"
+                f"• 继续上传：添加更多ZIP文件\n"
+                f"• 完成合并：开始处理所有文件",
+                'HTML',
+                reply_markup=keyboard
             )
         except Exception as e:
             self.safe_send_message(update, f"❌ 下载文件失败: {str(e)}")
+    
+    def handle_merge_continue(self, query):
+        """处理继续上传文件"""
+        query.answer("✅ 请继续上传ZIP文件")
+        user_id = query.from_user.id
+        
+        if user_id not in self.pending_merge:
+            self.safe_edit_message(query, "❌ 没有待处理的合并任务")
+            return
+        
+        task = self.pending_merge[user_id]
+        total_files = len(task['files'])
+        
+        text = f"""
+<b>📤 继续上传文件</b>
+
+已接收文件: {total_files} 个
+
+<b>⚠️ 仅接受 .zip 文件</b>
+• 请上传下一个 ZIP 文件
+• 或点击下方按钮完成合并
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ 完成合并", callback_data="merge_finish")],
+            [InlineKeyboardButton("❌ 取消", callback_data="merge_cancel")]
+        ])
+        
+        self.safe_edit_message(query, text, 'HTML', keyboard)
+    
+    def handle_merge_cancel(self, query):
+        """处理取消合并"""
+        query.answer()
+        user_id = query.from_user.id
+        
+        if user_id in self.pending_merge:
+            self.cleanup_merge_task(user_id)
+        
+        self.safe_edit_message(query, "❌ 已取消合并操作")
+        
+        # 返回主菜单
+        import time
+        time.sleep(1)
+        fake_update = type('obj', (object,), {
+            'effective_user': type('obj', (object,), {'id': user_id})()
+        })()
+        self.show_main_menu(fake_update, user_id)
     
     def handle_merge_finish(self, update: Update, context: CallbackContext, query):
         """完成合并，开始处理"""
@@ -15298,24 +15360,27 @@ class EnhancedBot:
         # 扫描所有解压的内容
         scan_directory(extract_dir)
         
-        # 第三步：提取手机号并去重
+        # 第三步：提取手机号并去重 - 同时追踪重复项
         # 为TData账户提取手机号
         tdata_with_phones = {}  # phone -> (account_root, tdata_dir_name)
         tdata_without_phones = []  # 没有手机号的账户
+        tdata_duplicates = []  # 重复的TData账户: [(phone, account_root, tdata_dir_name), ...]
         
         for account_root, tdata_dir_name in tdata_accounts:
             phone = self.extract_phone_from_tdata_path(account_root, tdata_dir_name)
             if phone:
-                # 去重：如果手机号已存在，保留第一个
+                # 去重：如果手机号已存在，保留第一个，将重复的添加到duplicates
                 if phone not in tdata_with_phones:
                     tdata_with_phones[phone] = (account_root, tdata_dir_name)
                 else:
-                    print(f"⚠️ 发现重复TData账户，手机号: {phone}，已跳过")
+                    print(f"⚠️ 发现重复TData账户，手机号: {phone}，将单独打包")
+                    tdata_duplicates.append((phone, account_root, tdata_dir_name))
             else:
                 tdata_without_phones.append((account_root, tdata_dir_name))
         
         # 为Session文件提取手机号 (支持纯Session或Session+JSON配对)
         session_json_with_phones = {}  # phone -> (session_path, json_path)
+        session_json_duplicates = []  # 重复的Session文件: [(phone, session_path, json_path), ...]
         
         for session_path, json_path, basename in session_json_pairs:
             # 尝试从JSON提取手机号（如果JSON存在）
@@ -15324,11 +15389,12 @@ class EnhancedBot:
                 phone = self.extract_phone_from_json(json_path)
             
             if phone:
-                # 去重：如果手机号已存在，保留第一个
+                # 去重：如果手机号已存在，保留第一个，将重复的添加到duplicates
                 if phone not in session_json_with_phones:
                     session_json_with_phones[phone] = (session_path, json_path)
                 else:
-                    print(f"⚠️ 发现重复Session，手机号: {phone}，已跳过")
+                    print(f"⚠️ 发现重复Session，手机号: {phone}，将单独打包")
+                    session_json_duplicates.append((phone, session_path, json_path))
             else:
                 # 如果JSON中没有手机号或没有JSON，使用basename作为标识
                 if basename not in session_json_with_phones:
@@ -15346,7 +15412,9 @@ class EnhancedBot:
         # 统计去重后的数量
         total_tdata = len(tdata_with_phones) + len(tdata_without_phones)
         total_session_json = len(session_json_with_phones)
-        duplicates_removed = (len(tdata_accounts) - total_tdata) + (len(session_json_pairs) - total_session_json)
+        total_tdata_duplicates = len(tdata_duplicates)
+        total_session_duplicates = len(session_json_duplicates)
+        duplicates_removed = total_tdata_duplicates + total_session_duplicates
         
         # 打包 TData 账户（使用手机号作为目录名）
         if tdata_with_phones or tdata_without_phones:
@@ -15393,7 +15461,50 @@ class EnhancedBot:
             
             zip_files_created.append(('Session 文件', session_json_zip_path, total_session_json))
         
+        # 【新增】单独打包重复的 TData 账户
+        if tdata_duplicates:
+            tdata_dup_zip_path = os.path.join(result_dir, f'tdata_duplicates_{timestamp}.zip')
+            with zipfile.ZipFile(tdata_dup_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for idx, (phone, account_root, tdata_dir_name) in enumerate(tdata_duplicates, 1):
+                    tdata_full_path = os.path.join(account_root, tdata_dir_name)
+                    
+                    # 使用 phone_duplicate_N 格式命名
+                    duplicate_name = f'{phone}_duplicate_{idx}'
+                    
+                    # 递归添加 tdata 目录下的所有文件
+                    for root, dirs, filenames in os.walk(tdata_full_path):
+                        for fname in filenames:
+                            file_path = os.path.join(root, fname)
+                            rel_path = os.path.relpath(file_path, account_root)
+                            arcname = os.path.join(duplicate_name, rel_path)
+                            zf.write(file_path, arcname)
+            
+            zip_files_created.append(('TData 重复账户', tdata_dup_zip_path, total_tdata_duplicates))
+        
+        # 【新增】单独打包重复的 Session 文件
+        if session_json_duplicates:
+            session_dup_zip_path = os.path.join(result_dir, f'session_duplicates_{timestamp}.zip')
+            with zipfile.ZipFile(session_dup_zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for idx, (phone, session_path, json_path) in enumerate(session_json_duplicates, 1):
+                    # 使用 phone_duplicate_N 格式命名
+                    duplicate_name = f'{phone}_duplicate_{idx}'
+                    
+                    zf.write(session_path, f'{duplicate_name}.session')
+                    if json_path and os.path.exists(json_path):
+                        zf.write(json_path, f'{duplicate_name}.json')
+            
+            zip_files_created.append(('Session 重复文件', session_dup_zip_path, total_session_duplicates))
+        
         # 发送结果
+        duplicate_info = ""
+        if duplicates_removed > 0:
+            duplicate_info = f"""
+<b>🔄 重复文件处理</b>
+• TData 重复: {total_tdata_duplicates} 个
+• Session 重复: {total_session_duplicates} 个
+• 已单独打包，不与正常文件混合
+"""
+        
         summary = f"""
 ✅ <b>账户文件合并完成！</b>
 
@@ -15401,9 +15512,9 @@ class EnhancedBot:
 • 解压 ZIP 文件: {len(files)} 个
 • TData 账户: {total_tdata} 个
 • Session 文件: {total_session_json} 个 (支持纯Session或Session+JSON)
-• 去重移除: {duplicates_removed} 个
-
+{duplicate_info}
 <b>📦 生成文件</b>
+共 {len(zip_files_created)} 个文件（正常文件和重复文件分开打包）
         """
         
         context.bot.send_message(chat_id=user_id, text=summary, parse_mode='HTML')
