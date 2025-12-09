@@ -91,6 +91,7 @@ try:
         PasswordHashInvalidError, PhoneCodeInvalidError, AuthRestartError,
         UsernameOccupiedError, UsernameInvalidError
     )
+    from telethon.tl.types import User
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
     from telethon.tl.functions.account import GetPasswordRequest
     from telethon.tl.functions.auth import ResetAuthorizationsRequest
@@ -7025,6 +7026,9 @@ class BatchAccountInfo:
 class BatchCreatorService:
     """批量创建服务"""
     
+    # 常量定义
+    MAX_CONTACTS_TO_CHECK = 10  # 检查联系人列表时的最大数量
+    
     def __init__(self, db, proxy_manager, device_loader, config_obj):
         """初始化批量创建服务"""
         self.db = db
@@ -7125,11 +7129,10 @@ class BatchCreatorService:
             users_to_add = []
             try:
                 # 尝试获取自己的联系人列表中的第一个用户
-                from telethon.tl.types import User
                 contacts = await client.get_contacts()
                 if contacts:
                     # 找到第一个是用户类型的联系人
-                    for contact in contacts[:10]:  # 只检查前10个以提高速度
+                    for contact in contacts[:self.MAX_CONTACTS_TO_CHECK]:
                         if isinstance(contact, User) and not contact.bot:
                             users_to_add = [contact]
                             break
