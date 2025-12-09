@@ -2949,6 +2949,7 @@ class FileProcessor:
         session_files = []
         tdata_folders = []
         seen_tdata_paths = set()  # 防止重复计数TData目录
+        seen_session_files = set()  # 防止重复计数Session文件（基于文件名）
         
         # 在uploads目录下为每个任务创建专属文件夹
         task_upload_dir = os.path.join(config.UPLOADS_DIR, f"task_{task_id}")
@@ -2969,10 +2970,17 @@ class FileProcessor:
                     if file.endswith('.session'):
                         # 【修复】过滤掉系统文件和临时文件
                         # 排除: tdata.session (系统文件), batch_validate_*.session (临时文件)
-                        if file == 'tdata.session' or file.startswith('batch_validate_') or file.startswith('temp_'):
+                        if file == 'tdata.session' or file.startswith('batch_validate_') or file.startswith('temp_') or file.startswith('user_'):
                             print(f"⏭️ 跳过系统/临时文件: {file}")
                             continue
                         
+                        # 【关键修复】防止重复计数同名session文件
+                        # 使用文件名作为唯一标识（因为同一账号的session文件名应该唯一）
+                        if file in seen_session_files:
+                            print(f"⏭️ 跳过重复Session文件: {file}")
+                            continue
+                        
+                        seen_session_files.add(file)
                         file_full_path = os.path.join(root, file)
                         session_files.append((file_full_path, file))
                         
