@@ -7783,6 +7783,83 @@ class EnhancedBot:
             print(f"❌ 编辑消息失败（已重试{max_retries}次）: {last_error}")
         return None
     
+    def safe_edit_message_text(self, message, text, parse_mode=None, reply_markup=None, max_retries=None):
+        """安全编辑消息对象（带网络错误重试机制）
+        
+        Args:
+            message: Telegram message 对象
+            text: 要编辑的消息文本
+            parse_mode: 解析模式（如 'HTML'）
+            reply_markup: 回复键盘标记
+            max_retries: 最大重试次数（默认使用 MESSAGE_RETRY_MAX）
+            
+        Returns:
+            编辑后的消息对象，失败时返回 None
+        """
+        if not message:
+            return None
+            
+        if max_retries is None:
+            max_retries = self.MESSAGE_RETRY_MAX
+            
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                return message.edit_text(
+                    text=text,
+                    parse_mode=parse_mode,
+                    reply_markup=reply_markup
+                )
+                
+            except RetryAfter as e:
+                print(f"⚠️ 频率限制，等待 {e.retry_after} 秒")
+                time.sleep(e.retry_after + 1)
+                last_error = e
+                continue
+                
+            except BadRequest as e:
+                if "message is not modified" in str(e).lower():
+                    return message
+                print(f"❌ 编辑消息失败: {e}")
+                return None
+                
+            except (NetworkError, TimedOut) as e:
+                # 网络错误，使用指数退避重试
+                last_error = e
+                if attempt < max_retries - 1:
+                    wait_time = self.MESSAGE_RETRY_BACKOFF ** attempt
+                    print(f"⚠️ 网络错误，{wait_time}秒后重试 ({attempt + 1}/{max_retries}): {e}")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"❌ 编辑消息失败（已重试{max_retries}次）: {e}")
+                    return None
+                    
+            except Exception as e:
+                # 检查是否是网络相关的错误（urllib3, ConnectionError等）
+                if self._is_network_error(e):
+                    last_error = e
+                    if attempt < max_retries - 1:
+                        wait_time = self.MESSAGE_RETRY_BACKOFF ** attempt
+                        print(f"⚠️ 连接错误，{wait_time}秒后重试 ({attempt + 1}/{max_retries}): {e}")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        print(f"❌ 编辑消息失败（已重试{max_retries}次）: {e}")
+                        return None
+                else:
+                    # 非网络错误，直接返回
+                    print(f"❌ 编辑消息失败: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return None
+        
+        # 所有重试都失败
+        if last_error:
+            print(f"❌ 编辑消息失败（已重试{max_retries}次）: {last_error}")
+        return None
+    
     def sanitize_filename(self, filename: str) -> str:
         """清理文件名，移除非法字符并限制长度"""
         # 移除或替换非法字符
@@ -16121,10 +16198,11 @@ class EnhancedBot:
             files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, f"{user_id}_batch")
             
             if not files:
-                progress_msg.edit_text("❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
+                self.safe_edit_message_text(progress_msg, "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
                 return
             
-            progress_msg.edit_text(
+            self.safe_edit_message_text(
+                progress_msg,
                 f"✅ <b>找到 {len(files)} 个账号文件</b>\n\n⏳ 正在验证账号...",
                 parse_mode='HTML'
             )
@@ -16142,13 +16220,11 @@ class EnhancedBot:
             for i, (file_path, file_name) in enumerate(files):
                 # 更新进度
                 if (i + 1) % 5 == 0:
-                    try:
-                        progress_msg.edit_text(
-                            f"⏳ <b>验证账号中...</b>\n\n进度: {i + 1}/{len(files)}",
-                            parse_mode='HTML'
-                        )
-                    except:
-                        pass
+                    self.safe_edit_message_text(
+                        progress_msg,
+                        f"⏳ <b>验证账号中...</b>\n\n进度: {i + 1}/{len(files)}",
+                        parse_mode='HTML'
+                    )
                 
                 # 创建账号信息
                 account = BatchAccountInfo(
@@ -16214,20 +16290,18 @@ class EnhancedBot:
                 [InlineKeyboardButton("❌ 取消", callback_data="batch_create_cancel")]
             ])
             
-            progress_msg.edit_text(text, parse_mode='HTML', reply_markup=keyboard)
+            self.safe_edit_message_text(progress_msg, text, parse_mode='HTML', reply_markup=keyboard)
             
         except Exception as e:
             logger.error(f"Batch create upload failed: {e}")
             import traceback
             traceback.print_exc()
             
-            try:
-                progress_msg.edit_text(
-                    f"❌ <b>处理失败</b>\n\n错误: {str(e)}",
-                    parse_mode='HTML'
-                )
-            except:
-                pass
+            self.safe_edit_message_text(
+                progress_msg,
+                f"❌ <b>处理失败</b>\n\n错误: {str(e)}",
+                parse_mode='HTML'
+            )
             
             # 清理
             if temp_zip and os.path.exists(os.path.dirname(temp_zip)):
