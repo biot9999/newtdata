@@ -1249,6 +1249,17 @@ class SpamBotChecker:
             # 创建客户端
             # Telethon expects session path without .session extension
             session_base = session_path.replace('.session', '') if session_path.endswith('.session') else session_path
+            
+            # 增强版控制台日志 - 问题3：显示设备和代理信息
+            device_info = f"API_ID={config.API_ID}"
+            if proxy_info:
+                proxy_type = proxy_info.get('type', 'http').upper()
+                is_residential = "住宅" if proxy_info.get('is_residential', False) else "普通"
+                proxy_display = f"{is_residential}{proxy_type}代理"
+                print(f"🔍 [{account_name}] 使用 {device_info} | {proxy_display} | 超时={client_timeout}s")
+            else:
+                print(f"🔍 [{account_name}] 使用 {device_info} | 本地连接 | 超时={connect_timeout}s")
+            
             client = TelegramClient(
                 session_base,
                 int(config.API_ID),
@@ -1260,8 +1271,10 @@ class SpamBotChecker:
             )
             
             # 连接（带超时）
+            print(f"⏳ [{account_name}] 正在连接到Telegram服务器...")
             try:
                 await asyncio.wait_for(client.connect(), timeout=connect_timeout)
+                print(f"✅ [{account_name}] 连接成功")
             except asyncio.TimeoutError:
                 last_error = "连接超时"
                 error_reason = "timeout" if config.PROXY_SHOW_FAILURE_REASON else "连接超时"
@@ -2786,6 +2799,8 @@ class FileProcessor:
             temp_session_path = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
             
             # 3. 转换TData为Session（使用代理连接）
+            # 问题1: TData格式统一转成session来操作任务
+            print(f"🔄 [{tdata_name}] 开始TData转Session转换...")
             try:
                 # 先转换为Session文件（不自动连接）
                 temp_client = await tdesk.ToTelethon(
@@ -2795,6 +2810,7 @@ class FileProcessor:
                 )
                 # 立即断开，避免非代理连接
                 await temp_client.disconnect()
+                print(f"✅ [{tdata_name}] TData转换完成")
                 
                 # 检查Session文件是否生成
                 session_file = f"{temp_session_path}.session"
@@ -2805,9 +2821,15 @@ class FileProcessor:
                 proxy_enabled = self.db.get_proxy_enabled() if self.db else True
                 use_proxy = config.USE_PROXY and proxy_enabled and self.checker.proxy_manager.proxies
                 
+                # 问题3: 控制台显示代理链接信息
                 if use_proxy:
+                    print(f"📡 [{tdata_name}] 代理模式已启用，可用代理: {len(self.checker.proxy_manager.proxies)}个")
                     proxy_info = self.checker.proxy_manager.get_next_proxy()
                     if proxy_info:
+                        proxy_type = proxy_info.get('type', 'http').upper()
+                        is_residential = "住宅" if proxy_info.get('is_residential', False) else "普通"
+                        print(f"🔗 [{tdata_name}] 选择{is_residential}{proxy_type}代理进行连接测试")
+                        
                         proxy_dict = self.checker.create_proxy_dict(proxy_info)
                         if proxy_dict:
                             # 使用代理重新创建客户端
@@ -2819,17 +2841,19 @@ class FileProcessor:
                             )
                             # 测试代理连接
                             try:
+                                print(f"⏳ [{tdata_name}] 通过代理连接Telegram服务器...")
                                 await asyncio.wait_for(temp_client.connect(), timeout=10)
                                 await temp_client.disconnect()
-                                print(f"✅ TData转换成功，使用代理连接: {tdata_name}")
+                                print(f"✅ [{tdata_name}] 代理连接测试成功")
                             except Exception as e:
-                                print(f"⚠️ 代理连接测试失败，将在检查时重试: {str(e)[:50]}")
+                                print(f"⚠️ [{tdata_name}] 代理连接测试失败: {str(e)[:50]}")
+                                print(f"   将在后续检查时重试其他代理")
                         else:
-                            print(f"⚠️ 代理配置失败，将在检查时重试: {tdata_name}")
+                            print(f"⚠️ [{tdata_name}] 代理配置失败，将在检查时重试")
                     else:
-                        print(f"⚠️ 无可用代理，将在检查时使用本地连接: {tdata_name}")
+                        print(f"⚠️ [{tdata_name}] 无可用代理，将在检查时使用本地连接")
                 else:
-                    print(f"ℹ️ 代理未启用或无可用代理: {tdata_name}")
+                    print(f"ℹ️ [{tdata_name}] 代理未启用或无可用代理，使用本地连接")
                     
             except Exception as e:
                 return "连接错误", f"TData转换失败: {str(e)[:50]}", tdata_name
@@ -2921,9 +2945,10 @@ class FileProcessor:
             return f"tdata_{int(time.time())}"
     
     def scan_zip_file(self, zip_path: str, user_id: int, task_id: str) -> Tuple[List[Tuple[str, str]], str, str]:
-        """扫描ZIP文件"""
+        """扫描ZIP文件 - 修复重复计数问题"""
         session_files = []
         tdata_folders = []
+        seen_tdata_paths = set()  # 防止重复计数TData目录
         
         # 在uploads目录下为每个任务创建专属文件夹
         task_upload_dir = os.path.join(config.UPLOADS_DIR, f"task_{task_id}")
@@ -2956,11 +2981,22 @@ class FileProcessor:
                     dir_path = os.path.join(root, dir_name)
                     d877_check_path = os.path.join(dir_path, "D877F783D5D3EF8C")
                     if os.path.exists(d877_check_path):
+                        # 使用规范化路径防止重复计数（处理符号链接和相对路径）
+                        # 只在确定是TData目录后才进行规范化，提高性能
+                        normalized_path = os.path.normpath(os.path.abspath(dir_path))
+                        
+                        # 检查是否已经添加过此TData目录
+                        if normalized_path in seen_tdata_paths:
+                            print(f"⚠️ 跳过重复TData目录: {dir_name}")
+                            continue
+                        
+                        seen_tdata_paths.add(normalized_path)
+                        
                         # 使用新的提取方法获取手机号
                         display_name = self.extract_phone_from_tdata_directory(dir_path)
                         
                         tdata_folders.append((dir_path, display_name))
-                        print(f"📂 找到TData目录: {display_name}")
+                        print(f"📂 找到TData目录: {display_name} (路径: {dir_name})")
         
         except Exception as e:
             print(f"❌ 文件扫描失败: {e}")
@@ -2970,7 +3006,7 @@ class FileProcessor:
         # 优先级：TData > Session（修复检测优先级问题）
         if tdata_folders:
             print(f"🎯 检测到TData文件，优先使用TData检测")
-            print(f"✅ 找到 {len(tdata_folders)} 个TData文件夹")
+            print(f"✅ 找到 {len(tdata_folders)} 个唯一TData文件夹")
             if session_files:
                 print(f"📱 同时发现 {len(session_files)} 个Session文件（已忽略，优先TData）")
             return tdata_folders, task_upload_dir, "tdata"
@@ -3011,10 +3047,16 @@ class FileProcessor:
         async def process_single_account(file_path, file_name):
             nonlocal processed, last_update_time
             try:
+                # 问题3: 显示检查进度
+                print(f"\n{'='*60}")
+                print(f"📋 开始检查账号 [{processed + 1}/{total}]: {file_name}")
+                print(f"{'='*60}")
+                
                 if file_type == "session":
                     status, info, account_name = await self.checker.check_account_status(file_path, file_name, self.db)
                 else:  # tdata
-                    # TData格式：自动转换为Session后使用Session检查方法（更准确）
+                    # 问题1: TData格式统一转换为Session后检查（更准确）
+                    print(f"📂 [{file_name}] 格式: TData - 将自动转换为Session进行检查")
                     status, info, account_name = await self.convert_tdata_and_check(file_path, file_name)
                 
                 # 将状态映射到正确的分类
@@ -3030,7 +3072,10 @@ class FileProcessor:
                 
                 # 显示检测结果（如果状态被映射，显示原始状态和映射后的状态）
                 status_display = f"'{status}' (归类为 '{mapped_status}')" if status != mapped_status else status
-                print(f"✅ 检测完成 {processed}/{total}: {file_name} -> {status_display}")
+                # 防止除以零错误
+                progress_pct = int((processed / total) * 100) if total > 0 else 0
+                print(f"✅ 检测完成 [{processed}/{total}] ({progress_pct}%): {file_name} -> {status_display}")
+                print(f"{'='*60}\n")
                 
                 # 控制更新频率，每3秒或每10个账号更新一次
                 current_time = time.time()
@@ -7029,6 +7074,8 @@ class BatchAccountInfo:
     api_id: Optional[int] = None
     api_hash: Optional[str] = None
     proxy_dict: Optional[Any] = None
+    # TData转换后的Session路径（仅用于TData类型）
+    converted_session_path: Optional[str] = None
 
 
 class BatchCreatorService:
@@ -7047,14 +7094,27 @@ class BatchCreatorService:
         
         logger.info(f"📦 批量创建服务初始化，每日限制: {self.daily_limit}")
     
-    def generate_random_username(self, prefix: str = "") -> str:
-        """生成随机用户名"""
-        random_part = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-        if prefix:
-            prefix = ''.join(c for c in prefix if c.isalnum() or c == '_')[:10]
-            username = f"{prefix}_{random_part}"
+    def generate_random_username(self) -> str:
+        """生成随机用户名 - 完全随机，无前缀，避免相似"""
+        # 随机选择用户名类型：纯字母或字母+数字
+        use_digits = random.choice([True, False])
+        
+        # 随机长度在5-15之间，增加多样性
+        length = random.randint(5, 15)
+        
+        # 确保第一个字符始终是字母（Telegram要求）
+        first_char = random.choice(string.ascii_lowercase)
+        
+        if use_digits:
+            # 字母+数字混合
+            remaining_chars = ''.join(random.choices(string.ascii_lowercase + string.digits, k=length-1))
         else:
-            username = f"tg_{random_part}"
+            # 纯字母
+            remaining_chars = ''.join(random.choices(string.ascii_lowercase, k=length-1))
+        
+        username = first_char + remaining_chars
+        
+        # Telegram用户名规则：5-32字符，只能包含字母、数字和下划线
         return username[:32]
     
     def parse_name_template(self, template: str, number: int, prefix: str = "", suffix: str = "") -> str:
@@ -7083,11 +7143,57 @@ class BatchCreatorService:
         api_hash: str,
         proxy_dict: Optional[Dict] = None
     ) -> Tuple[bool, Optional[str]]:
-        """验证账号有效性"""
+        """验证账号有效性 - 支持TData自动转换"""
         client = None
+        temp_session_path = None
+        
         try:
+            # 问题1: TData格式需要先转换为Session
+            session_path = account.session_path
+            
+            if account.file_type == "tdata":
+                # TData需要转换为临时Session
+                print(f"🔄 [批量创建] [{account.file_name}] 开始TData转Session转换...")
+                
+                if not OPENTELE_AVAILABLE:
+                    return False, "opentele库未安装，无法转换TData"
+                
+                try:
+                    # 加载TData
+                    tdesk = TDesktop(account.session_path)
+                    if not tdesk.isLoaded():
+                        return False, "TData未授权或无效"
+                    
+                    # 创建临时Session
+                    os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
+                    temp_session_name = f"batch_validate_{time.time_ns()}"
+                    temp_session_path = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
+                    
+                    # 转换TData到Session
+                    temp_client = await tdesk.ToTelethon(
+                        session=temp_session_path,
+                        flag=UseCurrentSession,
+                        api=API.TelegramDesktop
+                    )
+                    await temp_client.disconnect()
+                    
+                    session_path = f"{temp_session_path}.session"
+                    if not os.path.exists(session_path):
+                        return False, "Session转换失败：文件未生成"
+                    
+                    print(f"✅ [批量创建] [{account.file_name}] TData转换完成")
+                    
+                except Exception as e:
+                    error_msg = f"TData转换失败: {str(e)[:50]}"
+                    logger.error(f"❌ {error_msg} - {account.file_name}")
+                    return False, error_msg
+            
+            # 使用Session进行验证（无论是原始Session还是从TData转换的）
+            # 移除.session后缀（如果有）因为TelegramClient会自动添加
+            session_base = session_path.replace('.session', '') if session_path.endswith('.session') else session_path
+            
             client = TelegramClient(
-                account.session_path,
+                session_base,
                 api_id,
                 api_hash,
                 proxy=proxy_dict,
@@ -7108,11 +7214,17 @@ class BatchCreatorService:
             account.daily_created = self.db.get_daily_creation_count(account.phone)
             account.daily_remaining = max(0, self.daily_limit - account.daily_created)
             
+            # 对于TData，保存转换后的Session路径
+            if account.file_type == "tdata" and temp_session_path:
+                account.converted_session_path = temp_session_path
+                print(f"💾 [批量创建] [{account.file_name}] 已保存转换后的Session路径")
+            
             # 断开连接，稍后在执行阶段重新连接
             await client.disconnect()
             account.client = None
             
             return True, None
+            
         except Exception as e:
             error_msg = str(e)
             logger.error(f"❌ 验证账号失败 {account.file_name}: {error_msg}")
@@ -7122,6 +7234,10 @@ class BatchCreatorService:
                 except:
                     pass
             return False, error_msg
+        finally:
+            # 注意: 不要删除临时Session文件，因为批量创建时还需要使用
+            # 会在批量创建完成后统一清理
+            pass
     
     async def create_group(
         self,
@@ -7262,7 +7378,7 @@ class BatchCreatorService:
             
             username = None
             if config.username_mode == 'random':
-                username = self.generate_random_username(config.name_prefix)
+                username = self.generate_random_username()  # 完全随机，无前缀
             elif config.username_mode == 'custom' and config.custom_username_template:
                 username_template = config.custom_username_template.replace('{n}', str(number))
                 username = username_template.replace('{num}', str(number))
@@ -7415,8 +7531,17 @@ class BatchCreatorService:
                 if not account.client:
                     logger.info(f"🔌 创建新客户端连接: {account.phone}")
                     print(f"🔌 创建新客户端连接: {account.phone}", flush=True)
+                    
+                    # 问题1: 对于TData账号，使用转换后的Session路径
+                    if account.file_type == "tdata" and account.converted_session_path:
+                        session_path = account.converted_session_path
+                        logger.info(f"📂 使用TData转换的Session: {account.phone}")
+                        print(f"📂 使用TData转换的Session: {account.phone}", flush=True)
+                    else:
+                        session_path = account.session_path
+                    
                     account.client = TelegramClient(
-                        account.session_path,
+                        session_path,
                         account.api_id,
                         account.api_hash,
                         proxy=account.proxy_dict,
@@ -17222,6 +17347,20 @@ game_lovers_group</code>
             # 清理临时文件
             if task.get('temp_dir') and os.path.exists(task['temp_dir']):
                 shutil.rmtree(task['temp_dir'], ignore_errors=True)
+            
+            # 清理TData转换的临时Session文件
+            for account in accounts:
+                if account.file_type == "tdata" and account.converted_session_path:
+                    try:
+                        session_file = f"{account.converted_session_path}.session"
+                        if os.path.exists(session_file):
+                            os.remove(session_file)
+                        session_journal = f"{account.converted_session_path}.session-journal"
+                        if os.path.exists(session_journal):
+                            os.remove(session_journal)
+                        logger.info(f"🧹 已清理TData转换的临时Session: {account.file_name}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ 清理临时Session失败 {account.file_name}: {e}")
     
     def run(self):
         print("🚀 启动增强版机器人（速度优化版）...")
