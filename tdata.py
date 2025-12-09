@@ -7128,21 +7128,26 @@ class BatchCreatorService:
             # CreateChatRequest 需要 InputUser 类型，不能使用频道
             users_to_add = []
             try:
-                # 尝试获取自己的联系人列表中的第一个用户
-                contacts = await client.get_contacts()
+                # 尝试获取自己的联系人列表中的第一个用户（只获取需要的数量）
+                contacts = await client.get_contacts(limit=self.MAX_CONTACTS_TO_CHECK)
                 if contacts:
                     # 找到第一个是用户类型的联系人
-                    for contact in contacts[:self.MAX_CONTACTS_TO_CHECK]:
+                    for contact in contacts:
                         if isinstance(contact, User) and not contact.bot:
                             users_to_add = [contact]
                             break
             except Exception as e:
                 logger.debug(f"获取联系人失败: {e}")
             
-            # 如果没有找到合适的联系人，使用 'me' 字符串
-            # Telethon 会自动将 'me' 解析为当前用户的输入实体
+            # 如果没有找到合适的联系人，获取自己的用户实体
             if not users_to_add:
-                users_to_add = ['me']
+                try:
+                    me = await client.get_me()
+                    users_to_add = [me]
+                except Exception as e:
+                    # 最后的备用方案：使用 'me' 字符串
+                    logger.debug(f"获取当前用户失败: {e}")
+                    users_to_add = ['me']
             
             result = await client(functions.messages.CreateChatRequest(users=users_to_add, title=name))
             chat = result.chats[0]
