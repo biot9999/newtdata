@@ -2987,8 +2987,27 @@ class FileProcessor:
                     dir_path = os.path.join(root, dir_name)
                     d877_check_path = os.path.join(dir_path, "D877F783D5D3EF8C")
                     if os.path.exists(d877_check_path):
+                        # 【修复】验证这是真正的TData目录，不是空文件夹
+                        # 检查必需的TData文件是否存在
+                        maps_file = os.path.join(d877_check_path, "maps")
+                        key_data_file = os.path.join(d877_check_path, "key_data")
+                        
+                        # 如果没有必需的TData文件，跳过（可能是空文件夹或假TData结构）
+                        if not os.path.exists(maps_file) or not os.path.exists(key_data_file):
+                            print(f"⚠️ 跳过无效TData目录（缺少必需文件）: {dir_name}")
+                            continue
+                        
+                        # 检查maps文件大小（有效的TData maps文件通常大于30字节）
+                        try:
+                            maps_size = os.path.getsize(maps_file)
+                            if maps_size < 30:
+                                print(f"⚠️ 跳过无效TData目录（maps文件过小: {maps_size}字节）: {dir_name}")
+                                continue
+                        except:
+                            print(f"⚠️ 跳过无效TData目录（无法读取maps文件）: {dir_name}")
+                            continue
+                        
                         # 使用规范化路径防止重复计数（处理符号链接和相对路径）
-                        # 只在确定是TData目录后才进行规范化，提高性能
                         normalized_path = os.path.normpath(os.path.abspath(dir_path))
                         
                         # 检查是否已经添加过此TData目录
