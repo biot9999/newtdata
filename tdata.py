@@ -6909,6 +6909,16 @@ class EnhancedBot:
     # 网络错误关键词，用于判断异常是否是网络相关的
     NETWORK_ERROR_KEYWORDS = ['connection', 'timeout', 'reset', 'refused', 'aborted', 'urllib3', 'httperror']
     
+    # 冻结账户错误关键词，用于判断账户是否被冻结
+    FROZEN_KEYWORDS = [
+        'FROZEN', 
+        'DEACTIVATED', 
+        'BANNED', 
+        'USERDEACTIVATED',
+        'AUTHKEYUNREGISTERED',
+        'PHONENUMBERBANNED'
+    ]
+    
     # 消息发送重试相关常量
     MESSAGE_RETRY_MAX = 3       # 默认最大重试次数
     MESSAGE_RETRY_BACKOFF = 2   # 指数退避基数
@@ -14532,7 +14542,7 @@ class EnhancedBot:
     def _is_frozen_error(self, error: Exception) -> bool:
         """检查是否为冻结账户错误"""
         error_str = str(error).upper()
-        return 'FROZEN_METHOD_INVALID' in error_str or 'FROZEN' in error_str
+        return any(keyword in error_str for keyword in self.FROZEN_KEYWORDS)
     
     async def _cleanup_single_account(self, client, account_name: str, file_path: str, progress_callback=None) -> Dict[str, Any]:
         """清理单个账号"""
@@ -14979,7 +14989,14 @@ class EnhancedBot:
                         await temp_client.disconnect()
                     except Exception as conv_error:
                         logger.error(f"TData session conversion failed for {file_name}: {conv_error}")
-                        result_data['error'] = f"TData转换失败: {str(conv_error)}"
+                        # 检查是否为冻结账户错误
+                        if self._is_frozen_error(conv_error):
+                            result_data['error'] = 'FROZEN_ACCOUNT'
+                            result_data['error_message'] = f"账户已冻结: {str(conv_error)}"
+                            result_data['is_frozen'] = True
+                            logger.info(f"❄️ TData Session转换时检测到冻结账户: {file_name}")
+                        else:
+                            result_data['error'] = f"TData转换失败: {str(conv_error)}"
                         return result_data
                     
                     # 使用转换后的session创建不接收更新的客户端以提升清理速度
@@ -14993,7 +15010,14 @@ class EnhancedBot:
                     
                 except Exception as e:
                     logger.error(f"TData conversion failed for {file_name}: {e}")
-                    result_data['error'] = f"TData转换失败: {str(e)}"
+                    # 检查是否为冻结账户错误
+                    if self._is_frozen_error(e):
+                        result_data['error'] = 'FROZEN_ACCOUNT'
+                        result_data['error_message'] = f"账户已冻结: {str(e)}"
+                        result_data['is_frozen'] = True
+                        logger.info(f"❄️ TData转换时检测到冻结账户: {file_name}")
+                    else:
+                        result_data['error'] = f"TData转换失败: {str(e)}"
                     return result_data
             else:
                 # 直接使用Session
@@ -15027,7 +15051,14 @@ class EnhancedBot:
                         return result_data
                 except Exception as e:
                     logger.error(f"Session connection failed for {file_name}: {e}")
-                    result_data['error'] = f"连接失败: {str(e)}"
+                    # 检查是否为冻结账户错误
+                    if self._is_frozen_error(e):
+                        result_data['error'] = 'FROZEN_ACCOUNT'
+                        result_data['error_message'] = f"账户已冻结: {str(e)}"
+                        result_data['is_frozen'] = True
+                        logger.info(f"❄️ 连接时检测到冻结账户: {file_name}")
+                    else:
+                        result_data['error'] = f"连接失败: {str(e)}"
                     return result_data
             
             # 进度更新节流（避免触发 Telegram 限制）
@@ -15218,10 +15249,17 @@ class EnhancedBot:
                 })
                 
                 # 分类统计
+                # 冻结账户直接归类为失败账户（符合issue要求）
+                # 注意：冻结账户会同时计入frozen和failed，这是有意为之：
+                # - frozen_files用于统计和报告冻结账户数量
+                # - failed_files用于将冻结账户打包到失败账户zip中
                 if result.get('is_frozen'):
                     results_summary['frozen'] += 1
                     results_summary['frozen_files'].append((result['file_path'], result['file_name']))
-                    logger.info(f"❄️ 冻结账户: {result['file_name']}")
+                    # 冻结账户同时加入失败列表，以便打包到失败zip中
+                    results_summary['failed'] += 1
+                    results_summary['failed_files'].append((result['file_path'], result['file_name']))
+                    logger.info(f"❄️ 冻结账户（归类为失败）: {result['file_name']}")
                 elif result.get('success'):
                     results_summary['success'] += 1
                     results_summary['success_files'].append((result['file_path'], result['file_name']))
