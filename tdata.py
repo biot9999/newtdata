@@ -2982,6 +2982,7 @@ class FileProcessor:
                     d877_check_path = os.path.join(dir_path, "D877F783D5D3EF8C")
                     if os.path.exists(d877_check_path):
                         # 使用规范化路径防止重复计数（处理符号链接和相对路径）
+                        # 只在确定是TData目录后才进行规范化，提高性能
                         normalized_path = os.path.normpath(os.path.abspath(dir_path))
                         
                         # 检查是否已经添加过此TData目录
@@ -3071,7 +3072,8 @@ class FileProcessor:
                 
                 # 显示检测结果（如果状态被映射，显示原始状态和映射后的状态）
                 status_display = f"'{status}' (归类为 '{mapped_status}')" if status != mapped_status else status
-                progress_pct = int((processed / total) * 100)
+                # 防止除以零错误
+                progress_pct = int((processed / total) * 100) if total > 0 else 0
                 print(f"✅ 检测完成 [{processed}/{total}] ({progress_pct}%): {file_name} -> {status_display}")
                 print(f"{'='*60}\n")
                 
