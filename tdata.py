@@ -766,6 +766,9 @@ class Config:
         self.ENABLE_BATCH_CREATE = os.getenv("ENABLE_BATCH_CREATE", "true").lower() == "true"
         self.BATCH_CREATE_DAILY_LIMIT = int(os.getenv("BATCH_CREATE_DAILY_LIMIT", "10"))  # 每个账号每日创建上限
         self.BATCH_CREATE_CONCURRENT = int(os.getenv("BATCH_CREATE_CONCURRENT", "10"))  # 同时处理的账户数
+        self.BATCH_CREATE_MIN_INTERVAL = int(os.getenv("BATCH_CREATE_MIN_INTERVAL", "60"))  # 创建间隔最小秒数
+        self.BATCH_CREATE_MAX_INTERVAL = int(os.getenv("BATCH_CREATE_MAX_INTERVAL", "120"))  # 创建间隔最大秒数
+        self.BATCH_CREATE_MAX_FLOOD_WAIT = int(os.getenv("BATCH_CREATE_MAX_FLOOD_WAIT", "60"))  # 最大可接受的flood等待时间（秒）
         
         # 获取当前脚本目录
         self.SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -796,6 +799,7 @@ class Config:
         print(f"📡 系统配置: USE_PROXY={'true' if self.USE_PROXY else 'false'}")
         print(f"🧹 一键清理: {'启用' if self.ENABLE_ONE_CLICK_CLEANUP else '禁用'}")
         print(f"📦 批量创建: {'启用' if self.ENABLE_BATCH_CREATE else '禁用'}，每日限制: {self.BATCH_CREATE_DAILY_LIMIT}")
+        print(f"⏱️ 创建间隔: {self.BATCH_CREATE_MIN_INTERVAL}-{self.BATCH_CREATE_MAX_INTERVAL}秒（避免频率限制）")
         print(f"💡 注意: 实际代理模式需要配置文件+数据库开关+有效代理文件同时满足")
     
     def validate(self):
@@ -855,6 +859,9 @@ CLEANUP_REVOKE_DEFAULT=true
 ENABLE_BATCH_CREATE=true
 BATCH_CREATE_DAILY_LIMIT=10  # 每个账号每日创建上限
 BATCH_CREATE_CONCURRENT=10  # 同时处理的账户数
+BATCH_CREATE_MIN_INTERVAL=60  # 创建间隔最小秒数（每个账号内）
+BATCH_CREATE_MAX_INTERVAL=120  # 创建间隔最大秒数（每个账号内）
+BATCH_CREATE_MAX_FLOOD_WAIT=60  # 最大可接受的flood等待时间（秒）
 """
             with open(".env", "w", encoding="utf-8") as f:
                 f.write(env_content)
@@ -7293,7 +7300,7 @@ class BatchCreatorService:
         chat_id: int,
         admin_username: str
     ) -> Tuple[bool, Optional[str]]:
-        """添加管理员到群组/频道"""
+        """添加管理员到群组/频道（带Flood错误处理和重试）"""
         try:
             if not admin_username:
                 return True, None
@@ -7304,37 +7311,73 @@ class BatchCreatorService:
             except Exception as e:
                 return False, f"找不到用户 @{admin_username}: {str(e)}"
             
-            # 邀请用户
-            try:
-                await client(functions.channels.InviteToChannelRequest(
-                    channel=chat_id,
-                    users=[user]
-                ))
-                await asyncio.sleep(0.5)
-            except Exception as e:
-                logger.warning(f"⚠️ 邀请用户失败: {e}")
-                # 继续尝试设置为管理员，可能用户已经在群里
+            # 邀请用户（带Flood错误处理）
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    await client(functions.channels.InviteToChannelRequest(
+                        channel=chat_id,
+                        users=[user]
+                    ))
+                    await asyncio.sleep(1.0)  # 增加延迟避免flood
+                    break  # 成功则跳出循环
+                except FloodWaitError as e:
+                    wait_seconds = e.seconds
+                    logger.warning(f"⚠️ 邀请用户触发频率限制，需等待 {wait_seconds} 秒")
+                    print(f"⚠️ 邀请用户触发频率限制，需等待 {wait_seconds} 秒", flush=True)
+                    if attempt < max_retries - 1 and wait_seconds < self.config.BATCH_CREATE_MAX_FLOOD_WAIT:
+                        # 如果等待时间不超过60秒，则等待后重试
+                        await asyncio.sleep(wait_seconds + 1)
+                    else:
+                        return False, f"邀请用户失败: 频率限制 ({wait_seconds}秒)"
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    logger.warning(f"⚠️ 邀请用户失败: {e}")
+                    # 如果用户已在群组中或其他非致命错误，继续尝试设置管理员
+                    if "already" in error_msg or "participant" in error_msg:
+                        break
+                    # 其他错误，继续尝试
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(2.0)
+                    else:
+                        # 最后一次尝试失败，但继续尝试设置管理员
+                        logger.warning(f"⚠️ 邀请用户失败但继续: {e}")
+                        break
             
-            # 设置为管理员
-            try:
-                await client(functions.channels.EditAdminRequest(
-                    channel=chat_id,
-                    user_id=user,
-                    admin_rights=types.ChatAdminRights(
-                        change_info=True,
-                        post_messages=True,
-                        edit_messages=True,
-                        delete_messages=True,
-                        ban_users=True,
-                        invite_users=True,
-                        pin_messages=True,
-                        add_admins=False
-                    ),
-                    rank=""
-                ))
-                return True, None
-            except Exception as e:
-                return False, f"设置管理员失败: {str(e)}"
+            # 设置为管理员（带Flood错误处理）
+            for attempt in range(max_retries):
+                try:
+                    await client(functions.channels.EditAdminRequest(
+                        channel=chat_id,
+                        user_id=user,
+                        admin_rights=types.ChatAdminRights(
+                            change_info=True,
+                            post_messages=True,
+                            edit_messages=True,
+                            delete_messages=True,
+                            ban_users=True,
+                            invite_users=True,
+                            pin_messages=True,
+                            add_admins=False
+                        ),
+                        rank=""
+                    ))
+                    return True, None
+                except FloodWaitError as e:
+                    wait_seconds = e.seconds
+                    logger.warning(f"⚠️ 设置管理员触发频率限制，需等待 {wait_seconds} 秒")
+                    print(f"⚠️ 设置管理员触发频率限制，需等待 {wait_seconds} 秒", flush=True)
+                    if attempt < max_retries - 1 and wait_seconds < self.config.BATCH_CREATE_MAX_FLOOD_WAIT:
+                        await asyncio.sleep(wait_seconds + 1)
+                    else:
+                        return False, f"设置管理员失败: 频率限制 ({wait_seconds}秒)"
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(2.0)
+                    else:
+                        return False, f"设置管理员失败: {str(e)}"
+            
+            return False, "设置管理员失败: 达到最大重试次数"
         except Exception as e:
             return False, str(e)
     
@@ -7363,16 +7406,42 @@ class BatchCreatorService:
                 result.error = '已达每日创建上限'
                 return result
             
-            # 如果客户端未连接，重新连接
-            if not account.client:
-                account.client = TelegramClient(
-                    account.session_path,
-                    account.api_id,
-                    account.api_hash,
-                    proxy=account.proxy_dict,
-                    timeout=15
-                )
-                await account.client.connect()
+            # 确保客户端已连接并且准备就绪
+            # 使用锁避免并发创建/连接同一个客户端
+            if not hasattr(account, '_client_lock'):
+                account._client_lock = asyncio.Lock()
+            
+            async with account._client_lock:
+                if not account.client:
+                    logger.info(f"🔌 创建新客户端连接: {account.phone}")
+                    print(f"🔌 创建新客户端连接: {account.phone}", flush=True)
+                    account.client = TelegramClient(
+                        account.session_path,
+                        account.api_id,
+                        account.api_hash,
+                        proxy=account.proxy_dict,
+                        timeout=15
+                    )
+                    await account.client.connect()
+                    
+                    # 验证连接是否成功
+                    if not account.client.is_connected():
+                        raise Exception("客户端连接失败")
+                    
+                    # 验证账号是否已授权
+                    if not await account.client.is_user_authorized():
+                        raise Exception("账号未授权")
+                    
+                    logger.info(f"✅ 客户端连接成功: {account.phone}")
+                    print(f"✅ 客户端连接成功: {account.phone}", flush=True)
+                elif not account.client.is_connected():
+                    # 如果客户端存在但未连接，重新连接
+                    logger.info(f"🔄 重新连接客户端: {account.phone}")
+                    print(f"🔄 重新连接客户端: {account.phone}", flush=True)
+                    await account.client.connect()
+                    
+                    if not account.client.is_connected():
+                        raise Exception("客户端重新连接失败")
             
             # 获取名称和描述（循环使用列表）
             if config.group_names:
@@ -7429,6 +7498,9 @@ class BatchCreatorService:
                 
                 # 添加管理员（如果指定）
                 if config.admin_username:
+                    # 添加延迟避免频率限制
+                    await asyncio.sleep(random.uniform(1.5, 2.5))
+                    
                     logger.info(f"👤 尝试添加管理员: {config.admin_username}")
                     print(f"👤 尝试添加管理员: {config.admin_username}", flush=True)
                     # 获取刚创建的群组/频道的ID
@@ -16889,8 +16961,8 @@ game_lovers_group</code>
         
         def progress_callback(current, total, message):
             nonlocal last_update_count
-            # 每10个更新一次，或者是最后一个
-            if current - last_update_count >= 10 or current == total:
+            # 每5个更新一次，或者是最后一个
+            if current - last_update_count >= 5 or current == total:
                 try:
                     progress = int(current / total * 100)
                     keyboard = InlineKeyboardMarkup([
@@ -16933,68 +17005,95 @@ game_lovers_group</code>
             print(f"🔢 每账号创建数: {count_per_account}", flush=True)
             
             # 为每个账号创建指定数量的群组/频道
-            account_idx = 0
-            creation_idx = 0
+            # 策略：10个账号并发处理，每个账号内的创建串行并添加延迟
             
-            while creation_idx < total_to_create and account_idx < len(valid_accounts):
-                logger.info(f"🔄 准备批次 - 当前进度: {creation_idx}/{total_to_create}")
-                print(f"🔄 准备批次 - 当前进度: {creation_idx}/{total_to_create}", flush=True)
+            # 用于异步安全的结果收集和进度更新
+            results_lock = asyncio.Lock()
+            
+            async def process_account(account, account_idx, start_idx):
+                """为单个账号创建多个群组/频道（内部串行+延迟）"""
+                account_results = []
                 
-                # 收集本批次的任务（最多10个账号并发）
-                batch_tasks = []
-                batch_end_idx = min(account_idx + batch_size, len(valid_accounts))
-                
-                for acc_i in range(account_idx, batch_end_idx):
-                    account = valid_accounts[acc_i]
-                    logger.info(f"👤 处理账号: {account.phone} (索引 {acc_i+1}/{len(valid_accounts)})")
-                    print(f"👤 处理账号: {account.phone} (索引 {acc_i+1}/{len(valid_accounts)})", flush=True)
-                    
-                    # 为这个账号创建 count_per_account 个
-                    for j in range(count_per_account):
-                        if creation_idx >= total_to_create:
-                            break
-                        
-                        logger.info(f"➕ 添加创建任务 #{creation_idx+1}: 账号 {account.phone}")
-                        print(f"➕ 添加创建任务 #{creation_idx+1}: 账号 {account.phone}", flush=True)
-                        
-                        batch_tasks.append(
-                            self.batch_creator.create_single_new(
-                                account,
-                                batch_config,
-                                creation_idx
-                            )
-                        )
-                        creation_idx += 1
-                    
+                for j in range(count_per_account):
+                    creation_idx = start_idx + j
                     if creation_idx >= total_to_create:
                         break
+                    
+                    logger.info(f"➕ 账号 {account.phone} 创建任务 #{creation_idx+1}/{total_to_create}")
+                    print(f"➕ 账号 {account.phone} 创建任务 #{creation_idx+1}/{total_to_create}", flush=True)
+                    
+                    # 执行单个创建任务
+                    result = await self.batch_creator.create_single_new(
+                        account,
+                        batch_config,
+                        creation_idx
+                    )
+                    account_results.append(result)
+                    
+                    # 异步安全地添加到总结果并更新进度
+                    async with results_lock:
+                        results.append(result)
+                        progress_callback(len(results), total_to_create, f"已完成 {len(results)} 个")
+                    
+                    # 在该账号的每次创建之后添加配置的延迟（避免触发Telegram频率限制）
+                    # 注意：只有不是最后一次创建时才延迟
+                    if j < count_per_account - 1:
+                        delay = random.uniform(config.BATCH_CREATE_MIN_INTERVAL, config.BATCH_CREATE_MAX_INTERVAL)
+                        logger.info(f"⏳ 账号 {account.phone} 创建间隔：等待 {delay:.1f} 秒...")
+                        print(f"⏳ 账号 {account.phone} 创建间隔：等待 {delay:.1f} 秒...", flush=True)
+                        await asyncio.sleep(delay)
                 
-                if not batch_tasks:
-                    break
+                # 统计该账号结果
+                account_success = sum(1 for r in account_results if r.status == 'success')
+                account_failed = sum(1 for r in account_results if r.status == 'failed')
+                logger.info(f"✅ 账号 {account.phone} 完成: 成功 {account_success}, 失败 {account_failed}")
+                print(f"✅ 账号 {account.phone} 完成: 成功 {account_success}, 失败 {account_failed}", flush=True)
                 
-                # 执行批次
-                logger.info(f"🚀 执行批次: {len(batch_tasks)} 个任务")
-                print(f"🚀 执行批次: {len(batch_tasks)} 个任务", flush=True)
+                return account_results
+            
+            # 异步批量处理函数
+            async def run_batch_creation():
+                """异步执行批量创建"""
+                nonlocal results
                 
-                batch_results = loop.run_until_complete(asyncio.gather(*batch_tasks))
-                results.extend(batch_results)
+                # 分批处理账号（每批最多10个账号并发）
+                account_idx = 0
+                creation_idx = 0
                 
-                # 统计本批次结果
-                batch_success = sum(1 for r in batch_results if r.status == 'success')
-                batch_failed = sum(1 for r in batch_results if r.status == 'failed')
-                logger.info(f"✅ 批次完成: 成功 {batch_success}, 失败 {batch_failed}")
-                print(f"✅ 批次完成: 成功 {batch_success}, 失败 {batch_failed}", flush=True)
-                
-                progress_callback(len(results), total_to_create, f"已完成 {len(results)} 个")
-                
-                # 添加批次之间的延迟以避免频率限制
-                if creation_idx < total_to_create:
-                    delay = random.uniform(2, 4)
-                    logger.info(f"⏳ 批次完成，等待 {delay:.1f} 秒后继续...")
-                    print(f"⏳ 批次完成，等待 {delay:.1f} 秒后继续...", flush=True)
-                    time.sleep(delay)
-                
-                account_idx = batch_end_idx
+                while account_idx < len(valid_accounts) and creation_idx < total_to_create:
+                    # 确定本批次的账号数量
+                    batch_end_idx = min(account_idx + batch_size, len(valid_accounts))
+                    batch_accounts = valid_accounts[account_idx:batch_end_idx]
+                    
+                    logger.info(f"🚀 启动批次: {len(batch_accounts)} 个账号并发处理")
+                    print(f"🚀 启动批次: {len(batch_accounts)} 个账号并发处理", flush=True)
+                    
+                    # 创建并发任务：每个账号一个任务
+                    account_tasks = []
+                    for i, account in enumerate(batch_accounts):
+                        logger.info(f"👤 准备账号: {account.phone} (批次内索引 {i+1}/{len(batch_accounts)})")
+                        print(f"👤 准备账号: {account.phone} (批次内索引 {i+1}/{len(batch_accounts)})", flush=True)
+                        
+                        # 每个账号的起始索引
+                        account_start_idx = creation_idx
+                        account_tasks.append(process_account(account, account_idx + i, account_start_idx))
+                        # 为下一个账号更新起始索引
+                        creation_idx += count_per_account
+                    
+                    # 并发执行本批次的所有账号任务
+                    batch_results = await asyncio.gather(*account_tasks)
+                    
+                    # 更新账号索引
+                    account_idx = batch_end_idx
+                    
+                    # 批次统计
+                    total_batch_success = sum(sum(1 for r in acc_results if r.status == 'success') for acc_results in batch_results)
+                    total_batch_failed = sum(sum(1 for r in acc_results if r.status == 'failed') for acc_results in batch_results)
+                    logger.info(f"✅ 批次完成: 成功 {total_batch_success}, 失败 {total_batch_failed}")
+                    print(f"✅ 批次完成: 成功 {total_batch_success}, 失败 {total_batch_failed}", flush=True)
+            
+            # 运行异步批量创建
+            loop.run_until_complete(run_batch_creation())
             
             # 关闭客户端
             async def disconnect_clients():
