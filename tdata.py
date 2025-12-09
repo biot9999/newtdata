@@ -765,6 +765,7 @@ class Config:
         # 批量创建功能配置
         self.ENABLE_BATCH_CREATE = os.getenv("ENABLE_BATCH_CREATE", "true").lower() == "true"
         self.BATCH_CREATE_DAILY_LIMIT = int(os.getenv("BATCH_CREATE_DAILY_LIMIT", "10"))  # 每个账号每日创建上限
+        self.BATCH_CREATE_CONCURRENT = int(os.getenv("BATCH_CREATE_CONCURRENT", "10"))  # 同时处理的账户数
         self.BATCH_CREATE_MIN_INTERVAL = int(os.getenv("BATCH_CREATE_MIN_INTERVAL", "60"))  # 创建间隔最小秒数
         self.BATCH_CREATE_MAX_INTERVAL = int(os.getenv("BATCH_CREATE_MAX_INTERVAL", "120"))  # 创建间隔最大秒数
         self.BATCH_CREATE_MAX_FLOOD_WAIT = int(os.getenv("BATCH_CREATE_MAX_FLOOD_WAIT", "60"))  # 最大可接受的flood等待时间（秒）
@@ -857,8 +858,9 @@ CLEANUP_REVOKE_DEFAULT=true
 # 批量创建功能配置
 ENABLE_BATCH_CREATE=true
 BATCH_CREATE_DAILY_LIMIT=10  # 每个账号每日创建上限
-BATCH_CREATE_MIN_INTERVAL=60  # 创建间隔最小秒数（避免频率限制）
-BATCH_CREATE_MAX_INTERVAL=120  # 创建间隔最大秒数（避免频率限制）
+BATCH_CREATE_CONCURRENT=10  # 同时处理的账户数
+BATCH_CREATE_MIN_INTERVAL=60  # 创建间隔最小秒数（每个账号内）
+BATCH_CREATE_MAX_INTERVAL=120  # 创建间隔最大秒数（每个账号内）
 BATCH_CREATE_MAX_FLOOD_WAIT=60  # 最大可接受的flood等待时间（秒）
 """
             with open(".env", "w", encoding="utf-8") as f:
@@ -17005,8 +17007,8 @@ game_lovers_group</code>
             # 为每个账号创建指定数量的群组/频道
             # 策略：10个账号并发处理，每个账号内的创建串行并添加延迟
             
-            # 用于线程安全的结果收集和进度更新
-            results_lock = threading.Lock()
+            # 用于异步安全的结果收集和进度更新
+            results_lock = asyncio.Lock()
             
             async def process_account(account, account_idx, start_idx):
                 """为单个账号创建多个群组/频道（内部串行+延迟）"""
@@ -17028,8 +17030,8 @@ game_lovers_group</code>
                     )
                     account_results.append(result)
                     
-                    # 线程安全地添加到总结果并更新进度
-                    with results_lock:
+                    # 异步安全地添加到总结果并更新进度
+                    async with results_lock:
                         results.append(result)
                         progress_callback(len(results), total_to_create, f"已完成 {len(results)} 个")
                     
@@ -17049,39 +17051,49 @@ game_lovers_group</code>
                 
                 return account_results
             
-            # 分批处理账号（每批最多10个账号并发）
-            account_idx = 0
-            creation_idx = 0
-            
-            while account_idx < len(valid_accounts) and creation_idx < total_to_create:
-                # 确定本批次的账号数量
-                batch_end_idx = min(account_idx + batch_size, len(valid_accounts))
-                batch_accounts = valid_accounts[account_idx:batch_end_idx]
+            # 异步批量处理函数
+            async def run_batch_creation():
+                """异步执行批量创建"""
+                nonlocal results
                 
-                logger.info(f"🚀 启动批次: {len(batch_accounts)} 个账号并发处理")
-                print(f"🚀 启动批次: {len(batch_accounts)} 个账号并发处理", flush=True)
+                # 分批处理账号（每批最多10个账号并发）
+                account_idx = 0
+                creation_idx = 0
                 
-                # 创建并发任务：每个账号一个任务
-                account_tasks = []
-                for i, account in enumerate(batch_accounts):
-                    logger.info(f"👤 准备账号: {account.phone} (批次内索引 {i+1}/{len(batch_accounts)})")
-                    print(f"👤 准备账号: {account.phone} (批次内索引 {i+1}/{len(batch_accounts)})", flush=True)
+                while account_idx < len(valid_accounts) and creation_idx < total_to_create:
+                    # 确定本批次的账号数量
+                    batch_end_idx = min(account_idx + batch_size, len(valid_accounts))
+                    batch_accounts = valid_accounts[account_idx:batch_end_idx]
                     
-                    start_idx = creation_idx + i * count_per_account
-                    account_tasks.append(process_account(account, account_idx + i, start_idx))
-                
-                # 并发执行本批次的所有账号任务
-                batch_results = loop.run_until_complete(asyncio.gather(*account_tasks))
-                
-                # 更新索引
-                creation_idx += len(batch_accounts) * count_per_account
-                account_idx = batch_end_idx
-                
-                # 批次统计
-                total_batch_success = sum(sum(1 for r in acc_results if r.status == 'success') for acc_results in batch_results)
-                total_batch_failed = sum(sum(1 for r in acc_results if r.status == 'failed') for acc_results in batch_results)
-                logger.info(f"✅ 批次完成: 成功 {total_batch_success}, 失败 {total_batch_failed}")
-                print(f"✅ 批次完成: 成功 {total_batch_success}, 失败 {total_batch_failed}", flush=True)
+                    logger.info(f"🚀 启动批次: {len(batch_accounts)} 个账号并发处理")
+                    print(f"🚀 启动批次: {len(batch_accounts)} 个账号并发处理", flush=True)
+                    
+                    # 创建并发任务：每个账号一个任务
+                    account_tasks = []
+                    for i, account in enumerate(batch_accounts):
+                        logger.info(f"👤 准备账号: {account.phone} (批次内索引 {i+1}/{len(batch_accounts)})")
+                        print(f"👤 准备账号: {account.phone} (批次内索引 {i+1}/{len(batch_accounts)})", flush=True)
+                        
+                        # 每个账号的起始索引
+                        account_start_idx = creation_idx
+                        account_tasks.append(process_account(account, account_idx + i, account_start_idx))
+                        # 为下一个账号更新起始索引
+                        creation_idx += count_per_account
+                    
+                    # 并发执行本批次的所有账号任务
+                    batch_results = await asyncio.gather(*account_tasks)
+                    
+                    # 更新账号索引
+                    account_idx = batch_end_idx
+                    
+                    # 批次统计
+                    total_batch_success = sum(sum(1 for r in acc_results if r.status == 'success') for acc_results in batch_results)
+                    total_batch_failed = sum(sum(1 for r in acc_results if r.status == 'failed') for acc_results in batch_results)
+                    logger.info(f"✅ 批次完成: 成功 {total_batch_success}, 失败 {total_batch_failed}")
+                    print(f"✅ 批次完成: 成功 {total_batch_success}, 失败 {total_batch_failed}", flush=True)
+            
+            # 运行异步批量创建
+            loop.run_until_complete(run_batch_creation())
             
             # 关闭客户端
             async def disconnect_clients():
