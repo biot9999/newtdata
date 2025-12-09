@@ -7120,13 +7120,25 @@ class BatchCreatorService:
     ) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
         """创建群组"""
         try:
-            # 获取"Telegram"官方账号作为初始成员（所有人都有这个联系人）
-            # 或者创建一个空的基础群组（需要先升级为超级群组才能设置username）
+            # 获取一个用户作为初始成员
+            # CreateChatRequest 需要 InputUser 类型，不能使用频道
+            users_to_add = []
             try:
-                telegram_bot = await client.get_entity('telegram')
-                users_to_add = [telegram_bot]
-            except:
-                # 如果无法获取telegram账号，尝试使用Saved Messages
+                # 尝试获取自己的联系人列表中的第一个用户
+                from telethon.tl.types import User
+                contacts = await client.get_contacts()
+                if contacts:
+                    # 找到第一个是用户类型的联系人
+                    for contact in contacts[:10]:  # 只检查前10个以提高速度
+                        if isinstance(contact, User) and not contact.bot:
+                            users_to_add = [contact]
+                            break
+            except Exception as e:
+                logger.debug(f"获取联系人失败: {e}")
+            
+            # 如果没有找到合适的联系人，使用 'me' 字符串
+            # Telethon 会自动将 'me' 解析为当前用户的输入实体
+            if not users_to_add:
                 users_to_add = ['me']
             
             result = await client(functions.messages.CreateChatRequest(users=users_to_add, title=name))
@@ -16419,12 +16431,15 @@ class EnhancedBot:
                     break
             
             # 关闭客户端
-            for account in accounts:
-                if account.client:
-                    try:
-                        loop.run_until_complete(account.client.disconnect())
-                    except Exception as e:
-                        logger.warning(f"⚠️ 关闭客户端失败: {e}")
+            async def disconnect_clients():
+                for account in accounts:
+                    if account.client:
+                        try:
+                            await account.client.disconnect()
+                        except Exception as e:
+                            logger.warning(f"⚠️ 关闭客户端失败: {e}")
+            
+            loop.run_until_complete(disconnect_clients())
             
             # 生成报告
             report = self.batch_creator.generate_report(results)
