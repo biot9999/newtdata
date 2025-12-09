@@ -2949,7 +2949,7 @@ class FileProcessor:
         session_files = []
         tdata_folders = []
         seen_tdata_paths = set()  # 防止重复计数TData目录
-        seen_session_files = set()  # 防止重复计数Session文件（基于文件名）
+        seen_session_files = set()  # 防止重复计数Session文件（基于规范化路径）
         
         # 在uploads目录下为每个任务创建专属文件夹
         task_upload_dir = os.path.join(config.UPLOADS_DIR, f"task_{task_id}")
@@ -16493,15 +16493,16 @@ class EnhancedBot:
             
             # 2. 【新增】清理用户的旧上传目录（防止累积）
             if os.path.exists(config.UPLOADS_DIR):
-                task_prefix = f"task_{user_id}_batch_"
+                # 匹配两种格式: task_{user_id}_batch (旧格式) 和 task_{user_id}_batch_{timestamp} (新格式)
+                old_prefix = f"task_{user_id}_batch"
                 cleaned_dirs = 0
                 
                 for dirname in os.listdir(config.UPLOADS_DIR):
-                    if dirname.startswith(task_prefix):
+                    if dirname.startswith(old_prefix):
                         dir_path = os.path.join(config.UPLOADS_DIR, dirname)
                         try:
                             if os.path.isdir(dir_path):
-                                shutil.rmtree(dir_path, ignore_errors=True)
+                                shutil.rmtree(dir_path)
                                 cleaned_dirs += 1
                                 logger.info(f"🧹 清理旧上传目录: {dirname}")
                         except Exception as e:
