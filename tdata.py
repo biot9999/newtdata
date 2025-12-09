@@ -7461,7 +7461,11 @@ class BatchCreatorService:
         chat_id: int,
         admin_username: str
     ) -> Tuple[bool, Optional[str]]:
-        """添加管理员到群组/频道（带Flood错误处理和重试及详细错误信息）"""
+        """添加管理员到群组/频道（直接设置管理员权限，自动邀请用户）
+        
+        优化方案：不单独邀请，直接使用 EditAdminRequest 设置管理员权限
+        EditAdminRequest 会自动邀请用户到群组/频道，减少API调用和频率限制
+        """
         try:
             if not admin_username:
                 return True, None
@@ -7479,65 +7483,8 @@ class BatchCreatorService:
                     return False, f"用户名 @{admin_username} 格式无效"
                 return False, f"无法找到用户 @{admin_username}: {str(e)}"
             
-            # 邀请用户（带Flood错误处理及详细错误信息）
+            # 直接设置为管理员（EditAdminRequest 会自动邀请用户到群组）
             max_retries = 3
-            invite_error = None
-            for attempt in range(max_retries):
-                try:
-                    await client(functions.channels.InviteToChannelRequest(
-                        channel=chat_id,
-                        users=[user]
-                    ))
-                    await asyncio.sleep(1.0)  # 增加延迟避免flood
-                    invite_error = None
-                    break  # 成功则跳出循环
-                except FloodWaitError as e:
-                    wait_seconds = e.seconds
-                    logger.warning(f"⚠️ 邀请用户触发频率限制，需等待 {wait_seconds} 秒")
-                    print(f"⚠️ 邀请用户触发频率限制，需等待 {wait_seconds} 秒", flush=True)
-                    if attempt < max_retries - 1 and wait_seconds < self.config.BATCH_CREATE_MAX_FLOOD_WAIT:
-                        # 如果等待时间不超过60秒，则等待后重试
-                        await asyncio.sleep(wait_seconds + 1)
-                    else:
-                        return False, f"邀请失败: 操作触发频率限制 ({wait_seconds}秒)"
-                except Exception as e:
-                    error_msg = str(e).lower()
-                    invite_error = str(e)
-                    logger.warning(f"⚠️ 邀请用户失败: {e}")
-                    
-                    # 检查是否是 "Too many requests" 错误（频率限制但没有wait_seconds）
-                    if "too many requests" in error_msg or "flood" in error_msg:
-                        logger.warning(f"⚠️ 检测到频率限制错误，等待5秒后重试")
-                        if attempt < max_retries - 1:
-                            # 默认等待5秒后重试
-                            await asyncio.sleep(5.0)
-                            continue
-                        else:
-                            # 最后一次仍然失败，但不返回错误，尝试直接设置管理员
-                            logger.warning(f"⚠️ 邀请频率限制，跳过邀请步骤，直接尝试设置管理员")
-                            invite_error = "频率限制"
-                            break
-                    
-                    # 如果用户已在群组中，继续尝试设置管理员
-                    if "already" in error_msg or "participant" in error_msg:
-                        invite_error = None  # 不是真正的错误
-                        break
-                    # 检查是否是权限问题
-                    if "privacy" in error_msg or "private" in error_msg:
-                        return False, f"邀请失败: @{admin_username} 隐私设置不允许被邀请"
-                    if "bot" in error_msg and "cannot" in error_msg:
-                        return False, f"邀请失败: @{admin_username} 是机器人，无法添加为管理员"
-                    if "user_channels_too_much" in error_msg:
-                        return False, f"邀请失败: @{admin_username} 加入的群组数量已达上限"
-                    # 其他错误，继续尝试
-                    if attempt < max_retries - 1:
-                        await asyncio.sleep(2.0)
-                    else:
-                        # 最后一次尝试失败，但继续尝试设置管理员（可能用户已在群中）
-                        logger.warning(f"⚠️ 邀请用户失败但继续尝试设置管理员: {e}")
-                        break
-            
-            # 设置为管理员（带Flood错误处理及详细错误信息）
             for attempt in range(max_retries):
                 try:
                     await client(functions.channels.EditAdminRequest(
@@ -7580,16 +7527,19 @@ class BatchCreatorService:
                     if "chat_admin_required" in error_msg or "admin" in error_msg:
                         return False, f"设置失败: 权限不足（Basic Group无法添加管理员，需先升级为SuperGroup）"
                     elif "user_not_participant" in error_msg:
-                        if invite_error:
-                            return False, f"设置失败: 用户未加入群组（邀请失败: {invite_error}）"
-                        return False, f"设置失败: @{admin_username} 未加入群组"
-                    elif "user_privacy_restricted" in error_msg:
-                        return False, f"设置失败: @{admin_username} 隐私设置限制"
+                        # EditAdminRequest 应该会自动邀请，如果出现此错误可能是权限问题
+                        return False, f"设置失败: 无法邀请 @{admin_username} 加入（可能是隐私设置或群组限制）"
+                    elif "user_privacy_restricted" in error_msg or "privacy" in error_msg:
+                        return False, f"设置失败: @{admin_username} 隐私设置不允许被添加"
+                    elif "user_channels_too_much" in error_msg:
+                        return False, f"设置失败: @{admin_username} 加入的群组数量已达上限"
                     elif "user_bot_required" in error_msg or "peer_id_invalid" in error_msg:
                         return False, f"设置失败: @{admin_username} 账号无效"
                     elif "chat_not_modified" in error_msg:
                         # 用户已经是管理员
                         return True, None
+                    elif "bot" in error_msg and "cannot" in error_msg:
+                        return False, f"设置失败: @{admin_username} 是机器人，无法添加为管理员"
                     
                     if attempt < max_retries - 1:
                         await asyncio.sleep(2.0)
