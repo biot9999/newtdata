@@ -7094,7 +7094,7 @@ class BatchCreatorService:
         
         logger.info(f"📦 批量创建服务初始化，每日限制: {self.daily_limit}")
     
-    def generate_random_username(self, prefix: str = "") -> str:
+    def generate_random_username(self) -> str:
         """生成随机用户名 - 完全随机，无前缀，避免相似"""
         # 随机选择用户名类型：纯字母或字母+数字
         use_digits = random.choice([True, False])
@@ -7102,15 +7102,17 @@ class BatchCreatorService:
         # 随机长度在5-15之间，增加多样性
         length = random.randint(5, 15)
         
+        # 确保第一个字符始终是字母（Telegram要求）
+        first_char = random.choice(string.ascii_lowercase)
+        
         if use_digits:
             # 字母+数字混合
-            # 确保至少有一个字母开头（Telegram要求）
-            first_char = random.choice(string.ascii_lowercase)
             remaining_chars = ''.join(random.choices(string.ascii_lowercase + string.digits, k=length-1))
-            username = first_char + remaining_chars
         else:
             # 纯字母
-            username = ''.join(random.choices(string.ascii_lowercase, k=length))
+            remaining_chars = ''.join(random.choices(string.ascii_lowercase, k=length-1))
+        
+        username = first_char + remaining_chars
         
         # Telegram用户名规则：5-32字符，只能包含字母、数字和下划线
         return username[:32]
