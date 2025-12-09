@@ -7122,61 +7122,33 @@ class BatchCreatorService:
         username: Optional[str] = None,
         description: Optional[str] = None
     ) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
-        """创建群组"""
+        """创建群组（超级群组）"""
         try:
-            # 获取一个用户作为初始成员
-            # CreateChatRequest 需要 InputUser 类型，不能使用频道
-            users_to_add = []
-            try:
-                # 尝试获取自己的联系人列表中的第一个用户（只获取需要的数量）
-                contacts = await client.get_contacts(limit=self.MAX_CONTACTS_TO_CHECK)
-                if contacts:
-                    # 找到第一个是用户类型的联系人
-                    for contact in contacts:
-                        if isinstance(contact, User) and not contact.bot:
-                            users_to_add = [contact]
-                            break
-            except Exception as e:
-                logger.debug(f"获取联系人失败: {e}")
-            
-            # 如果没有找到合适的联系人，获取自己的用户实体
-            if not users_to_add:
-                try:
-                    me = await client.get_me()
-                    users_to_add = [me]
-                except Exception as e:
-                    # 最后的备用方案：使用 'me' 字符串
-                    logger.debug(f"获取当前用户失败: {e}")
-                    users_to_add = ['me']
-            
-            result = await client(functions.messages.CreateChatRequest(users=users_to_add, title=name))
-            chat = result.chats[0]
-            chat_id = chat.id
+            # 直接创建超级群组（megagroup），避免基础群组的限制
+            # 使用 CreateChannelRequest 与 megagroup=True 创建超级群组
+            # 这样可以直接设置用户名和描述，无需迁移
+            result = await client(functions.channels.CreateChannelRequest(
+                title=name,
+                about=description or "",
+                megagroup=True  # True = 超级群组, False = 频道
+            ))
+            group = result.chats[0]
             
             actual_username = None
             if username:
                 try:
-                    result = await client(functions.messages.MigrateChatRequest(chat_id=chat_id))
-                    channel = result.chats[0]
-                    await client(functions.channels.UpdateUsernameRequest(channel=channel, username=username))
+                    await client(functions.channels.UpdateUsernameRequest(channel=group, username=username))
                     actual_username = username
-                    chat_id = channel.id
                 except (UsernameOccupiedError, UsernameInvalidError) as e:
                     logger.warning(f"⚠️ 用户名 '{username}' 设置失败: {e}")
                 except RPCError as e:
                     logger.warning(f"⚠️ 设置用户名失败: {e}")
             
-            if description and username:
-                try:
-                    await client(functions.channels.EditAboutRequest(peer=chat_id, about=description))
-                except RPCError as e:
-                    logger.warning(f"⚠️ 设置描述失败: {e}")
-            
             if actual_username:
                 invite_link = f"https://t.me/{actual_username}"
             else:
                 try:
-                    invite_result = await client(functions.channels.ExportInviteRequest(peer=chat_id))
+                    invite_result = await client(functions.channels.ExportInviteRequest(peer=group.id))
                     invite_link = invite_result.link
                 except RPCError as e:
                     logger.warning(f"⚠️ 获取邀请链接失败: {e}")
