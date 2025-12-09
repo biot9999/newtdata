@@ -2974,14 +2974,17 @@ class FileProcessor:
                             print(f"⏭️ 跳过系统/临时文件: {file}")
                             continue
                         
-                        # 【关键修复】防止重复计数同名session文件
-                        # 使用文件名作为唯一标识（因为同一账号的session文件名应该唯一）
-                        if file in seen_session_files:
+                        file_full_path = os.path.join(root, file)
+                        
+                        # 【关键修复】使用规范化路径防止重复计数
+                        # 处理符号链接、硬链接、相对路径等情况
+                        normalized_path = os.path.normpath(os.path.abspath(file_full_path))
+                        
+                        if normalized_path in seen_session_files:
                             print(f"⏭️ 跳过重复Session文件: {file}")
                             continue
                         
-                        seen_session_files.add(file)
-                        file_full_path = os.path.join(root, file)
+                        seen_session_files.add(normalized_path)
                         session_files.append((file_full_path, file))
                         
                         # 检查是否有对应的JSON文件
@@ -16463,33 +16466,50 @@ class EnhancedBot:
         self.db.save_user(user_id, "", "", "")
     
     def _cleanup_user_temp_sessions(self, user_id: int):
-        """清理指定用户的临时session文件
+        """清理指定用户的临时session文件和旧上传目录
         
         这确保每次上传只使用当前上传的账号，不会重复登录之前的账号
         """
         try:
-            if not os.path.exists(config.SESSIONS_BAK_DIR):
-                return
+            # 1. 清理临时session文件
+            if os.path.exists(config.SESSIONS_BAK_DIR):
+                user_prefix = f"user_{user_id}_"
+                cleaned_count = 0
+                
+                for filename in os.listdir(config.SESSIONS_BAK_DIR):
+                    if filename.startswith(user_prefix):
+                        file_path = os.path.join(config.SESSIONS_BAK_DIR, filename)
+                        try:
+                            if os.path.isfile(file_path):
+                                os.remove(file_path)
+                                cleaned_count += 1
+                                logger.info(f"🧹 清理旧临时文件: {filename}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ 清理文件失败 {filename}: {e}")
+                
+                if cleaned_count > 0:
+                    logger.info(f"✅ 清理了 {cleaned_count} 个用户 {user_id} 的旧临时session文件")
+                    print(f"✅ 清理了 {cleaned_count} 个用户 {user_id} 的旧临时session文件")
             
-            # 清理该用户的临时文件（以 user_{user_id}_ 开头的文件）
-            user_prefix = f"user_{user_id}_"
-            cleaned_count = 0
-            
-            for filename in os.listdir(config.SESSIONS_BAK_DIR):
-                if filename.startswith(user_prefix):
-                    file_path = os.path.join(config.SESSIONS_BAK_DIR, filename)
-                    try:
-                        # 删除session文件和journal文件
-                        if os.path.isfile(file_path):
-                            os.remove(file_path)
-                            cleaned_count += 1
-                            logger.info(f"🧹 清理旧临时文件: {filename}")
-                    except Exception as e:
-                        logger.warning(f"⚠️ 清理文件失败 {filename}: {e}")
-            
-            if cleaned_count > 0:
-                logger.info(f"✅ 清理了 {cleaned_count} 个用户 {user_id} 的旧临时session文件")
-                print(f"✅ 清理了 {cleaned_count} 个用户 {user_id} 的旧临时session文件")
+            # 2. 【新增】清理用户的旧上传目录（防止累积）
+            if os.path.exists(config.UPLOADS_DIR):
+                task_prefix = f"task_{user_id}_batch_"
+                cleaned_dirs = 0
+                
+                for dirname in os.listdir(config.UPLOADS_DIR):
+                    if dirname.startswith(task_prefix):
+                        dir_path = os.path.join(config.UPLOADS_DIR, dirname)
+                        try:
+                            if os.path.isdir(dir_path):
+                                shutil.rmtree(dir_path, ignore_errors=True)
+                                cleaned_dirs += 1
+                                logger.info(f"🧹 清理旧上传目录: {dirname}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ 清理目录失败 {dirname}: {e}")
+                
+                if cleaned_dirs > 0:
+                    logger.info(f"✅ 清理了 {cleaned_dirs} 个用户 {user_id} 的旧上传目录")
+                    print(f"✅ 清理了 {cleaned_dirs} 个用户 {user_id} 的旧上传目录")
         except Exception as e:
             logger.error(f"❌ 清理临时文件失败: {e}")
     
@@ -16511,13 +16531,17 @@ class EnhancedBot:
             # 这确保每次上传只使用当前上传的账号，不会重复登录之前的账号
             self._cleanup_user_temp_sessions(user_id)
             
+            # 【关键修复】为每次上传创建唯一的任务ID，确保完全隔离
+            # 使用时间戳确保每次上传都有独立的目录，不会混淆
+            unique_task_id = f"{user_id}_batch_{int(time.time() * 1000)}"
+            
             # 下载文件
             temp_dir = tempfile.mkdtemp(prefix="batch_create_")
             temp_zip = os.path.join(temp_dir, document.file_name)
             document.get_file().download(temp_zip)
             
-            # 扫描文件
-            files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, f"{user_id}_batch")
+            # 扫描文件 - 使用唯一任务ID，确保只提取当前上传的账号
+            files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, unique_task_id)
             
             if not files:
                 self.safe_edit_message_text(progress_msg, "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
