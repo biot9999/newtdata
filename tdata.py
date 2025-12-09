@@ -6909,6 +6909,16 @@ class EnhancedBot:
     # 网络错误关键词，用于判断异常是否是网络相关的
     NETWORK_ERROR_KEYWORDS = ['connection', 'timeout', 'reset', 'refused', 'aborted', 'urllib3', 'httperror']
     
+    # 冻结账户错误关键词，用于判断账户是否被冻结
+    FROZEN_KEYWORDS = [
+        'FROZEN', 
+        'DEACTIVATED', 
+        'BANNED', 
+        'USERDEACTIVATED',
+        'AUTHKEYUNREGISTERED',
+        'PHONENUMBERBANNED'
+    ]
+    
     # 消息发送重试相关常量
     MESSAGE_RETRY_MAX = 3       # 默认最大重试次数
     MESSAGE_RETRY_BACKOFF = 2   # 指数退避基数
@@ -14532,16 +14542,7 @@ class EnhancedBot:
     def _is_frozen_error(self, error: Exception) -> bool:
         """检查是否为冻结账户错误"""
         error_str = str(error).upper()
-        # 检查各种冻结相关的错误标识
-        frozen_keywords = [
-            'FROZEN', 
-            'DEACTIVATED', 
-            'BANNED', 
-            'USERDEACTIVATED',
-            'AUTHKEYUNREGISTERED',
-            'PHONENUMBERBANNED'
-        ]
-        return any(keyword in error_str for keyword in frozen_keywords)
+        return any(keyword in error_str for keyword in self.FROZEN_KEYWORDS)
     
     async def _cleanup_single_account(self, client, account_name: str, file_path: str, progress_callback=None) -> Dict[str, Any]:
         """清理单个账号"""
@@ -15248,7 +15249,10 @@ class EnhancedBot:
                 })
                 
                 # 分类统计
-                # 冻结账户直接归类为失败账户
+                # 冻结账户直接归类为失败账户（符合issue要求）
+                # 注意：冻结账户会同时计入frozen和failed，这是有意为之：
+                # - frozen_files用于统计和报告冻结账户数量
+                # - failed_files用于将冻结账户打包到失败账户zip中
                 if result.get('is_frozen'):
                     results_summary['frozen'] += 1
                     results_summary['frozen_files'].append((result['file_path'], result['file_name']))
