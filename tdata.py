@@ -7370,9 +7370,13 @@ class BatchCreatorService:
                 await account.client.connect()
             
             # 获取名称和描述（循环使用列表）
-            name_idx = index % len(config.group_names) if config.group_names else 0
-            name = config.group_names[name_idx] if config.group_names else f"Group {index + 1}"
-            description = config.group_descriptions[name_idx] if name_idx < len(config.group_descriptions) else ""
+            if config.group_names:
+                name_idx = index % len(config.group_names)
+                name = config.group_names[name_idx]
+                description = config.group_descriptions[name_idx] if name_idx < len(config.group_descriptions) else ""
+            else:
+                name = f"Group {index + 1}"
+                description = ""
             
             result.name = name
             result.description = description
@@ -16305,8 +16309,7 @@ class EnhancedBot:
             query.answer()
             if user_id in self.pending_batch_create:
                 self.pending_batch_create[user_id]['admin_username'] = ""
-                # 创建一个假的update对象来调用_ask_for_group_names
-                fake_update = type('obj', (object,), {'effective_chat': type('obj', (object,), {'id': user_id})()})()
+                fake_update = self._create_fake_update(user_id)
                 self._ask_for_group_names(fake_update, user_id)
         elif data == "batch_create_username_custom":
             query.answer()
@@ -16338,8 +16341,7 @@ game_lovers_group</code>
             if user_id in self.pending_batch_create:
                 self.pending_batch_create[user_id]['username_mode'] = 'auto'
                 self.pending_batch_create[user_id]['custom_usernames'] = []
-                # 创建假update来调用确认
-                fake_update = type('obj', (object,), {'effective_chat': type('obj', (object,), {'id': user_id})()})()
+                fake_update = self._create_fake_update(user_id)
                 self._show_batch_create_confirm(fake_update, user_id)
         elif data == "batch_create_confirm":
             self.handle_batch_create_execute(update, context, query, user_id)
@@ -16441,6 +16443,15 @@ game_lovers_group</code>
             task['admin_username'] = admin_username
         
         self._ask_for_group_names(update, user_id)
+    
+    def _create_fake_update(self, user_id: int):
+        """创建一个假的update对象用于内部调用"""
+        return type('obj', (object,), {
+            'effective_chat': type('obj', (object,), {'id': user_id})(),
+            'message': type('obj', (object,), {
+                'reply_text': lambda text, **kwargs: None
+            })()
+        })()
     
     def _ask_for_group_names(self, update: Update, user_id: int):
         """询问群组名称和简介"""
@@ -16644,10 +16655,7 @@ game_lovers_group</code>
             os.unlink(temp_file.name)
             
             # 使用现有的处理逻辑
-            fake_update = type('obj', (object,), {
-                'effective_chat': type('obj', (object,), {'id': user_id})(),
-                'message': type('obj', (object,), {'reply_text': lambda text, **kwargs: context.bot.send_message(chat_id=user_id, text=text, **kwargs)})()
-            })()
+            fake_update = self._create_fake_update(user_id)
             self.handle_batch_create_names_input(fake_update, context, user_id, content)
             
         except Exception as e:
@@ -16675,20 +16683,14 @@ game_lovers_group</code>
             os.unlink(temp_file.name)
             
             # 使用现有的处理逻辑
-            fake_update = type('obj', (object,), {
-                'effective_chat': type('obj', (object,), {'id': user_id})(),
-                'message': type('obj', (object,), {'reply_text': lambda text, **kwargs: context.bot.send_message(chat_id=user_id, text=text, **kwargs)})()
-            })()
+            fake_update = self._create_fake_update(user_id)
             self.handle_batch_create_usernames_input(fake_update, context, user_id, content)
             
         except Exception as e:
             logger.error(f"处理用户名文件失败: {e}")
             self.safe_send_message(update, f"❌ 文件处理失败：{str(e)}")
     
-    def handle_batch_create_show_confirm(self, query, user_id: int):
-        """显示确认对话框 - 已废弃，由 _show_batch_create_confirm 替代"""
-        # 这个方法保留是为了兼容性，实际上新流程使用 _show_batch_create_confirm
-        pass
+
     
     def handle_batch_create_execute(self, update: Update, context: CallbackContext, query, user_id: int):
         """执行批量创建"""
