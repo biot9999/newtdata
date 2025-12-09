@@ -16959,8 +16959,8 @@ game_lovers_group</code>
         
         def progress_callback(current, total, message):
             nonlocal last_update_count
-            # 每10个更新一次，或者是最后一个
-            if current - last_update_count >= 10 or current == total:
+            # 每5个更新一次，或者是最后一个
+            if current - last_update_count >= 5 or current == total:
                 try:
                     progress = int(current / total * 100)
                     keyboard = InlineKeyboardMarkup([
@@ -17003,51 +17003,85 @@ game_lovers_group</code>
             print(f"🔢 每账号创建数: {count_per_account}", flush=True)
             
             # 为每个账号创建指定数量的群组/频道
-            # 修改策略：逐个账号串行处理，每个账号内的创建也串行，避免并发导致的连接问题
-            creation_idx = 0
+            # 策略：10个账号并发处理，每个账号内的创建串行并添加延迟
             
-            for acc_i, account in enumerate(valid_accounts):
-                logger.info(f"👤 处理账号: {account.phone} (索引 {acc_i+1}/{len(valid_accounts)})")
-                print(f"👤 处理账号: {account.phone} (索引 {acc_i+1}/{len(valid_accounts)})", flush=True)
+            # 用于线程安全的结果收集和进度更新
+            results_lock = threading.Lock()
+            
+            async def process_account(account, account_idx, start_idx):
+                """为单个账号创建多个群组/频道（内部串行+延迟）"""
+                account_results = []
                 
-                # 为这个账号创建 count_per_account 个（串行处理避免并发问题）
                 for j in range(count_per_account):
+                    creation_idx = start_idx + j
                     if creation_idx >= total_to_create:
                         break
                     
-                    logger.info(f"➕ 创建任务 #{creation_idx+1}/{total_to_create}: 账号 {account.phone}")
-                    print(f"➕ 创建任务 #{creation_idx+1}/{total_to_create}: 账号 {account.phone}", flush=True)
+                    logger.info(f"➕ 账号 {account.phone} 创建任务 #{creation_idx+1}/{total_to_create}")
+                    print(f"➕ 账号 {account.phone} 创建任务 #{creation_idx+1}/{total_to_create}", flush=True)
                     
-                    # 串行执行单个创建任务
-                    result = loop.run_until_complete(
-                        self.batch_creator.create_single_new(
-                            account,
-                            batch_config,
-                            creation_idx
-                        )
+                    # 执行单个创建任务
+                    result = await self.batch_creator.create_single_new(
+                        account,
+                        batch_config,
+                        creation_idx
                     )
-                    results.append(result)
-                    creation_idx += 1
+                    account_results.append(result)
                     
-                    # 更新进度
-                    progress_callback(len(results), total_to_create, f"已完成 {len(results)} 个")
+                    # 线程安全地添加到总结果并更新进度
+                    with results_lock:
+                        results.append(result)
+                        progress_callback(len(results), total_to_create, f"已完成 {len(results)} 个")
                     
-                    # 在每次创建之后添加配置的延迟（避免触发Telegram频率限制）
-                    if creation_idx < total_to_create:
+                    # 在该账号的每次创建之后添加配置的延迟（避免触发Telegram频率限制）
+                    # 注意：只有不是最后一次创建时才延迟
+                    if j < count_per_account - 1:
                         delay = random.uniform(config.BATCH_CREATE_MIN_INTERVAL, config.BATCH_CREATE_MAX_INTERVAL)
-                        logger.info(f"⏳ 创建间隔：等待 {delay:.1f} 秒后继续创建下一个...")
-                        print(f"⏳ 创建间隔：等待 {delay:.1f} 秒后继续创建下一个...", flush=True)
-                        time.sleep(delay)
+                        logger.info(f"⏳ 账号 {account.phone} 创建间隔：等待 {delay:.1f} 秒...")
+                        print(f"⏳ 账号 {account.phone} 创建间隔：等待 {delay:.1f} 秒...", flush=True)
+                        await asyncio.sleep(delay)
                 
-                # 统计当前账号结果
-                account_results = results[-count_per_account:] if len(results) >= count_per_account else results
+                # 统计该账号结果
                 account_success = sum(1 for r in account_results if r.status == 'success')
                 account_failed = sum(1 for r in account_results if r.status == 'failed')
                 logger.info(f"✅ 账号 {account.phone} 完成: 成功 {account_success}, 失败 {account_failed}")
                 print(f"✅ 账号 {account.phone} 完成: 成功 {account_success}, 失败 {account_failed}", flush=True)
                 
-                if creation_idx >= total_to_create:
-                    break
+                return account_results
+            
+            # 分批处理账号（每批最多10个账号并发）
+            account_idx = 0
+            creation_idx = 0
+            
+            while account_idx < len(valid_accounts) and creation_idx < total_to_create:
+                # 确定本批次的账号数量
+                batch_end_idx = min(account_idx + batch_size, len(valid_accounts))
+                batch_accounts = valid_accounts[account_idx:batch_end_idx]
+                
+                logger.info(f"🚀 启动批次: {len(batch_accounts)} 个账号并发处理")
+                print(f"🚀 启动批次: {len(batch_accounts)} 个账号并发处理", flush=True)
+                
+                # 创建并发任务：每个账号一个任务
+                account_tasks = []
+                for i, account in enumerate(batch_accounts):
+                    logger.info(f"👤 准备账号: {account.phone} (批次内索引 {i+1}/{len(batch_accounts)})")
+                    print(f"👤 准备账号: {account.phone} (批次内索引 {i+1}/{len(batch_accounts)})", flush=True)
+                    
+                    start_idx = creation_idx + i * count_per_account
+                    account_tasks.append(process_account(account, account_idx + i, start_idx))
+                
+                # 并发执行本批次的所有账号任务
+                batch_results = loop.run_until_complete(asyncio.gather(*account_tasks))
+                
+                # 更新索引
+                creation_idx += len(batch_accounts) * count_per_account
+                account_idx = batch_end_idx
+                
+                # 批次统计
+                total_batch_success = sum(sum(1 for r in acc_results if r.status == 'success') for acc_results in batch_results)
+                total_batch_failed = sum(sum(1 for r in acc_results if r.status == 'failed') for acc_results in batch_results)
+                logger.info(f"✅ 批次完成: 成功 {total_batch_success}, 失败 {total_batch_failed}")
+                print(f"✅ 批次完成: 成功 {total_batch_success}, 失败 {total_batch_failed}", flush=True)
             
             # 关闭客户端
             async def disconnect_clients():
