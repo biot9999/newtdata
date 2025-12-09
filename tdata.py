@@ -10309,7 +10309,7 @@ class EnhancedBot:
             err = str(e)
             if "password" in err.lower():
                 result["category"] = "旧密码错误"
-            elif any(key.lower() in err.lower() for key in self.FROZEN_KEYWORDS):
+            elif any(key.lower() in err.lower() for key in EnhancedBot.FROZEN_KEYWORDS):
                 result["category"] = "冻结"
             result["message"] = err[:200]
             return result
