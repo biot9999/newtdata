@@ -7703,7 +7703,16 @@ class EnhancedBot:
                         return None
                 else:
                     # 非网络错误，直接返回
-                    print(f"❌ 发送消息失败: {e}")
+                    try:
+                        error_msg = f"❌ 发送消息失败: {type(e).__name__}: {str(e)}"
+                    except:
+                        error_msg = f"❌ 发送消息失败: {type(e).__name__} (无法获取错误详情)"
+                    print(error_msg, flush=True)
+                    import traceback
+                    import sys
+                    traceback.print_exc()
+                    sys.stdout.flush()
+                    sys.stderr.flush()
                     return None
         
         # 所有重试都失败
@@ -7850,9 +7859,12 @@ class EnhancedBot:
                         return None
                 else:
                     # 非网络错误，直接返回
-                    print(f"❌ 编辑消息失败: {e}")
+                    print(f"❌ 编辑消息失败: {type(e).__name__}: {e}", flush=True)
                     import traceback
+                    import sys
                     traceback.print_exc()
+                    sys.stdout.flush()
+                    sys.stderr.flush()
                     return None
         
         # 所有重试都失败
@@ -11268,7 +11280,9 @@ class EnhancedBot:
                         text="❌ 没有文件可以发送"
                     )
                 except Exception as e:
-                    print(f"❌ 发送消息失败: {e}")
+                    print(f"❌ 发送消息失败: {type(e).__name__}: {e}")
+                    import traceback
+                    traceback.print_exc()
             
             # 清理临时文件
             if extract_dir and os.path.exists(extract_dir):
