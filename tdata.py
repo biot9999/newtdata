@@ -7016,6 +7016,10 @@ class BatchAccountInfo:
     daily_created: int = 0
     daily_remaining: int = 0
     validation_error: Optional[str] = None
+    # 连接参数（用于在新事件循环中重新连接）
+    api_id: Optional[int] = None
+    api_hash: Optional[str] = None
+    proxy_dict: Optional[Any] = None
 
 
 class BatchCreatorService:
@@ -7079,14 +7083,22 @@ class BatchCreatorService:
             )
             await client.connect()
             if not await client.is_user_authorized():
+                await client.disconnect()
                 return False, "账号未授权"
             
             me = await client.get_me()
             account.phone = me.phone if me.phone else "未知"
             account.is_valid = True
-            account.client = client
+            # 保存连接参数以便在新事件循环中重新连接
+            account.api_id = api_id
+            account.api_hash = api_hash
+            account.proxy_dict = proxy_dict
             account.daily_created = self.db.get_daily_creation_count(account.phone)
             account.daily_remaining = max(0, self.daily_limit - account.daily_created)
+            
+            # 断开连接，稍后在执行阶段重新连接
+            await client.disconnect()
+            account.client = None
             
             return True, None
         except Exception as e:
@@ -7227,6 +7239,17 @@ class BatchCreatorService:
                 result.status = 'skipped'
                 result.error = '已达每日创建上限'
                 return result
+            
+            # 如果客户端未连接，重新连接
+            if not account.client:
+                account.client = TelegramClient(
+                    account.session_path,
+                    account.api_id,
+                    account.api_hash,
+                    proxy=account.proxy_dict,
+                    timeout=15
+                )
+                await account.client.connect()
             
             name = self.parse_name_template(
                 config.name_template, number, config.name_prefix, config.name_suffix
