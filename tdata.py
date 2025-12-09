@@ -7095,13 +7095,24 @@ class BatchCreatorService:
         logger.info(f"📦 批量创建服务初始化，每日限制: {self.daily_limit}")
     
     def generate_random_username(self, prefix: str = "") -> str:
-        """生成随机用户名"""
-        random_part = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-        if prefix:
-            prefix = ''.join(c for c in prefix if c.isalnum() or c == '_')[:10]
-            username = f"{prefix}_{random_part}"
+        """生成随机用户名 - 完全随机，无前缀，避免相似"""
+        # 随机选择用户名类型：纯字母或字母+数字
+        use_digits = random.choice([True, False])
+        
+        # 随机长度在5-15之间，增加多样性
+        length = random.randint(5, 15)
+        
+        if use_digits:
+            # 字母+数字混合
+            # 确保至少有一个字母开头（Telegram要求）
+            first_char = random.choice(string.ascii_lowercase)
+            remaining_chars = ''.join(random.choices(string.ascii_lowercase + string.digits, k=length-1))
+            username = first_char + remaining_chars
         else:
-            username = f"tg_{random_part}"
+            # 纯字母
+            username = ''.join(random.choices(string.ascii_lowercase, k=length))
+        
+        # Telegram用户名规则：5-32字符，只能包含字母、数字和下划线
         return username[:32]
     
     def parse_name_template(self, template: str, number: int, prefix: str = "", suffix: str = "") -> str:
@@ -7365,7 +7376,7 @@ class BatchCreatorService:
             
             username = None
             if config.username_mode == 'random':
-                username = self.generate_random_username(config.name_prefix)
+                username = self.generate_random_username()  # 完全随机，无前缀
             elif config.username_mode == 'custom' and config.custom_username_template:
                 username_template = config.custom_username_template.replace('{n}', str(number))
                 username = username_template.replace('{num}', str(number))
