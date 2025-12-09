@@ -1249,6 +1249,17 @@ class SpamBotChecker:
             # 创建客户端
             # Telethon expects session path without .session extension
             session_base = session_path.replace('.session', '') if session_path.endswith('.session') else session_path
+            
+            # 增强版控制台日志 - 问题3：显示设备和代理信息
+            device_info = f"API_ID={config.API_ID}"
+            if proxy_info:
+                proxy_type = proxy_info.get('type', 'http').upper()
+                is_residential = "住宅" if proxy_info.get('is_residential', False) else "普通"
+                proxy_display = f"{is_residential}{proxy_type}代理"
+                print(f"🔍 [{account_name}] 使用 {device_info} | {proxy_display} | 超时={client_timeout}s")
+            else:
+                print(f"🔍 [{account_name}] 使用 {device_info} | 本地连接 | 超时={connect_timeout}s")
+            
             client = TelegramClient(
                 session_base,
                 int(config.API_ID),
@@ -1260,8 +1271,10 @@ class SpamBotChecker:
             )
             
             # 连接（带超时）
+            print(f"⏳ [{account_name}] 正在连接到Telegram服务器...")
             try:
                 await asyncio.wait_for(client.connect(), timeout=connect_timeout)
+                print(f"✅ [{account_name}] 连接成功")
             except asyncio.TimeoutError:
                 last_error = "连接超时"
                 error_reason = "timeout" if config.PROXY_SHOW_FAILURE_REASON else "连接超时"
@@ -2786,6 +2799,8 @@ class FileProcessor:
             temp_session_path = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
             
             # 3. 转换TData为Session（使用代理连接）
+            # 问题1: TData格式统一转成session来操作任务
+            print(f"🔄 [{tdata_name}] 开始TData转Session转换...")
             try:
                 # 先转换为Session文件（不自动连接）
                 temp_client = await tdesk.ToTelethon(
@@ -2795,6 +2810,7 @@ class FileProcessor:
                 )
                 # 立即断开，避免非代理连接
                 await temp_client.disconnect()
+                print(f"✅ [{tdata_name}] TData转换完成")
                 
                 # 检查Session文件是否生成
                 session_file = f"{temp_session_path}.session"
@@ -2805,9 +2821,15 @@ class FileProcessor:
                 proxy_enabled = self.db.get_proxy_enabled() if self.db else True
                 use_proxy = config.USE_PROXY and proxy_enabled and self.checker.proxy_manager.proxies
                 
+                # 问题3: 控制台显示代理链接信息
                 if use_proxy:
+                    print(f"📡 [{tdata_name}] 代理模式已启用，可用代理: {len(self.checker.proxy_manager.proxies)}个")
                     proxy_info = self.checker.proxy_manager.get_next_proxy()
                     if proxy_info:
+                        proxy_type = proxy_info.get('type', 'http').upper()
+                        is_residential = "住宅" if proxy_info.get('is_residential', False) else "普通"
+                        print(f"🔗 [{tdata_name}] 选择{is_residential}{proxy_type}代理进行连接测试")
+                        
                         proxy_dict = self.checker.create_proxy_dict(proxy_info)
                         if proxy_dict:
                             # 使用代理重新创建客户端
@@ -2819,17 +2841,19 @@ class FileProcessor:
                             )
                             # 测试代理连接
                             try:
+                                print(f"⏳ [{tdata_name}] 通过代理连接Telegram服务器...")
                                 await asyncio.wait_for(temp_client.connect(), timeout=10)
                                 await temp_client.disconnect()
-                                print(f"✅ TData转换成功，使用代理连接: {tdata_name}")
+                                print(f"✅ [{tdata_name}] 代理连接测试成功")
                             except Exception as e:
-                                print(f"⚠️ 代理连接测试失败，将在检查时重试: {str(e)[:50]}")
+                                print(f"⚠️ [{tdata_name}] 代理连接测试失败: {str(e)[:50]}")
+                                print(f"   将在后续检查时重试其他代理")
                         else:
-                            print(f"⚠️ 代理配置失败，将在检查时重试: {tdata_name}")
+                            print(f"⚠️ [{tdata_name}] 代理配置失败，将在检查时重试")
                     else:
-                        print(f"⚠️ 无可用代理，将在检查时使用本地连接: {tdata_name}")
+                        print(f"⚠️ [{tdata_name}] 无可用代理，将在检查时使用本地连接")
                 else:
-                    print(f"ℹ️ 代理未启用或无可用代理: {tdata_name}")
+                    print(f"ℹ️ [{tdata_name}] 代理未启用或无可用代理，使用本地连接")
                     
             except Exception as e:
                 return "连接错误", f"TData转换失败: {str(e)[:50]}", tdata_name
@@ -2921,9 +2945,10 @@ class FileProcessor:
             return f"tdata_{int(time.time())}"
     
     def scan_zip_file(self, zip_path: str, user_id: int, task_id: str) -> Tuple[List[Tuple[str, str]], str, str]:
-        """扫描ZIP文件"""
+        """扫描ZIP文件 - 修复重复计数问题"""
         session_files = []
         tdata_folders = []
+        seen_tdata_paths = set()  # 防止重复计数TData目录
         
         # 在uploads目录下为每个任务创建专属文件夹
         task_upload_dir = os.path.join(config.UPLOADS_DIR, f"task_{task_id}")
@@ -2956,11 +2981,21 @@ class FileProcessor:
                     dir_path = os.path.join(root, dir_name)
                     d877_check_path = os.path.join(dir_path, "D877F783D5D3EF8C")
                     if os.path.exists(d877_check_path):
+                        # 使用规范化路径防止重复计数（处理符号链接和相对路径）
+                        normalized_path = os.path.normpath(os.path.abspath(dir_path))
+                        
+                        # 检查是否已经添加过此TData目录
+                        if normalized_path in seen_tdata_paths:
+                            print(f"⚠️ 跳过重复TData目录: {dir_name}")
+                            continue
+                        
+                        seen_tdata_paths.add(normalized_path)
+                        
                         # 使用新的提取方法获取手机号
                         display_name = self.extract_phone_from_tdata_directory(dir_path)
                         
                         tdata_folders.append((dir_path, display_name))
-                        print(f"📂 找到TData目录: {display_name}")
+                        print(f"📂 找到TData目录: {display_name} (路径: {dir_name})")
         
         except Exception as e:
             print(f"❌ 文件扫描失败: {e}")
@@ -2970,7 +3005,7 @@ class FileProcessor:
         # 优先级：TData > Session（修复检测优先级问题）
         if tdata_folders:
             print(f"🎯 检测到TData文件，优先使用TData检测")
-            print(f"✅ 找到 {len(tdata_folders)} 个TData文件夹")
+            print(f"✅ 找到 {len(tdata_folders)} 个唯一TData文件夹")
             if session_files:
                 print(f"📱 同时发现 {len(session_files)} 个Session文件（已忽略，优先TData）")
             return tdata_folders, task_upload_dir, "tdata"
@@ -3011,10 +3046,16 @@ class FileProcessor:
         async def process_single_account(file_path, file_name):
             nonlocal processed, last_update_time
             try:
+                # 问题3: 显示检查进度
+                print(f"\n{'='*60}")
+                print(f"📋 开始检查账号 [{processed + 1}/{total}]: {file_name}")
+                print(f"{'='*60}")
+                
                 if file_type == "session":
                     status, info, account_name = await self.checker.check_account_status(file_path, file_name, self.db)
                 else:  # tdata
-                    # TData格式：自动转换为Session后使用Session检查方法（更准确）
+                    # 问题1: TData格式统一转换为Session后检查（更准确）
+                    print(f"📂 [{file_name}] 格式: TData - 将自动转换为Session进行检查")
                     status, info, account_name = await self.convert_tdata_and_check(file_path, file_name)
                 
                 # 将状态映射到正确的分类
@@ -3030,7 +3071,9 @@ class FileProcessor:
                 
                 # 显示检测结果（如果状态被映射，显示原始状态和映射后的状态）
                 status_display = f"'{status}' (归类为 '{mapped_status}')" if status != mapped_status else status
-                print(f"✅ 检测完成 {processed}/{total}: {file_name} -> {status_display}")
+                progress_pct = int((processed / total) * 100)
+                print(f"✅ 检测完成 [{processed}/{total}] ({progress_pct}%): {file_name} -> {status_display}")
+                print(f"{'='*60}\n")
                 
                 # 控制更新频率，每3秒或每10个账号更新一次
                 current_time = time.time()
