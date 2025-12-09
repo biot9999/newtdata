@@ -16293,7 +16293,11 @@ class EnhancedBot:
         """处理批量创建回调"""
         user_id = query.from_user.id
         
-        if data == "batch_create_type_group":
+        if data == "batch_create_noop":
+            # 这是进度按钮的空操作回调
+            query.answer("实时进度更新中...")
+            return
+        elif data == "batch_create_type_group":
             self.handle_batch_create_select_type(query, user_id, "group")
         elif data == "batch_create_type_channel":
             self.handle_batch_create_select_type(query, user_id, "channel")
@@ -16895,21 +16899,69 @@ game_lovers_group</code>
                     caption="📊 批量创建详细报告"
                 )
             
-            # 发送成功链接列表（如果有）
-            success_results = [r for r in results if r.status == 'success' and r.invite_link]
+            # 生成成功列表文件
+            success_results = [r for r in results if r.status == 'success']
             if success_results:
-                links_text = "🔗 <b>创建成功的链接：</b>\n\n"
-                for r in success_results[:50]:  # 最多显示50个
-                    links_text += f"• {r.name}\n  {r.invite_link}\n\n"
+                success_filename = f"batch_create_success_{timestamp}.txt"
+                success_path = os.path.join(config.RESULTS_DIR, success_filename)
                 
-                if len(success_results) > 50:
-                    links_text += f"... 还有 {len(success_results) - 50} 个，请查看报告文件"
+                with open(success_path, 'w', encoding='utf-8') as f:
+                    f.write("=" * 80 + "\n")
+                    f.write("批量创建 - 成功列表\n")
+                    f.write("=" * 80 + "\n")
+                    f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"成功数量: {len(success_results)}\n\n")
+                    
+                    for r in success_results:
+                        f.write("-" * 80 + "\n")
+                        f.write(f"群昵称: {r.name}\n")
+                        f.write(f"群简介: {r.description or '无'}\n")
+                        f.write(f"群链接: {r.invite_link or '无'}\n")
+                        f.write(f"创建者账号: {r.phone}\n")
+                        f.write(f"创建者用户名: @{r.creator_username or '未知'}\n")
+                        f.write(f"管理员用户名: @{r.admin_username or '无'}\n")
+                        f.write("\n")
+                    
+                    f.write("=" * 80 + "\n")
                 
-                context.bot.send_message(
-                    chat_id=user_id,
-                    text=links_text,
-                    parse_mode='HTML'
-                )
+                with open(success_path, 'rb') as f:
+                    context.bot.send_document(
+                        chat_id=user_id,
+                        document=f,
+                        filename=success_filename,
+                        caption="✅ 成功创建列表"
+                    )
+            
+            # 生成失败列表文件
+            failed_results = [r for r in results if r.status == 'failed']
+            if failed_results:
+                failure_filename = f"batch_create_failure_{timestamp}.txt"
+                failure_path = os.path.join(config.RESULTS_DIR, failure_filename)
+                
+                with open(failure_path, 'w', encoding='utf-8') as f:
+                    f.write("=" * 80 + "\n")
+                    f.write("批量创建 - 失败列表（详细原因）\n")
+                    f.write("=" * 80 + "\n")
+                    f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"失败数量: {len(failed_results)}\n\n")
+                    
+                    for r in failed_results:
+                        f.write("-" * 80 + "\n")
+                        f.write(f"群昵称: {r.name}\n")
+                        f.write(f"群简介: {r.description or '无'}\n")
+                        f.write(f"创建者账号: {r.phone}\n")
+                        f.write(f"失败原因: {r.error}\n")
+                        f.write("\n")
+                    
+                    f.write("=" * 80 + "\n")
+                
+                with open(failure_path, 'rb') as f:
+                    context.bot.send_document(
+                        chat_id=user_id,
+                        document=f,
+                        filename=failure_filename,
+                        caption="❌ 失败详情列表"
+                    )
         
         finally:
             loop.close()
