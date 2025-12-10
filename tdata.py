@@ -18182,27 +18182,27 @@ admin3</code>
         """创建重新授权进度按钮"""
         return InlineKeyboardMarkup([
             [
-                InlineKeyboardButton(f"账户数量", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"📊 账户数量", callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{total}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"授权成功", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"✅ 授权成功", callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{success}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"冻结账户", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"❄️ 冻结账户", callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{frozen}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"封禁账户", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"🚫 封禁账户", callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{banned}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"2FA错误", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"🔐 2FA错误", callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{wrong_pwd}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"网络错误", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"⚠️ 网络错误", callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{network_error}", callback_data="reauthorize_noop")
             ]
         ])
