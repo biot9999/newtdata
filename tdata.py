@@ -29,7 +29,7 @@ import re
 import secrets
 import csv
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, Any, NamedTuple
 from dataclasses import dataclass, field, asdict
 from io import BytesIO
@@ -18793,14 +18793,57 @@ admin3</code>
                     return {'status': 'wrong_password', 'error': '2FA密码错误'}
             
             # 步骤8: 设置新密码（如果提供）
-            # TODO: 实现密码设置功能
-            # Telethon需要使用account.UpdatePasswordSettings来设置新密码
-            # 这需要提供正确的password_input_settings参数
             if new_password and new_password != old_password:
-                logger.info(f"🔑 [{file_name}] 步骤7: 准备设置新密码...")
-                print(f"🔑 [{file_name}] 步骤7: 准备设置新密码...", flush=True)
-                logger.info(f"ℹ️ [{file_name}] 注意: 新密码需要通过Telegram客户端完成设置")
-                print(f"ℹ️ [{file_name}] 注意: 新密码需要通过Telegram客户端完成设置", flush=True)
+                logger.info(f"🔑 [{file_name}] 步骤7: 设置新密码...")
+                print(f"🔑 [{file_name}] 步骤7: 设置新密码...", flush=True)
+                
+                password_set_success = False
+                
+                try:
+                    # 使用edit_2fa方法来设置新密码
+                    # 这是Telethon推荐的方式
+                    await new_client.edit_2fa(
+                        current_password=old_password if old_password else None,
+                        new_password=new_password,
+                        hint=f"Modified {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",  # 使用UTC时间
+                        email=None  # 可选的恢复邮箱
+                    )
+                    
+                    password_set_success = True
+                    logger.info(f"✅ [{file_name}] 新密码设置成功")
+                    print(f"✅ [{file_name}] 新密码设置成功", flush=True)
+                    
+                except PasswordHashInvalidError:
+                    # 专门处理密码错误异常
+                    logger.warning(f"⚠️ [{file_name}] 旧密码不正确，无法设置新密码")
+                    print(f"⚠️ [{file_name}] 旧密码不正确，无法设置新密码", flush=True)
+                    # 不阻止整个流程，继续执行
+                    
+                except (RPCError, FloodWaitError, NetworkError) as e:
+                    # 处理Telegram API相关错误
+                    error_type = type(e).__name__
+                    logger.warning(f"⚠️ [{file_name}] 设置新密码失败（Telegram错误）: {error_type}")
+                    print(f"⚠️ [{file_name}] 设置新密码失败（Telegram错误）: {error_type}", flush=True)
+                    # 不阻止整个流程，继续执行
+                    
+                except Exception as e:
+                    # 捕获其他未预期的错误
+                    error_type = type(e).__name__
+                    logger.warning(f"⚠️ [{file_name}] 设置新密码时出现未预期错误: {error_type}")
+                    print(f"⚠️ [{file_name}] 设置新密码时出现未预期错误: {error_type}", flush=True)
+                    # 不阻止整个流程，继续执行
+                
+                # 如果密码设置失败，记录到结果中
+                if not password_set_success:
+                    logger.info(f"ℹ️ [{file_name}] 注意: 新密码未成功设置，账号当前密码保持不变")
+                    print(f"ℹ️ [{file_name}] 注意: 新密码未成功设置，账号当前密码保持不变", flush=True)
+                    
+            elif new_password and new_password == old_password:
+                logger.info(f"ℹ️ [{file_name}] 新密码与旧密码相同，跳过密码设置")
+                print(f"ℹ️ [{file_name}] 新密码与旧密码相同，跳过密码设置", flush=True)
+            else:
+                logger.info(f"ℹ️ [{file_name}] 未提供新密码，跳过密码设置")
+                print(f"ℹ️ [{file_name}] 未提供新密码，跳过密码设置", flush=True)
             
             # 步骤9: 登出旧会话
             logger.info(f"🚪 [{file_name}] 步骤8: 登出旧会话...")
@@ -18854,8 +18897,8 @@ admin3</code>
                     # 连接新Session
                     convert_client = TelegramClient(
                         session_base,
-                        int(api_id),
-                        str(api_hash)
+                        int(new_api_id),
+                        str(new_api_hash)
                     )
                     await convert_client.connect()
                     
@@ -19175,15 +19218,20 @@ admin3</code>
                 failed_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_{category_key}_{timestamp}.zip")
                 with zipfile.ZipFile(failed_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
                     for file_path, file_name, result in items:
+                        # 获取手机号（用于创建目录结构）
+                        phone = result.get('phone', 'unknown')
+                        
                         # 失败的账号保持原始格式
                         # TData格式失败时返回原始TData
                         if os.path.isdir(file_path):
-                            # TData目录
+                            # TData目录 - 打包为 手机号/tdata/D877...
                             for root, dirs, files in os.walk(file_path):
                                 for file in files:
                                     file_full_path = os.path.join(root, file)
+                                    # 计算相对路径：手机号/tdata/...
                                     rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
-                                    zipf.write(file_full_path, rel_path)
+                                    arc_path = os.path.join(phone, rel_path)
+                                    zipf.write(file_full_path, arc_path)
                         else:
                             # Session文件
                             if os.path.exists(file_path):
