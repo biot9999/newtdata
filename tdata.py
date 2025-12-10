@@ -18443,7 +18443,7 @@ admin3</code>
                 logger.info(f"✅ [{file_name}] 新会话文件已替换旧会话")
                 print(f"✅ [{file_name}] 新会话文件已替换旧会话", flush=True)
             
-            # 步骤11: 如果原始格式是TData，转换回TData
+            # 步骤10: 如果原始格式是TData，转换回TData
             if file_type == 'tdata' and original_tdata_path:
                 logger.info(f"📂 [{file_name}] 步骤10: 转换Session回TData格式...")
                 print(f"📂 [{file_name}] 步骤10: 转换Session回TData格式...", flush=True)
@@ -18479,9 +18479,6 @@ admin3</code>
                             logger.info(f"✅ [{file_name}] 已创建2fa.txt密码文件")
                             print(f"✅ [{file_name}] 已创建2fa.txt密码文件", flush=True)
                         
-                        # 断开客户端
-                        await convert_client.disconnect()
-                        
                         # 删除旧TData，替换为新TData
                         if os.path.exists(original_tdata_path):
                             shutil.rmtree(original_tdata_path, ignore_errors=True)
@@ -18493,7 +18490,9 @@ admin3</code>
                         logger.warning(f"⚠️ [{file_name}] 新Session未授权，无法转换回TData")
                         print(f"⚠️ [{file_name}] 新Session未授权，无法转换回TData", flush=True)
                     
-                    await convert_client.disconnect()
+                    # 断开客户端
+                    if convert_client:
+                        await convert_client.disconnect()
                     
                 except Exception as e:
                     logger.error(f"❌ [{file_name}] 转换回TData失败: {e}")
@@ -18503,14 +18502,25 @@ admin3</code>
             logger.info(f"🎉 [{file_name}] 重新授权完成！")
             print(f"🎉 [{file_name}] 重新授权完成！", flush=True)
             
-            return {
+            # 准备返回数据
+            result = {
                 'status': 'success',
                 'phone': phone,
                 'message': '重新授权成功',
-                'file_type': file_type,
-                'session_path': old_session_file if file_type == 'session' else None,
-                'tdata_path': original_tdata_path if file_type == 'tdata' else None
+                'file_type': file_type
             }
+            
+            # 添加文件路径信息
+            if file_type == 'session':
+                # Session格式：返回session文件路径
+                result['session_path'] = f"{session_base}.session"
+                result['tdata_path'] = None
+            else:
+                # TData格式：返回TData目录路径和session文件路径
+                result['session_path'] = f"{session_base}.session" if os.path.exists(f"{session_base}.session") else None
+                result['tdata_path'] = original_tdata_path
+            
+            return result
             
         except UserDeactivatedError:
             return {'status': 'frozen', 'error': '账号已被冻结'}
@@ -18619,9 +18629,8 @@ admin3</code>
                             session_path = result.get('session_path')
                             if session_path and os.path.exists(session_path):
                                 session_base = os.path.splitext(session_path)[0]
-                                # Session文件
-                                if os.path.exists(session_path):
-                                    zipf.write(session_path, f"{phone}/{phone}.session")
+                                # Session文件 (already checked existence above)
+                                zipf.write(session_path, f"{phone}/{phone}.session")
                                 # Journal文件
                                 journal_path = f"{session_base}.session-journal"
                                 if os.path.exists(journal_path):
