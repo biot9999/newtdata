@@ -437,6 +437,120 @@ class ProxyManager:
             return None
 
 # ================================
+# 设备参数管理器（新增）
+# ================================
+
+class DeviceParamsManager:
+    """设备参数管理器 - 从device_params文件夹读取并随机选择设备参数"""
+    
+    def __init__(self, params_dir: str = "device_params"):
+        self.params_dir = params_dir
+        self.params = {}
+        self.load_all_params()
+    
+    def load_all_params(self):
+        """加载所有设备参数文件"""
+        if not os.path.exists(self.params_dir):
+            print(f"⚠️ 设备参数目录不存在: {self.params_dir}")
+            return
+        
+        param_files = {
+            'api_credentials': 'api_id+api_hash.txt',
+            'app_name': 'app_name.txt',
+            'app_version': 'app_version.txt',
+            'cpu_cores': 'cpu_cores.txt',
+            'device_sdk': 'device+sdk.txt',
+            'device_model': 'device_model.txt',
+            'lang_code': 'lang_code.txt',
+            'ram_size': 'ram_size.txt',
+            'screen_resolution': 'screen_resolution.txt',
+            'system_lang_code': 'system_lang_code.txt',
+            'system_version': 'system_version.txt',
+            'timezone': 'timezone.txt',
+            'user_agent': 'user_agent.txt'
+        }
+        
+        for param_name, filename in param_files.items():
+            filepath = os.path.join(self.params_dir, filename)
+            try:
+                if os.path.exists(filepath):
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                        self.params[param_name] = lines
+                        print(f"✅ 加载设备参数: {param_name} ({len(lines)} 项)")
+                else:
+                    print(f"⚠️ 设备参数文件不存在: {filename}")
+            except Exception as e:
+                print(f"❌ 加载设备参数失败 {filename}: {e}")
+        
+        total_params = sum(len(v) for v in self.params.values())
+        print(f"📱 设备参数管理器初始化完成，共加载 {total_params} 个参数项")
+    
+    def get_random_device_params(self) -> Dict[str, Any]:
+        """获取一组随机设备参数"""
+        params = {}
+        
+        # API凭据（api_id和api_hash）
+        if 'api_credentials' in self.params and self.params['api_credentials']:
+            cred = random.choice(self.params['api_credentials'])
+            if ':' in cred:
+                try:
+                    api_id, api_hash = cred.split(':', 1)
+                    params['api_id'] = int(api_id.strip())
+                    params['api_hash'] = api_hash.strip()
+                except (ValueError, AttributeError) as e:
+                    print(f"⚠️ 解析API凭据失败: {cred} - {e}")
+        
+        # 其他参数
+        for key in ['app_name', 'app_version', 'device_model', 'lang_code', 
+                    'system_lang_code', 'system_version', 'timezone', 'user_agent']:
+            if key in self.params and self.params[key]:
+                params[key] = random.choice(self.params[key])
+        
+        # 数值类型参数
+        if 'cpu_cores' in self.params and self.params['cpu_cores']:
+            try:
+                params['cpu_cores'] = int(random.choice(self.params['cpu_cores']))
+            except (ValueError, AttributeError) as e:
+                print(f"⚠️ 解析CPU核心数失败: {e}")
+        
+        if 'ram_size' in self.params and self.params['ram_size']:
+            try:
+                params['ram_size'] = int(random.choice(self.params['ram_size']))
+            except (ValueError, AttributeError) as e:
+                print(f"⚠️ 解析RAM大小失败: {e}")
+        
+        # 设备和SDK
+        if 'device_sdk' in self.params and self.params['device_sdk']:
+            device_sdk = random.choice(self.params['device_sdk'])
+            if ':' in device_sdk:
+                device, sdk = device_sdk.split(':', 1)
+                params['device'] = device.strip()
+                params['sdk'] = sdk.strip()
+        
+        # 屏幕分辨率
+        if 'screen_resolution' in self.params and self.params['screen_resolution']:
+            resolution = random.choice(self.params['screen_resolution'])
+            if 'x' in resolution:
+                try:
+                    width, height = resolution.split('x', 1)
+                    params['screen_width'] = int(width.strip())
+                    params['screen_height'] = int(height.strip())
+                except (ValueError, AttributeError) as e:
+                    print(f"⚠️ 解析屏幕分辨率失败: {resolution} - {e}")
+        
+        return params
+    
+    def get_random_api_credentials(self) -> Tuple[Optional[int], Optional[str]]:
+        """获取随机API凭据（api_id和api_hash）"""
+        if 'api_credentials' in self.params and self.params['api_credentials']:
+            cred = random.choice(self.params['api_credentials'])
+            if ':' in cred:
+                api_id, api_hash = cred.split(':', 1)
+                return int(api_id.strip()), api_hash.strip()
+        return None, None
+
+# ================================
 # 代理测试器（新增）
 # ================================
 
@@ -766,6 +880,12 @@ class Config:
         self.ENABLE_BATCH_CREATE = os.getenv("ENABLE_BATCH_CREATE", "true").lower() == "true"
         self.BATCH_CREATE_DAILY_LIMIT = int(os.getenv("BATCH_CREATE_DAILY_LIMIT", "10"))  # 每个账号每日创建上限
         self.BATCH_CREATE_CONCURRENT = int(os.getenv("BATCH_CREATE_CONCURRENT", "10"))  # 同时处理的账户数
+        
+        # 重新授权功能配置
+        self.ENABLE_REAUTHORIZE = os.getenv("ENABLE_REAUTHORIZE", "true").lower() == "true"
+        self.REAUTH_CONCURRENT = int(os.getenv("REAUTH_CONCURRENT", "30"))  # 同时处理的账户数（默认30）
+        self.REAUTH_USE_RANDOM_DEVICE = os.getenv("REAUTH_USE_RANDOM_DEVICE", "true").lower() == "true"  # 使用随机设备参数
+        self.REAUTH_FORCE_PROXY = os.getenv("REAUTH_FORCE_PROXY", "true").lower() == "true"  # 强制使用代理
         self.BATCH_CREATE_MIN_INTERVAL = int(os.getenv("BATCH_CREATE_MIN_INTERVAL", "60"))  # 创建间隔最小秒数
         self.BATCH_CREATE_MAX_INTERVAL = int(os.getenv("BATCH_CREATE_MAX_INTERVAL", "120"))  # 创建间隔最大秒数
         self.BATCH_CREATE_MAX_FLOOD_WAIT = int(os.getenv("BATCH_CREATE_MAX_FLOOD_WAIT", "60"))  # 最大可接受的flood等待时间（秒）
@@ -800,6 +920,7 @@ class Config:
         print(f"🧹 一键清理: {'启用' if self.ENABLE_ONE_CLICK_CLEANUP else '禁用'}")
         print(f"📦 批量创建: {'启用' if self.ENABLE_BATCH_CREATE else '禁用'}，每日限制: {self.BATCH_CREATE_DAILY_LIMIT}")
         print(f"⏱️ 创建间隔: {self.BATCH_CREATE_MIN_INTERVAL}-{self.BATCH_CREATE_MAX_INTERVAL}秒（避免频率限制）")
+        print(f"🔄 重新授权: {'启用' if self.ENABLE_REAUTHORIZE else '禁用'}，并发数: {self.REAUTH_CONCURRENT}，随机设备: {'开启' if self.REAUTH_USE_RANDOM_DEVICE else '关闭'}，强制代理: {'开启' if self.REAUTH_FORCE_PROXY else '关闭'}")
         print(f"💡 注意: 实际代理模式需要配置文件+数据库开关+有效代理文件同时满足")
     
     def validate(self):
@@ -862,6 +983,11 @@ BATCH_CREATE_CONCURRENT=10  # 同时处理的账户数
 BATCH_CREATE_MIN_INTERVAL=60  # 创建间隔最小秒数（每个账号内）
 BATCH_CREATE_MAX_INTERVAL=120  # 创建间隔最大秒数（每个账号内）
 BATCH_CREATE_MAX_FLOOD_WAIT=60  # 最大可接受的flood等待时间（秒）
+# 重新授权功能配置
+ENABLE_REAUTHORIZE=true
+REAUTH_CONCURRENT=30  # 同时处理的账户数（默认30）
+REAUTH_USE_RANDOM_DEVICE=true  # 使用随机设备参数
+REAUTH_FORCE_PROXY=true  # 强制使用代理
 """
             with open(".env", "w", encoding="utf-8") as f:
                 f.write(env_content)
@@ -7855,6 +7981,7 @@ class EnhancedBot:
         self.db = Database(config.DB_NAME)
         self.proxy_manager = ProxyManager(config.PROXY_FILE)
         self.proxy_tester = ProxyTester(self.proxy_manager)
+        self.device_params_manager = DeviceParamsManager()  # 初始化设备参数管理器
         self.checker = SpamBotChecker(self.proxy_manager)
         self.processor = FileProcessor(self.checker, self.db)
         self.converter = FormatConverter(self.db)
@@ -9407,7 +9534,7 @@ class EnhancedBot:
             self.handle_batch_create_callbacks(update, context, query, data)
         elif data == "reauthorize_start":
             self.handle_reauthorize_start(query)
-        elif data.startswith("reauthorize_"):
+        elif data.startswith("reauthorize_") or data.startswith("reauth_"):
             self.handle_reauthorize_callbacks(update, context, query, data)
         elif query.data == "back_to_main":
             self.show_main_menu(update, user_id)
@@ -18116,13 +18243,14 @@ admin3</code>
         
         try:
             logger.info(f"📊 开始重新授权 - 用户ID: {user_id}, 账号数: {total_files}")
-            print(f"📊 开始重新授权 - 用户ID: {user_id}, 账号数: {total_files}", flush=True)
+            print(f"📊 开始重新授权 - 用户ID: {user_id}, 账号数: {total_files}, 并发数: {config.REAUTH_CONCURRENT}", flush=True)
             
-            # 处理每个账号
-            for idx, (file_path, file_name) in enumerate(files):
-                current = idx + 1
-                progress_callback(current, total_files, f"正在处理 {file_name}...")
-                
+            # 使用并发处理账号
+            completed_count = 0
+            
+            async def process_account_wrapper(idx, file_path, file_name):
+                """处理单个账号的包装器"""
+                nonlocal completed_count
                 try:
                     # 根据模式决定使用哪个密码
                     if password_mode == 'auto':
@@ -18130,10 +18258,8 @@ admin3</code>
                     else:
                         account_old_password = old_password
                     
-                    result = loop.run_until_complete(
-                        self._reauthorize_single_account(
-                            file_path, file_name, account_old_password, new_password, user_id, file_type
-                        )
+                    result = await self._reauthorize_single_account(
+                        file_path, file_name, account_old_password, new_password, user_id, file_type
                     )
                     
                     # 根据结果分类
@@ -18150,9 +18276,37 @@ admin3</code>
                     else:
                         results['other_error'].append((file_path, file_name, result))
                     
+                    completed_count += 1
+                    progress_callback(completed_count, total_files, f"已完成 {completed_count}/{total_files}")
+                    
                 except Exception as e:
                     logger.error(f"❌ 处理账号失败 {file_name}: {e}")
                     results['other_error'].append((file_path, file_name, {'status': 'error', 'error': str(e)}))
+                    completed_count += 1
+                    progress_callback(completed_count, total_files, f"已完成 {completed_count}/{total_files}")
+            
+            async def process_batch():
+                """批量并发处理账号"""
+                # 创建信号量控制并发数
+                semaphore = asyncio.Semaphore(config.REAUTH_CONCURRENT)
+                
+                async def process_with_semaphore(idx, file_path, file_name):
+                    async with semaphore:
+                        await process_account_wrapper(idx, file_path, file_name)
+                
+                # 创建所有任务
+                tasks = [
+                    process_with_semaphore(idx, file_path, file_name)
+                    for idx, (file_path, file_name) in enumerate(files)
+                ]
+                
+                # 并发执行所有任务
+                # 使用return_exceptions=True允许部分失败不影响其他任务
+                # 异常已在process_account_wrapper中处理
+                await asyncio.gather(*tasks, return_exceptions=True)
+            
+            # 执行批量处理
+            loop.run_until_complete(process_batch())
             
             # 生成报告和打包结果
             self._generate_reauthorize_report(context, user_id, results, progress_msg)
@@ -18220,55 +18374,95 @@ admin3</code>
             
             # 使用配置中的API凭据（不能使用随机设备的API凭据，因为现有session是用特定API凭据创建的）
             # Telegram会验证API凭据与手机号的匹配关系
-            api_id = config.API_ID
-            api_hash = config.API_HASH
+            old_api_id = config.API_ID
+            old_api_hash = config.API_HASH
             
-            logger.info(f"📱 [{file_name}] 使用配置的API凭据: API_ID={api_id}")
-            print(f"📱 [{file_name}] 使用配置的API凭据: API_ID={api_id}", flush=True)
+            # 获取随机设备参数（用于新会话）
+            # 注意：API凭据必须使用配置的有效凭据，不能随机化
+            # 只随机化设备指纹参数（device_model, system_version等）
+            random_device_params = None
+            new_api_id = old_api_id  # 使用相同的API凭据
+            new_api_hash = old_api_hash  # 使用相同的API凭据
             
-            # 获取代理
+            if config.REAUTH_USE_RANDOM_DEVICE:
+                try:
+                    random_device_params = self.device_params_manager.get_random_device_params()
+                    logger.info(f"📱 [{file_name}] 新会话将使用随机设备指纹")
+                    print(f"📱 [{file_name}] 新会话将使用随机设备指纹", flush=True)
+                except Exception as e:
+                    logger.warning(f"⚠️ [{file_name}] 获取随机设备参数失败: {e}")
+                    print(f"⚠️ [{file_name}] 获取随机设备参数失败: {e}", flush=True)
+            
+            logger.info(f"📱 [{file_name}] 旧会话使用配置的API凭据: API_ID={old_api_id}")
+            print(f"📱 [{file_name}] 旧会话使用配置的API凭据: API_ID={old_api_id}", flush=True)
+            
+            # 获取代理（强制使用代理优先）
             proxy_dict = None
             proxy_info = None
-            if self.proxy_manager.is_proxy_mode_active(self.db):
+            use_proxy = config.REAUTH_FORCE_PROXY or self.proxy_manager.is_proxy_mode_active(self.db)
+            
+            if use_proxy and self.proxy_manager.proxies:
                 proxy_info = self.proxy_manager.get_next_proxy()
                 if proxy_info:
                     proxy_dict = self.checker.create_proxy_dict(proxy_info)
                     proxy_type = "住宅代理" if proxy_info.get('is_residential', False) else "代理"
-                    logger.info(f"🌐 [{file_name}] 使用{proxy_type}")
-                    print(f"🌐 [{file_name}] 使用{proxy_type}", flush=True)
+                    logger.info(f"🌐 [{file_name}] 强制使用{proxy_type}（配置: REAUTH_FORCE_PROXY={config.REAUTH_FORCE_PROXY}）")
+                    print(f"🌐 [{file_name}] 强制使用{proxy_type}（配置: REAUTH_FORCE_PROXY={config.REAUTH_FORCE_PROXY}）", flush=True)
+                else:
+                    logger.warning(f"⚠️ [{file_name}] 代理模式启用但无可用代理")
+                    print(f"⚠️ [{file_name}] 代理模式启用但无可用代理", flush=True)
+            else:
+                logger.info(f"ℹ️ [{file_name}] 代理模式未启用，使用本地连接")
+                print(f"ℹ️ [{file_name}] 代理模式未启用，使用本地连接", flush=True)
             
             # 步骤1: 创建旧客户端连接
             session_base = file_path.replace('.session', '') if file_path.endswith('.session') else file_path
             
             client = TelegramClient(
                 session_base,
-                int(api_id),
-                str(api_hash),
+                int(old_api_id),
+                str(old_api_hash),
                 timeout=30,
                 connection_retries=2,
                 retry_delay=1,
                 proxy=proxy_dict
             )
             
-            logger.info(f"⏳ [{file_name}] 连接到Telegram服务器...")
-            print(f"⏳ [{file_name}] 连接到Telegram服务器...", flush=True)
+            logger.info(f"⏳ [{file_name}] 连接到Telegram服务器（旧会话）...")
+            print(f"⏳ [{file_name}] 连接到Telegram服务器（旧会话）...", flush=True)
             
+            # 强制代理优先逻辑：只有代理超时才回退到本地
+            connect_success = False
             try:
                 await asyncio.wait_for(client.connect(), timeout=30)
-                logger.info(f"✅ [{file_name}] 连接成功")
-                print(f"✅ [{file_name}] 连接成功", flush=True)
+                logger.info(f"✅ [{file_name}] 旧会话连接成功（使用{'代理' if proxy_dict else '本地'}）")
+                print(f"✅ [{file_name}] 旧会话连接成功（使用{'代理' if proxy_dict else '本地'}）", flush=True)
+                connect_success = True
             except asyncio.TimeoutError:
-                logger.warning(f"⚠️ [{file_name}] 代理连接超时，回退到本地连接")
-                print(f"⚠️ [{file_name}] 代理连接超时，回退到本地连接", flush=True)
-                # 回退到本地连接
-                await client.disconnect()
-                client = TelegramClient(
-                    session_base,
-                    int(api_id),
-                    str(api_hash),
-                    timeout=30
-                )
-                await client.connect()
+                if proxy_dict and config.REAUTH_FORCE_PROXY:
+                    # 只有在使用代理且超时的情况下才回退
+                    logger.warning(f"⚠️ [{file_name}] 代理连接超时，回退到本地连接")
+                    print(f"⚠️ [{file_name}] 代理连接超时，回退到本地连接", flush=True)
+                    try:
+                        await client.disconnect()
+                    except Exception as e:
+                        logger.warning(f"⚠️ [{file_name}] 断开旧客户端失败: {e}")
+                    # 重新创建不带代理的客户端
+                    client = TelegramClient(
+                        session_base,
+                        int(old_api_id),
+                        str(old_api_hash),
+                        timeout=30
+                    )
+                    await client.connect()
+                    logger.info(f"✅ [{file_name}] 本地连接成功")
+                    print(f"✅ [{file_name}] 本地连接成功", flush=True)
+                    connect_success = True
+                else:
+                    # 如果不是代理超时，或者没有配置强制代理，则抛出异常
+                    logger.error(f"❌ [{file_name}] 连接超时且无法回退")
+                    print(f"❌ [{file_name}] 连接超时且无法回退", flush=True)
+                    return {'status': 'network_error', 'error': '连接超时'}
             
             # 检查授权状态
             if not await client.is_user_authorized():
@@ -18316,22 +18510,61 @@ admin3</code>
                     logger.warning(f"⚠️ [{file_name}] 检查2FA状态失败: {e}")
                     print(f"⚠️ [{file_name}] 检查2FA状态失败: {e}", flush=True)
             
-            # 步骤4: 创建新会话
-            logger.info(f"🔑 [{file_name}] 步骤3: 创建新会话...")
-            print(f"🔑 [{file_name}] 步骤3: 创建新会话...", flush=True)
+            # 步骤4: 创建新会话（使用随机设备参数）
+            logger.info(f"🔑 [{file_name}] 步骤3: 创建新会话（使用随机设备参数）...")
+            print(f"🔑 [{file_name}] 步骤3: 创建新会话（使用随机设备参数）...", flush=True)
             
             # 为新会话创建新路径
             new_session_path = f"{session_base}_new"
             
+            # 创建新客户端（使用随机设备参数的API凭据）
             new_client = TelegramClient(
                 new_session_path,
-                int(api_id),
-                str(api_hash),
+                int(new_api_id),
+                str(new_api_hash),
                 timeout=30,
-                proxy=proxy_dict
+                proxy=proxy_dict,
+                # 添加随机设备参数（如果有）
+                device_model=random_device_params.get('device_model', 'Desktop') if random_device_params else 'Desktop',
+                system_version=random_device_params.get('system_version', 'Windows 10') if random_device_params else 'Windows 10',
+                app_version=random_device_params.get('app_version', '3.2.8 x64') if random_device_params else '3.2.8 x64',
+                lang_code=random_device_params.get('lang_code', 'en') if random_device_params else 'en',
+                system_lang_code=random_device_params.get('system_lang_code', 'en-US') if random_device_params else 'en-US'
             )
             
-            await new_client.connect()
+            logger.info(f"📱 [{file_name}] 新会话设备信息: {random_device_params.get('device_model', 'Desktop') if random_device_params else 'Desktop'}, {random_device_params.get('system_version', 'Windows 10') if random_device_params else 'Windows 10'}")
+            print(f"📱 [{file_name}] 新会话设备信息: {random_device_params.get('device_model', 'Desktop') if random_device_params else 'Desktop'}, {random_device_params.get('system_version', 'Windows 10') if random_device_params else 'Windows 10'}", flush=True)
+            
+            # 连接新客户端（强制代理优先）
+            try:
+                await asyncio.wait_for(new_client.connect(), timeout=30)
+                logger.info(f"✅ [{file_name}] 新会话连接成功（使用{'代理' if proxy_dict else '本地'}）")
+                print(f"✅ [{file_name}] 新会话连接成功（使用{'代理' if proxy_dict else '本地'}）", flush=True)
+            except asyncio.TimeoutError:
+                if proxy_dict and config.REAUTH_FORCE_PROXY:
+                    logger.warning(f"⚠️ [{file_name}] 新会话代理连接超时，回退到本地连接")
+                    print(f"⚠️ [{file_name}] 新会话代理连接超时，回退到本地连接", flush=True)
+                    try:
+                        await new_client.disconnect()
+                    except Exception as e:
+                        logger.warning(f"⚠️ [{file_name}] 断开新客户端失败: {e}")
+                    # 重新创建不带代理的客户端
+                    new_client = TelegramClient(
+                        new_session_path,
+                        int(new_api_id),
+                        str(new_api_hash),
+                        timeout=30,
+                        device_model=random_device_params.get('device_model', 'Desktop') if random_device_params else 'Desktop',
+                        system_version=random_device_params.get('system_version', 'Windows 10') if random_device_params else 'Windows 10',
+                        app_version=random_device_params.get('app_version', '3.2.8 x64') if random_device_params else '3.2.8 x64',
+                        lang_code=random_device_params.get('lang_code', 'en') if random_device_params else 'en',
+                        system_lang_code=random_device_params.get('system_lang_code', 'en-US') if random_device_params else 'en-US'
+                    )
+                    await new_client.connect()
+                    logger.info(f"✅ [{file_name}] 新会话本地连接成功")
+                    print(f"✅ [{file_name}] 新会话本地连接成功", flush=True)
+                else:
+                    raise
             
             # 步骤5: 请求验证码
             logger.info(f"📲 [{file_name}] 步骤4: 请求验证码...")
@@ -18339,8 +18572,8 @@ admin3</code>
             
             sent_code = await new_client(SendCodeRequest(
                 phone,
-                int(api_id),
-                str(api_hash),
+                int(new_api_id),
+                str(new_api_hash),
                 CodeSettings()
             ))
             
@@ -18507,8 +18740,68 @@ admin3</code>
                 'status': 'success',
                 'phone': phone,
                 'message': '重新授权成功',
-                'file_type': file_type
+                'file_type': file_type,
+                'new_password': new_password if new_password else '无',  # 新密码
+                'device_model': random_device_params.get('device_model', '默认设备') if random_device_params else '默认设备',
+                'system_version': random_device_params.get('system_version', '默认系统') if random_device_params else '默认系统',
+                'app_version': random_device_params.get('app_version', '默认版本') if random_device_params else '默认版本',
+                'proxy_used': '使用代理' if proxy_dict else '本地连接',
+                'proxy_type': proxy_info.get('type', 'N/A') if proxy_info else 'N/A'
             }
+            
+            # 更新JSON文件中的twoFA字段（如果有新密码）
+            if new_password and file_type == 'session':
+                json_path = os.path.splitext(f"{session_base}.session")[0] + '.json'
+                try:
+                    if os.path.exists(json_path):
+                        with open(json_path, 'r', encoding='utf-8') as f:
+                            json_data = json.load(f)
+                        json_data['twoFA'] = new_password
+                        with open(json_path, 'w', encoding='utf-8') as f:
+                            json.dump(json_data, f, ensure_ascii=False, indent=2)
+                        logger.info(f"✅ [{file_name}] 已更新JSON文件中的twoFA字段")
+                        print(f"✅ [{file_name}] 已更新JSON文件中的twoFA字段", flush=True)
+                    else:
+                        # 创建新的JSON文件
+                        json_data = {
+                            'phone': phone,
+                            'twoFA': new_password
+                        }
+                        with open(json_path, 'w', encoding='utf-8') as f:
+                            json.dump(json_data, f, ensure_ascii=False, indent=2)
+                        logger.info(f"✅ [{file_name}] 已创建JSON文件并保存twoFA")
+                        print(f"✅ [{file_name}] 已创建JSON文件并保存twoFA", flush=True)
+                except Exception as e:
+                    logger.warning(f"⚠️ [{file_name}] 更新JSON文件失败: {e}")
+                    print(f"⚠️ [{file_name}] 更新JSON文件失败: {e}", flush=True)
+            
+            # 更新TData格式的密码文件（如果有新密码）
+            if new_password and file_type == 'tdata' and original_tdata_path:
+                try:
+                    # 尝试常见的密码文件名
+                    password_files = ['2fa.txt', 'twofa.txt', 'password.txt']
+                    password_file_path = None
+                    
+                    # 检查是否已存在密码文件
+                    for pf in password_files:
+                        test_path = os.path.join(original_tdata_path, pf)
+                        if os.path.exists(test_path):
+                            password_file_path = test_path
+                            break
+                    
+                    # 如果不存在，创建2fa.txt
+                    if not password_file_path:
+                        password_file_path = os.path.join(original_tdata_path, '2fa.txt')
+                    
+                    # 写入新密码
+                    with open(password_file_path, 'w', encoding='utf-8') as f:
+                        f.write(new_password)
+                    
+                    logger.info(f"✅ [{file_name}] 已更新TData密码文件: {os.path.basename(password_file_path)}")
+                    print(f"✅ [{file_name}] 已更新TData密码文件: {os.path.basename(password_file_path)}", flush=True)
+                except Exception as e:
+                    logger.warning(f"⚠️ [{file_name}] 更新TData密码文件失败: {e}")
+                    print(f"⚠️ [{file_name}] 更新TData密码文件失败: {e}", flush=True)
             
             # 添加文件路径信息
             if file_type == 'session':
@@ -18599,6 +18892,23 @@ admin3</code>
                         f.write(f"文件: {file_name}\n")
                         if 'phone' in result:
                             f.write(f"手机号: {result['phone']}\n")
+                        
+                        # 成功的账户显示详细信息
+                        if category == 'success':
+                            if 'device_model' in result:
+                                f.write(f"设备型号: {result['device_model']}\n")
+                            if 'system_version' in result:
+                                f.write(f"系统版本: {result['system_version']}\n")
+                            if 'app_version' in result:
+                                f.write(f"应用版本: {result['app_version']}\n")
+                            if 'proxy_used' in result:
+                                f.write(f"连接方式: {result['proxy_used']}")
+                                if result.get('proxy_type') and result['proxy_type'] != 'N/A':
+                                    f.write(f" ({result['proxy_type'].upper()})")
+                                f.write("\n")
+                            if 'new_password' in result:
+                                f.write(f"新密码: {result['new_password']}\n")
+                        
                         if 'error' in result:
                             f.write(f"错误: {result['error']}\n")
                         f.write("\n")
