@@ -18928,6 +18928,11 @@ admin3</code>
                     tdesk_new.SaveTData(new_tdata_path)
                     
                     # 验证TData目录是否创建成功
+                    if not os.path.exists(new_tdata_path):
+                        logger.error(f"❌ [{file_name}] TData转换失败：目录不存在")
+                        print(f"❌ [{file_name}] TData转换失败：目录不存在", flush=True)
+                        return {'status': 'other_error', 'error': 'TData转换失败：目录不存在'}
+                    
                     tdata_dirs = [d for d in os.listdir(new_tdata_path) if os.path.isdir(os.path.join(new_tdata_path, d))]
                     if not tdata_dirs:
                         logger.error(f"❌ [{file_name}] TData转换失败：未生成TData目录")
@@ -18975,8 +18980,8 @@ admin3</code>
                     if convert_client:
                         try:
                             await convert_client.disconnect()
-                        except:
-                            pass
+                        except Exception as e:
+                            logger.warning(f"⚠️ [{file_name}] 断开客户端失败: {e}")
                     
                     # TData转换失败应该返回错误，不应该标记为成功
                     return {'status': 'other_error', 'error': f'TData转换失败: {str(e)}'}
