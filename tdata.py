@@ -18177,6 +18177,23 @@ admin3</code>
             parse_mode='HTML'
         )
     
+    def _create_reauth_progress_keyboard(self, total: int, success: int, frozen: int, wrong_pwd: int, banned: int, network_error: int) -> InlineKeyboardMarkup:
+        """创建重新授权进度按钮"""
+        return InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(f"总账号量 {total}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"授权成功 {success}", callback_data="reauthorize_noop")
+            ],
+            [
+                InlineKeyboardButton(f"冻结账户 {frozen}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"2FA错误 {wrong_pwd}", callback_data="reauthorize_noop")
+            ],
+            [
+                InlineKeyboardButton(f"封禁账户 {banned}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"网络错误 {network_error}", callback_data="reauthorize_noop")
+            ]
+        ])
+    
     def _execute_reauthorize(self, update: Update, context: CallbackContext, user_id: int, task: Dict):
         """实际执行重新授权"""
         import asyncio
@@ -18192,20 +18209,7 @@ admin3</code>
         total_files = len(files)
         
         # 创建初始按钮布局
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("总账号量 0", callback_data="reauthorize_noop"),
-                InlineKeyboardButton("授权成功 0", callback_data="reauthorize_noop")
-            ],
-            [
-                InlineKeyboardButton("冻结账户 0", callback_data="reauthorize_noop"),
-                InlineKeyboardButton("2FA错误 0", callback_data="reauthorize_noop")
-            ],
-            [
-                InlineKeyboardButton("封禁账户 0", callback_data="reauthorize_noop"),
-                InlineKeyboardButton("网络错误 0", callback_data="reauthorize_noop")
-            ]
-        ])
+        keyboard = self._create_reauth_progress_keyboard(total_files, 0, 0, 0, 0, 0)
         
         progress_msg = context.bot.send_message(
             chat_id=user_id,
@@ -18246,20 +18250,9 @@ admin3</code>
                     other_error_count = len(results['other_error'])
                     
                     # 创建实时统计按钮
-                    keyboard = InlineKeyboardMarkup([
-                        [
-                            InlineKeyboardButton(f"总账号量 {total}", callback_data="reauthorize_noop"),
-                            InlineKeyboardButton(f"授权成功 {success_count}", callback_data="reauthorize_noop")
-                        ],
-                        [
-                            InlineKeyboardButton(f"冻结账户 {frozen_count}", callback_data="reauthorize_noop"),
-                            InlineKeyboardButton(f"2FA错误 {wrong_pwd_count}", callback_data="reauthorize_noop")
-                        ],
-                        [
-                            InlineKeyboardButton(f"封禁账户 {banned_count}", callback_data="reauthorize_noop"),
-                            InlineKeyboardButton(f"网络错误 {network_error_count}", callback_data="reauthorize_noop")
-                        ]
-                    ])
+                    keyboard = self._create_reauth_progress_keyboard(
+                        total, success_count, frozen_count, wrong_pwd_count, banned_count, network_error_count
+                    )
                     
                     logger.info(f"📊 重新授权进度: {current}/{total} ({progress}%) - 成功:{success_count} 冻结:{frozen_count} 封禁:{banned_count} 密码错误:{wrong_pwd_count} 网络:{network_error_count}")
                     print(f"📊 重新授权进度: {current}/{total} ({progress}%) - 成功:{success_count} 冻结:{frozen_count} 封禁:{banned_count} 密码错误:{wrong_pwd_count} 网络:{network_error_count}", flush=True)
