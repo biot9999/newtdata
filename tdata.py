@@ -18469,7 +18469,9 @@ admin3</code>
                 
                 # 并发执行所有任务 - 添加总超时保护（每个账号最多3分钟，总共不超过账号数*3分钟）
                 # 但至少30分钟
-                total_timeout = max(total_files * 180, 1800)  # 最少30分钟
+                MINIMUM_TOTAL_TIMEOUT = 1800  # 30分钟最小超时
+                PER_ACCOUNT_TIMEOUT = 180  # 每个账号3分钟
+                total_timeout = max(total_files * PER_ACCOUNT_TIMEOUT, MINIMUM_TOTAL_TIMEOUT)
                 logger.info(f"⏰ 设置总超时: {total_timeout}秒 ({total_timeout/60:.1f}分钟)")
                 print(f"⏰ 设置总超时: {total_timeout}秒 ({total_timeout/60:.1f}分钟)", flush=True)
                 
@@ -18606,7 +18608,7 @@ admin3</code>
                     if temp_client:
                         try:
                             await asyncio.wait_for(temp_client.disconnect(), timeout=10)
-                        except:
+                        except Exception:
                             pass
                     
                     # 使用转换后的Session路径
