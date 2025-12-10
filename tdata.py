@@ -93,7 +93,7 @@ try:
     )
     from telethon.tl.types import User, CodeSettings
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
-    from telethon.tl.functions.account import GetPasswordRequest
+    from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest
     from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
     TELETHON_AVAILABLE = True
     print("✅ telethon库导入成功")
@@ -18131,7 +18131,7 @@ admin3</code>
             print(f"🔄 [{file_name}] 步骤1: 重置所有会话...", flush=True)
             
             try:
-                sessions = await client(functions.account.GetAuthorizationsRequest())
+                sessions = await client(GetAuthorizationsRequest())
                 if len(sessions.authorizations) > 1:
                     await client(ResetAuthorizationsRequest())
                     logger.info(f"✅ [{file_name}] 已踢掉其他设备登录")
@@ -18161,9 +18161,6 @@ admin3</code>
                 except Exception as e:
                     logger.warning(f"⚠️ [{file_name}] 检查2FA状态失败: {e}")
                     print(f"⚠️ [{file_name}] 检查2FA状态失败: {e}", flush=True)
-                except Exception as e:
-                    logger.warning(f"⚠️ [{file_name}] 检查密码失败: {e}")
-                    print(f"⚠️ [{file_name}] 检查密码失败: {e}", flush=True)
             
             # 步骤4: 创建新会话
             logger.info(f"🔑 [{file_name}] 步骤3: 创建新会话...")
@@ -18209,11 +18206,12 @@ admin3</code>
                 return {'status': 'other_error', 'error': '未收到验证码'}
             
             # Support both 5 and 6 digit verification codes
-            code_match = re.search(r"\b\d{5,6}\b", messages[0].message)
+            # Use a pattern that works for digit-only codes without word boundaries
+            code_match = re.search(r"(\d{5,6})", messages[0].message)
             if not code_match:
                 return {'status': 'other_error', 'error': '验证码格式不正确'}
             
-            code = code_match.group()
+            code = code_match.group(1)
             logger.info(f"✅ [{file_name}] 获取到验证码: {code}")
             print(f"✅ [{file_name}] 获取到验证码: {code}", flush=True)
             
@@ -18230,13 +18228,17 @@ admin3</code>
                 logger.info(f"✅ [{file_name}] 新会话登录成功")
                 print(f"✅ [{file_name}] 新会话登录成功", flush=True)
             except SessionPasswordNeededError:
-                # 需要2FA密码
-                if not new_password:
-                    return {'status': 'wrong_password', 'error': '需要2FA密码'}
+                # 需要2FA密码 - 优先使用旧密码，如果没有则使用新密码
+                password_to_use = old_password if old_password else new_password
+                if not password_to_use:
+                    return {'status': 'wrong_password', 'error': '需要2FA密码但未提供'}
                 
-                await new_client.sign_in(phone=phone, password=new_password)
-                logger.info(f"✅ [{file_name}] 使用2FA密码登录成功")
-                print(f"✅ [{file_name}] 使用2FA密码登录成功", flush=True)
+                try:
+                    await new_client.sign_in(phone=phone, password=password_to_use)
+                    logger.info(f"✅ [{file_name}] 使用2FA密码登录成功")
+                    print(f"✅ [{file_name}] 使用2FA密码登录成功", flush=True)
+                except PasswordHashInvalidError:
+                    return {'status': 'wrong_password', 'error': '2FA密码错误'}
             
             # 步骤8: 设置新密码（如果提供）
             # TODO: 实现密码设置功能
