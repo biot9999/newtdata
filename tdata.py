@@ -20278,48 +20278,77 @@ admin3</code>
             logger.error(f"❌ 生成报告文件失败: {e}")
             print(f"❌ 生成报告文件失败: {e}", flush=True)
         
-        # 按日期打包成功的账号
-        zip_files = []
-        for reg_date, items in by_date.items():
-            if items:
-                logger.info(f"📦 开始打包 {reg_date} 的账号...")
-                print(f"📦 开始打包 {reg_date} 的账号...", flush=True)
-                try:
-                    date_safe = reg_date.replace('/', '-')
-                    date_zip = os.path.join(config.RESULTS_DIR, f"registration_{date_safe}_{len(items)}_{timestamp}.zip")
-                    with zipfile.ZipFile(date_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # 按日期打包成功的账号 - 统一打包到一个ZIP文件中
+        logger.info(f"📦 开始打包所有账号到单个ZIP文件...")
+        print(f"📦 开始打包所有账号到单个ZIP文件...", flush=True)
+        
+        # 创建一个统一的ZIP文件
+        all_accounts_zip = os.path.join(config.RESULTS_DIR, f"registration_all_{timestamp}.zip")
+        
+        try:
+            with zipfile.ZipFile(all_accounts_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # 遍历每个日期
+                for reg_date, items in sorted(by_date.items()):
+                    if items:
+                        logger.info(f"📦 打包 {reg_date} 的 {len(items)} 个账号...")
+                        print(f"📦 打包 {reg_date} 的 {len(items)} 个账号...", flush=True)
+                        
+                        # 创建日期文件夹名称：如 "2025-09-26 注册的账号 (16 个)"
+                        date_folder = f"{reg_date} 注册的账号 ({len(items)} 个)"
+                        
                         for file_path, file_name, result in items:
                             phone = result.get('phone', 'unknown')
                             result_file_type = result.get('file_type', 'session')
                             
-                            if result_file_type == 'tdata':
-                                # TData格式：打包整个目录
-                                if os.path.isdir(file_path):
-                                    for root, dirs, files in os.walk(file_path):
-                                        for file in files:
-                                            file_full_path = os.path.join(root, file)
-                                            rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
-                                            arc_path = os.path.join(phone, rel_path)
-                                            zipf.write(file_full_path, arc_path)
-                            else:
-                                # Session格式：打包session文件及相关文件
-                                if os.path.exists(file_path):
-                                    zipf.write(file_path, f"{phone}/{file_name}")
-                                # Journal文件
-                                journal_path = file_path + '-journal'
-                                if os.path.exists(journal_path):
-                                    zipf.write(journal_path, f"{phone}/{file_name}-journal")
-                                # JSON文件
-                                json_path = os.path.splitext(file_path)[0] + '.json'
-                                if os.path.exists(json_path):
-                                    zipf.write(json_path, f"{phone}/{os.path.splitext(file_name)[0]}.json")
-                    
-                    zip_files.append((reg_date, date_zip, len(items)))
-                    logger.info(f"✅ {reg_date} 账号已打包: {date_zip}")
-                    print(f"✅ {reg_date} 账号已打包: {date_zip}", flush=True)
-                except Exception as e:
-                    logger.error(f"❌ 打包 {reg_date} 账号失败: {e}")
-                    print(f"❌ 打包 {reg_date} 账号失败: {e}", flush=True)
+                            try:
+                                if result_file_type == 'tdata':
+                                    # TData格式：保持原始文件结构
+                                    # 结构: ZIP/日期文件夹/手机号/tdata/D877.../文件
+                                    if os.path.isdir(file_path):
+                                        # file_path 通常指向 tdata 目录或包含 tdata 的目录
+                                        # 我们需要保持原始结构
+                                        for root, dirs, files in os.walk(file_path):
+                                            for file in files:
+                                                file_full_path = os.path.join(root, file)
+                                                # 计算相对于原始目录的路径
+                                                rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
+                                                # 构建压缩包内的路径：日期文件夹/手机号/原始结构
+                                                arc_path = os.path.join(date_folder, phone, rel_path)
+                                                zipf.write(file_full_path, arc_path)
+                                else:
+                                    # Session格式：保持原始文件
+                                    # 结构: ZIP/日期文件夹/session文件和json文件（不用手机号子文件夹）
+                                    if os.path.exists(file_path):
+                                        # 直接将session文件放在日期文件夹下
+                                        arc_path = os.path.join(date_folder, file_name)
+                                        zipf.write(file_path, arc_path)
+                                    
+                                    # Journal文件
+                                    journal_path = file_path + '-journal'
+                                    if os.path.exists(journal_path):
+                                        arc_path = os.path.join(date_folder, file_name + '-journal')
+                                        zipf.write(journal_path, arc_path)
+                                    
+                                    # JSON文件
+                                    json_path = os.path.splitext(file_path)[0] + '.json'
+                                    if os.path.exists(json_path):
+                                        json_name = os.path.splitext(file_name)[0] + '.json'
+                                        arc_path = os.path.join(date_folder, json_name)
+                                        zipf.write(json_path, arc_path)
+                            except Exception as e:
+                                logger.error(f"❌ 打包文件失败 {file_name}: {e}")
+                                print(f"❌ 打包文件失败 {file_name}: {e}", flush=True)
+            
+            logger.info(f"✅ 所有账号已打包到: {all_accounts_zip}")
+            print(f"✅ 所有账号已打包到: {all_accounts_zip}", flush=True)
+            
+            # 准备发送的ZIP文件信息
+            zip_files = [("all", all_accounts_zip, success_count)]
+            
+        except Exception as e:
+            logger.error(f"❌ 打包失败: {e}")
+            print(f"❌ 打包失败: {e}", flush=True)
+            zip_files = []
         
         # 发送统计信息
         summary = f"""
@@ -20375,21 +20404,22 @@ admin3</code>
                 print(f"❌ 发送报告文件失败: {e}", flush=True)
         
         # 发送ZIP文件
-        logger.info(f"📤 准备发送 {len(zip_files)} 个ZIP文件...")
-        print(f"📤 准备发送 {len(zip_files)} 个ZIP文件...", flush=True)
+        logger.info(f"📤 准备发送ZIP文件...")
+        print(f"📤 准备发送ZIP文件...", flush=True)
         
         sent_count = 0
-        for reg_date, zip_path, count in zip_files:
+        for zip_type, zip_path, count in zip_files:
             if not os.path.exists(zip_path):
                 logger.warning(f"⚠️ ZIP文件不存在: {zip_path}")
                 print(f"⚠️ ZIP文件不存在: {zip_path}", flush=True)
                 continue
             
-            logger.info(f"📤 发送ZIP文件 {sent_count + 1}/{len(zip_files)}: {os.path.basename(zip_path)}")
-            print(f"📤 发送ZIP文件 {sent_count + 1}/{len(zip_files)}: {os.path.basename(zip_path)}", flush=True)
+            logger.info(f"📤 发送ZIP文件: {os.path.basename(zip_path)}")
+            print(f"📤 发送ZIP文件: {os.path.basename(zip_path)}", flush=True)
             
             try:
-                caption = f"📦 {reg_date} 注册的账号 ({count} 个)"
+                # 统一ZIP文件的标题
+                caption = f"📦 注册时间分类账号 (共 {count} 个账号，按日期分类到不同文件夹)"
                 
                 max_retries = 3
                 for attempt in range(max_retries):
@@ -20417,15 +20447,15 @@ admin3</code>
                             print(f"⚠️ 发送失败，重试 {attempt + 1}/{max_retries}: {e}", flush=True)
                             time.sleep(2)
                         else:
-                            logger.error(f"❌ 发送ZIP失败（已重试{max_retries}次）: {reg_date} - {e}")
-                            print(f"❌ 发送ZIP失败（已重试{max_retries}次）: {reg_date} - {e}", flush=True)
+                            logger.error(f"❌ 发送ZIP失败（已重试{max_retries}次）: {e}")
+                            print(f"❌ 发送ZIP失败（已重试{max_retries}次）: {e}", flush=True)
                 
                 if sent_count < len(zip_files):
                     time.sleep(1)
                     
             except Exception as e:
-                logger.error(f"❌ 处理ZIP文件失败 {reg_date}: {e}")
-                print(f"❌ 处理ZIP文件失败 {reg_date}: {e}", flush=True)
+                logger.error(f"❌ 处理ZIP文件失败: {e}")
+                print(f"❌ 处理ZIP文件失败: {e}", flush=True)
         
         logger.info(f"✅ 报告生成完成！成功发送 {sent_count}/{len(zip_files)} 个ZIP文件")
         print(f"✅ 报告生成完成！成功发送 {sent_count}/{len(zip_files)} 个ZIP文件", flush=True)
