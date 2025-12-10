@@ -18064,13 +18064,13 @@ admin3</code>
         new_client = None
         
         try:
-            # 获取设备参数和代理
-            device_config = self.device_loader.get_random_device_config()
-            api_id = device_config.get('api_id', config.API_ID)
-            api_hash = device_config.get('api_hash', config.API_HASH)
+            # 使用配置中的API凭据（不能使用随机设备的API凭据，因为现有session是用特定API凭据创建的）
+            # Telegram会验证API凭据与手机号的匹配关系
+            api_id = config.API_ID
+            api_hash = config.API_HASH
             
-            logger.info(f"📱 [{file_name}] 设备信息: API_ID={api_id}")
-            print(f"📱 [{file_name}] 设备信息: API_ID={api_id}", flush=True)
+            logger.info(f"📱 [{file_name}] 使用配置的API凭据: API_ID={api_id}")
+            print(f"📱 [{file_name}] 使用配置的API凭据: API_ID={api_id}", flush=True)
             
             # 获取代理
             proxy_dict = None
