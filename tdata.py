@@ -29,7 +29,7 @@ import re
 import secrets
 import csv
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple, Any, NamedTuple
 from dataclasses import dataclass, field, asdict
 from io import BytesIO
@@ -18802,7 +18802,6 @@ admin3</code>
                 try:
                     # 使用edit_2fa方法来设置新密码
                     # 这是Telethon推荐的方式
-                    from datetime import timezone
                     await new_client.edit_2fa(
                         current_password=old_password if old_password else None,
                         new_password=new_password,
@@ -18820,11 +18819,18 @@ admin3</code>
                     print(f"⚠️ [{file_name}] 旧密码不正确，无法设置新密码", flush=True)
                     # 不阻止整个流程，继续执行
                     
-                except Exception as e:
-                    # 记录异常类型而不是详细信息，避免泄露敏感信息
+                except (RPCError, FloodWaitError, NetworkError) as e:
+                    # 处理Telegram API相关错误
                     error_type = type(e).__name__
-                    logger.warning(f"⚠️ [{file_name}] 设置新密码失败: {error_type}")
-                    print(f"⚠️ [{file_name}] 设置新密码失败: {error_type}", flush=True)
+                    logger.warning(f"⚠️ [{file_name}] 设置新密码失败（Telegram错误）: {error_type}")
+                    print(f"⚠️ [{file_name}] 设置新密码失败（Telegram错误）: {error_type}", flush=True)
+                    # 不阻止整个流程，继续执行
+                    
+                except Exception as e:
+                    # 捕获其他未预期的错误
+                    error_type = type(e).__name__
+                    logger.warning(f"⚠️ [{file_name}] 设置新密码时出现未预期错误: {error_type}")
+                    print(f"⚠️ [{file_name}] 设置新密码时出现未预期错误: {error_type}", flush=True)
                     # 不阻止整个流程，继续执行
                 
                 # 如果密码设置失败，记录到结果中
