@@ -3124,9 +3124,7 @@ class FileProcessor:
                     dir_path = os.path.join(root, dir_name)
                     
                     # 检查是否存在D877开头的子目录（标准TData结构）
-                    # 原来硬编码检查 "D877F783D5D3EF8C"，现在改为检查任何D877开头的16字符目录
-                    # TData目录名长度常量
-                    TDATA_DIR_NAME_LENGTH = 16
+                    # TData目录通常以D877开头，长度在12-20之间（允许一定变化）
                     d877_check_path = None
                     
                     # 情况1：dir_path下有D877F783D5D3EF8C子目录（标准结构）
@@ -3138,10 +3136,18 @@ class FileProcessor:
                         try:
                             for item in os.listdir(dir_path):
                                 item_path = os.path.join(dir_path, item)
-                                if os.path.isdir(item_path) and item.startswith("D877") and len(item) == TDATA_DIR_NAME_LENGTH:
-                                    d877_check_path = item_path
-                                    print(f"🔍 检测到TData变体目录: {item}")
-                                    break
+                                # 检查：1) 是目录 2) 以D877开头 3) 长度在合理范围内 4) 包含必需文件
+                                if (os.path.isdir(item_path) and 
+                                    item.startswith("D877") and 
+                                    12 <= len(item) <= 20):
+                                    # 验证是否包含TData必需文件
+                                    test_maps = os.path.join(item_path, "maps")
+                                    test_key_data = os.path.join(item_path, "key_data")
+                                    test_key_datas = os.path.join(item_path, "key_datas")
+                                    if os.path.exists(test_maps) and (os.path.exists(test_key_data) or os.path.exists(test_key_datas)):
+                                        d877_check_path = item_path
+                                        print(f"🔍 检测到TData变体目录: {item}")
+                                        break
                         except (OSError, PermissionError) as e:
                             print(f"⚠️ 无法读取目录 {dir_name}: {e}")
                             pass
