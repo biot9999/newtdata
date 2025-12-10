@@ -3122,43 +3122,89 @@ class FileProcessor:
                 
                 for dir_name in dirs:
                     dir_path = os.path.join(root, dir_name)
-                    d877_check_path = os.path.join(dir_path, "D877F783D5D3EF8C")
-                    if os.path.exists(d877_check_path):
-                        # 【修复】验证这是真正的TData目录，不是空文件夹
-                        # 检查必需的TData文件是否存在
+                    
+                    # 【关键修复】支持三种TData结构：
+                    # 1. 标准结构: 目录下有D877F783D5D3EF8C子目录，里面有maps和key_data(s)
+                    # 2. 直接D877结构: 目录本身以D877开头，直接包含maps和key_data(s)
+                    # 3. 嵌套结构: D877F783D5D3EF8C下有另一个D877子目录，里面才有文件
+                    
+                    d877_check_path = None
+                    maps_file = None
+                    is_valid_tdata = False
+                    
+                    # 情况1: 检查是否有标准的D877F783D5D3EF8C子目录
+                    standard_d877_path = os.path.join(dir_path, "D877F783D5D3EF8C")
+                    if os.path.exists(standard_d877_path):
+                        d877_check_path = standard_d877_path
                         maps_file = os.path.join(d877_check_path, "maps")
                         key_data_file = os.path.join(d877_check_path, "key_data")
+                        key_datas_file = os.path.join(d877_check_path, "key_datas")
                         
-                        # 如果没有必需的TData文件，跳过（可能是空文件夹或假TData结构）
-                        if not os.path.exists(maps_file) or not os.path.exists(key_data_file):
-                            print(f"⚠️ 跳过无效TData目录（缺少必需文件）: {dir_name}")
+                        has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
+                        is_valid_tdata = os.path.exists(maps_file) and has_key_file
+                        
+                        # 如果标准路径下没有文件，检查嵌套的D877子目录
+                        if not is_valid_tdata:
+                            try:
+                                for sub_dir in os.listdir(d877_check_path):
+                                    sub_dir_path = os.path.join(d877_check_path, sub_dir)
+                                    if os.path.isdir(sub_dir_path) and sub_dir.startswith("D877"):
+                                        sub_maps = os.path.join(sub_dir_path, "maps")
+                                        sub_key_data = os.path.join(sub_dir_path, "key_data")
+                                        sub_key_datas = os.path.join(sub_dir_path, "key_datas")
+                                        sub_has_key = os.path.exists(sub_key_data) or os.path.exists(sub_key_datas)
+                                        
+                                        if os.path.exists(sub_maps) and sub_has_key:
+                                            d877_check_path = sub_dir_path
+                                            maps_file = sub_maps
+                                            is_valid_tdata = True
+                                            print(f"🔍 检测到嵌套TData结构: {dir_name} -> {sub_dir}")
+                                            break
+                            except (OSError, PermissionError) as e:
+                                print(f"⚠️ 无法读取D877F783D5D3EF8C子目录: {e}")
+                    
+                    # 情况2: 当前目录本身就是D877开头的目录（直接包含TData文件）
+                    if not is_valid_tdata and dir_name.startswith("D877"):
+                        d877_check_path = dir_path
+                        maps_file = os.path.join(d877_check_path, "maps")
+                        key_data_file = os.path.join(d877_check_path, "key_data")
+                        key_datas_file = os.path.join(d877_check_path, "key_datas")
+                        
+                        has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
+                        is_valid_tdata = os.path.exists(maps_file) and has_key_file
+                        
+                        if is_valid_tdata:
+                            print(f"📂 检测到D877目录直接包含TData文件: {dir_name}")
+                    
+                    # 如果没有找到有效的TData结构，跳过
+                    if not is_valid_tdata:
+                        continue
+                    
+                    # 检查maps文件大小（有效的TData maps文件通常大于30字节）
+                    try:
+                        maps_size = os.path.getsize(maps_file)
+                        if maps_size < 30:
+                            print(f"⚠️ 跳过无效TData目录（maps文件过小: {maps_size}字节）: {dir_name}")
                             continue
-                        
-                        # 检查maps文件大小（有效的TData maps文件通常大于30字节）
-                        try:
-                            maps_size = os.path.getsize(maps_file)
-                            if maps_size < 30:
-                                print(f"⚠️ 跳过无效TData目录（maps文件过小: {maps_size}字节）: {dir_name}")
-                                continue
-                        except:
-                            print(f"⚠️ 跳过无效TData目录（无法读取maps文件）: {dir_name}")
-                            continue
-                        
-                        # 使用规范化路径防止重复计数（处理符号链接和相对路径）
-                        normalized_path = os.path.normpath(os.path.abspath(dir_path))
-                        
-                        # 检查是否已经添加过此TData目录
-                        if normalized_path in seen_tdata_paths:
-                            print(f"⚠️ 跳过重复TData目录: {dir_name}")
-                            continue
-                        
-                        seen_tdata_paths.add(normalized_path)
-                        
-                        # 使用新的提取方法获取手机号
-                        display_name = self.extract_phone_from_tdata_directory(dir_path)
-                        
-                        tdata_folders.append((dir_path, display_name))
-                        print(f"📂 找到TData目录: {display_name} (路径: {dir_name})")
+                    except:
+                        print(f"⚠️ 跳过无效TData目录（无法读取maps文件）: {dir_name}")
+                        continue
+                    
+                    # 使用规范化路径防止重复计数（处理符号链接和相对路径）
+                    normalized_path = os.path.normpath(os.path.abspath(dir_path))
+                    
+                    # 检查是否已经添加过此TData目录
+                    if normalized_path in seen_tdata_paths:
+                        print(f"⚠️ 跳过重复TData目录: {dir_name}")
+                        continue
+                    
+                    seen_tdata_paths.add(normalized_path)
+                    
+                    # 使用新的提取方法获取手机号
+                    display_name = self.extract_phone_from_tdata_directory(dir_path)
+                    
+                    tdata_folders.append((dir_path, display_name))
+                    print(f"📂 找到TData目录: {display_name} (路径: {dir_name})")
         
         except Exception as e:
             print(f"❌ 文件扫描失败: {e}")
@@ -18178,19 +18224,31 @@ admin3</code>
         )
     
     def _create_reauth_progress_keyboard(self, total: int, success: int, frozen: int, wrong_pwd: int, banned: int, network_error: int) -> InlineKeyboardMarkup:
-        """创建重新授权进度按钮"""
+        """创建重新授权进度按钮 - 6行2列布局"""
         return InlineKeyboardMarkup([
             [
-                InlineKeyboardButton(f"总账号量 {total}", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"授权成功 {success}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"📊 账户数量", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{total}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"冻结账户 {frozen}", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"2FA错误 {wrong_pwd}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"✅ 授权成功", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{success}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"封禁账户 {banned}", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"网络错误 {network_error}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"❄️ 冻结账户", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{frozen}", callback_data="reauthorize_noop")
+            ],
+            [
+                InlineKeyboardButton(f"🚫 封禁账户", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{banned}", callback_data="reauthorize_noop")
+            ],
+            [
+                InlineKeyboardButton(f"🔐 2FA错误", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{wrong_pwd}", callback_data="reauthorize_noop")
+            ],
+            [
+                InlineKeyboardButton(f"⚠️ 网络错误", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{network_error}", callback_data="reauthorize_noop")
             ]
         ])
     
