@@ -3122,15 +3122,37 @@ class FileProcessor:
                 
                 for dir_name in dirs:
                     dir_path = os.path.join(root, dir_name)
-                    d877_check_path = os.path.join(dir_path, "D877F783D5D3EF8C")
-                    if os.path.exists(d877_check_path):
+                    
+                    # 检查是否存在D877开头的子目录（标准TData结构）
+                    # 原来硬编码检查 "D877F783D5D3EF8C"，现在改为检查任何D877开头的16字符目录
+                    d877_check_path = None
+                    
+                    # 情况1：dir_path下有D877F783D5D3EF8C子目录（标准结构）
+                    standard_path = os.path.join(dir_path, "D877F783D5D3EF8C")
+                    if os.path.exists(standard_path):
+                        d877_check_path = standard_path
+                    else:
+                        # 情况2：dir_path下有其他D877开头的子目录（兼容其他TData变体）
+                        try:
+                            for item in os.listdir(dir_path):
+                                item_path = os.path.join(dir_path, item)
+                                if os.path.isdir(item_path) and item.startswith("D877") and len(item) == 16:
+                                    d877_check_path = item_path
+                                    print(f"🔍 检测到TData变体目录: {item}")
+                                    break
+                        except:
+                            pass
+                    
+                    if d877_check_path:
                         # 【修复】验证这是真正的TData目录，不是空文件夹
                         # 检查必需的TData文件是否存在
                         maps_file = os.path.join(d877_check_path, "maps")
                         key_data_file = os.path.join(d877_check_path, "key_data")
+                        key_datas_file = os.path.join(d877_check_path, "key_datas")  # 支持复数形式
                         
                         # 如果没有必需的TData文件，跳过（可能是空文件夹或假TData结构）
-                        if not os.path.exists(maps_file) or not os.path.exists(key_data_file):
+                        has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
+                        if not os.path.exists(maps_file) or not has_key_file:
                             print(f"⚠️ 跳过无效TData目录（缺少必需文件）: {dir_name}")
                             continue
                         
@@ -18178,19 +18200,31 @@ admin3</code>
         )
     
     def _create_reauth_progress_keyboard(self, total: int, success: int, frozen: int, wrong_pwd: int, banned: int, network_error: int) -> InlineKeyboardMarkup:
-        """创建重新授权进度按钮"""
+        """创建重新授权进度按钮 - 6行2列布局"""
         return InlineKeyboardMarkup([
             [
-                InlineKeyboardButton(f"总账号量 {total}", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"授权成功 {success}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"📊 账户数量", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{total}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"冻结账户 {frozen}", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"2FA错误 {wrong_pwd}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"✅ 授权成功", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{success}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"封禁账户 {banned}", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"网络错误 {network_error}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"❄️ 冻结账户", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{frozen}", callback_data="reauthorize_noop")
+            ],
+            [
+                InlineKeyboardButton(f"🚫 封禁账户", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{banned}", callback_data="reauthorize_noop")
+            ],
+            [
+                InlineKeyboardButton(f"🔐 2FA错误", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{wrong_pwd}", callback_data="reauthorize_noop")
+            ],
+            [
+                InlineKeyboardButton(f"⚠️ 网络错误", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"{network_error}", callback_data="reauthorize_noop")
             ]
         ])
     
