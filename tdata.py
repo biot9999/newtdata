@@ -3072,6 +3072,12 @@ class FileProcessor:
     
     def scan_zip_file(self, zip_path: str, user_id: int, task_id: str) -> Tuple[List[Tuple[str, str]], str, str]:
         """扫描ZIP文件 - 修复重复计数问题"""
+        # TData目录名长度限制
+        # 标准TData使用16字符的十六进制字符串（如D877F783D5D3EF8C）
+        # 但某些变体可能使用不同长度，因此允许12-20字符范围以兼容更多格式
+        TDATA_DIR_NAME_MIN_LENGTH = 12
+        TDATA_DIR_NAME_MAX_LENGTH = 20
+        
         session_files = []
         tdata_folders = []
         seen_tdata_paths = set()  # 防止重复计数TData目录
@@ -3124,7 +3130,6 @@ class FileProcessor:
                     dir_path = os.path.join(root, dir_name)
                     
                     # 检查是否存在D877开头的子目录（标准TData结构）
-                    # TData目录通常以D877开头，长度在12-20之间（允许一定变化）
                     d877_check_path = None
                     
                     # 情况1：dir_path下有D877F783D5D3EF8C子目录（标准结构）
@@ -3139,7 +3144,7 @@ class FileProcessor:
                                 # 检查：1) 是目录 2) 以D877开头 3) 长度在合理范围内 4) 包含必需文件
                                 if (os.path.isdir(item_path) and 
                                     item.startswith("D877") and 
-                                    12 <= len(item) <= 20):
+                                    TDATA_DIR_NAME_MIN_LENGTH <= len(item) <= TDATA_DIR_NAME_MAX_LENGTH):
                                     # 验证是否包含TData必需文件
                                     test_maps = os.path.join(item_path, "maps")
                                     test_key_data = os.path.join(item_path, "key_data")
@@ -3150,7 +3155,6 @@ class FileProcessor:
                                         break
                         except (OSError, PermissionError) as e:
                             print(f"⚠️ 无法读取目录 {dir_name}: {e}")
-                            pass
                     
                     if d877_check_path:
                         # 【修复】验证这是真正的TData目录，不是空文件夹
