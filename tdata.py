@@ -15368,6 +15368,12 @@ class EnhancedBot:
         """处理注册时间查询"""
         user_id = update.effective_user.id
         
+        # Import required modules at the top
+        from registration_checker import RegistrationChecker, AccountClassifierByRegistration
+        if OPENTELE_AVAILABLE:
+            from opentele.td import TDesktop
+            from opentele.api import UseCurrentSession
+        
         # 发送处理中消息
         progress_msg = context.bot.send_message(
             chat_id=user_id,
@@ -15398,11 +15404,17 @@ class EnhancedBot:
                         session_path = os.path.join(root, file)
                         session_files.append(session_path)
                 
-                # 查找TData目录
+                # 查找TData目录 - 更灵活的模式匹配
                 for dir_name in dirs:
-                    if dir_name.startswith('D877') or dir_name == 'tdata':
-                        tdata_path = os.path.join(root, dir_name)
-                        tdata_dirs.append(tdata_path)
+                    dir_path = os.path.join(root, dir_name)
+                    # 检查是否为TData目录：
+                    # 1. 名为 'tdata'
+                    # 2. 以 'D' 开头后跟数字（如 D877F783E316...）
+                    # 3. 包含 key_data 文件（TData特征文件）
+                    if (dir_name == 'tdata' or 
+                        (dir_name.startswith('D') and len(dir_name) > 8) or
+                        os.path.exists(os.path.join(dir_path, 'key_data'))):
+                        tdata_dirs.append(dir_path)
             
             if not session_files and not tdata_dirs:
                 context.bot.edit_message_text(
@@ -15424,9 +15436,6 @@ class EnhancedBot:
                 
                 for tdata_path in tdata_dirs:
                     try:
-                        from opentele.td import TDesktop
-                        from opentele.api import UseCurrentSession
-                        
                         tdesk = TDesktop(tdata_path)
                         if tdesk.isLoaded():
                             temp_session_name = f"temp_reg_{int(time.time())}_{len(session_files)}"
@@ -15485,8 +15494,6 @@ class EnhancedBot:
             )
             
             # 生成报告
-            from registration_checker import AccountClassifierByRegistration
-            
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             report_content = AccountClassifierByRegistration.generate_report(results)
             
@@ -15510,10 +15517,24 @@ class EnhancedBot:
                 
                 with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                     for account in accounts:
-                        # 查找对应的session文件
+                        # 查找对应的session文件 - 使用精确匹配
                         for session_file in session_files:
                             session_base = os.path.basename(session_file).replace('.session', '')
-                            if str(account.user_id) in session_base or (account.phone and account.phone in session_base):
+                            # 精确匹配用户ID或手机号
+                            # 确保完全匹配，而不是部分匹配
+                            user_id_match = (account.user_id > 0 and 
+                                           (session_base == str(account.user_id) or 
+                                            f"_{account.user_id}_" in session_base or
+                                            session_base.startswith(f"{account.user_id}_") or
+                                            session_base.endswith(f"_{account.user_id}")))
+                            phone_match = (account.phone and 
+                                         (session_base == account.phone or
+                                          session_base == account.phone.replace('+', '') or
+                                          f"_{account.phone}_" in session_base or
+                                          session_base.startswith(f"{account.phone}_") or
+                                          session_base.endswith(f"_{account.phone}")))
+                            
+                            if user_id_match or phone_match:
                                 # 添加session文件
                                 zipf.write(session_file, os.path.basename(session_file))
                                 

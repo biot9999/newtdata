@@ -128,8 +128,8 @@ class RegistrationChecker:
             if min_id <= user_id < max_id:
                 return year, description
         
-        # 如果超出范围，返回最新
-        return 2025, "Unknown Period"
+        # 如果超出范围，返回当前年份
+        return datetime.now().year, "Unknown Period"
     
     async def get_registration_info(self, user_id_or_username) -> RegistrationInfo:
         """
@@ -264,7 +264,6 @@ class RegistrationChecker:
                         about=None,
                         error="Session未授权"
                     ))
-                    await temp_client.disconnect()
                     continue
                 
                 # 获取自己的信息
@@ -292,8 +291,6 @@ class RegistrationChecker:
                 
                 results.append(info)
                 
-                await temp_client.disconnect()
-                
                 # 调用进度回调
                 if progress_callback:
                     await progress_callback(idx + 1, total, info)
@@ -313,6 +310,13 @@ class RegistrationChecker:
                     about=None,
                     error=str(e)
                 ))
+            
+            finally:
+                # 确保客户端被断开
+                try:
+                    await temp_client.disconnect()
+                except:
+                    pass
         
         return results
 
