@@ -19962,6 +19962,7 @@ admin3</code>
         """
         client = None
         temp_session_path = None
+        original_file_path = file_path  # 保存原始文件路径用于打包
         
         try:
             # 如果是TData格式，先转换为Session
@@ -19970,11 +19971,15 @@ admin3</code>
                     return {'status': 'error', 'error': 'opentele未安装，无法处理TData格式'}
                 
                 try:
-                    # 加载TData
+                    # 加载TData - 使用正确的API
                     tdesk = await asyncio.wait_for(
-                        asyncio.to_thread(TDesktop.FromTData, file_path),
+                        asyncio.to_thread(TDesktop, file_path),
                         timeout=30
                     )
+                    
+                    # 检查是否加载成功
+                    if not tdesk.isLoaded():
+                        return {'status': 'error', 'error': 'TData未授权或加载失败'}
                 except asyncio.TimeoutError:
                     return {'status': 'error', 'error': 'TData加载超时'}
                 
@@ -20111,20 +20116,21 @@ admin3</code>
                 'common_chats': full_user.common_chats_count if hasattr(full_user, 'common_chats_count') else 0,
                 'about': full_user.about if hasattr(full_user, 'about') else None,
                 'file_name': file_name,
-                'file_type': file_type
+                'file_type': file_type,
+                'original_file_path': original_file_path  # 保存原始文件路径用于打包
             }
             
             return result
             
         except UserDeactivatedError:
-            return {'status': 'frozen', 'error': '账号已被冻结'}
+            return {'status': 'frozen', 'error': '账号已被冻结', 'file_name': file_name}
         except PhoneNumberBannedError:
-            return {'status': 'banned', 'error': '账号已被封禁'}
+            return {'status': 'banned', 'error': '账号已被封禁', 'file_name': file_name}
         except asyncio.TimeoutError:
-            return {'status': 'error', 'error': '连接超时'}
+            return {'status': 'error', 'error': '连接超时', 'file_name': file_name}
         except Exception as e:
             logger.error(f"❌ [{file_name}] 查询注册时间失败: {e}")
-            return {'status': 'error', 'error': str(e)}
+            return {'status': 'error', 'error': str(e), 'file_name': file_name}
         
         finally:
             # 清理客户端
@@ -20299,38 +20305,39 @@ admin3</code>
                         for file_path, file_name, result in items:
                             phone = result.get('phone', 'unknown')
                             result_file_type = result.get('file_type', 'session')
+                            # 使用原始文件路径进行打包
+                            original_path = result.get('original_file_path', file_path)
                             
                             try:
                                 if result_file_type == 'tdata':
-                                    # TData格式：保持原始文件结构
+                                    # TData格式：使用原始上传的文件，保持原始文件结构
                                     # 结构: ZIP/日期文件夹/手机号/tdata/D877.../文件
-                                    if os.path.isdir(file_path):
-                                        # file_path 通常指向 tdata 目录或包含 tdata 的目录
+                                    if os.path.isdir(original_path):
                                         # 我们需要保持原始结构
-                                        for root, dirs, files in os.walk(file_path):
+                                        for root, dirs, files in os.walk(original_path):
                                             for file in files:
                                                 file_full_path = os.path.join(root, file)
                                                 # 计算相对于原始目录的路径
-                                                rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
+                                                rel_path = os.path.relpath(file_full_path, os.path.dirname(original_path))
                                                 # 构建压缩包内的路径：日期文件夹/手机号/原始结构
                                                 arc_path = os.path.join(date_folder, phone, rel_path)
                                                 zipf.write(file_full_path, arc_path)
                                 else:
-                                    # Session格式：保持原始文件
+                                    # Session格式：使用原始上传的文件
                                     # 结构: ZIP/日期文件夹/session文件和json文件（不用手机号子文件夹）
-                                    if os.path.exists(file_path):
+                                    if os.path.exists(original_path):
                                         # 直接将session文件放在日期文件夹下
                                         arc_path = os.path.join(date_folder, file_name)
-                                        zipf.write(file_path, arc_path)
+                                        zipf.write(original_path, arc_path)
                                     
                                     # Journal文件
-                                    journal_path = file_path + '-journal'
+                                    journal_path = original_path + '-journal'
                                     if os.path.exists(journal_path):
                                         arc_path = os.path.join(date_folder, file_name + '-journal')
                                         zipf.write(journal_path, arc_path)
                                     
                                     # JSON文件
-                                    json_path = os.path.splitext(file_path)[0] + '.json'
+                                    json_path = os.path.splitext(original_path)[0] + '.json'
                                     if os.path.exists(json_path):
                                         json_name = os.path.splitext(file_name)[0] + '.json'
                                         arc_path = os.path.join(date_folder, json_name)
@@ -20349,6 +20356,98 @@ admin3</code>
             logger.error(f"❌ 打包失败: {e}")
             print(f"❌ 打包失败: {e}", flush=True)
             zip_files = []
+        
+        # 打包失败的账号到单独的ZIP文件
+        if error_count > 0:
+            logger.info(f"📦 开始打包失败的账号...")
+            print(f"📦 开始打包失败的账号...", flush=True)
+            
+            failed_zip = os.path.join(config.RESULTS_DIR, f"查询失败_{timestamp}.zip")
+            failed_details = []
+            
+            try:
+                with zipfile.ZipFile(failed_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    # 创建详细失败原因文件
+                    for category in ['frozen', 'banned', 'error']:
+                        if results[category]:
+                            for file_path, file_name, result in results[category]:
+                                error_msg = result.get('error', '未知错误')
+                                result_file_type = result.get('file_type', 'session')
+                                
+                                # 记录失败信息
+                                failed_details.append({
+                                    'file_name': file_name,
+                                    'category': category,
+                                    'error': error_msg,
+                                    'file_type': result_file_type
+                                })
+                                
+                                # 打包原始文件
+                                try:
+                                    if result_file_type == 'tdata':
+                                        # TData格式：打包整个目录
+                                        if os.path.isdir(file_path):
+                                            for root, dirs, files in os.walk(file_path):
+                                                for file in files:
+                                                    file_full_path = os.path.join(root, file)
+                                                    rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
+                                                    arc_path = os.path.join(file_name, rel_path)
+                                                    zipf.write(file_full_path, arc_path)
+                                    else:
+                                        # Session格式：打包session及相关文件
+                                        if os.path.exists(file_path):
+                                            zipf.write(file_path, file_name)
+                                        
+                                        # Journal文件
+                                        journal_path = file_path + '-journal'
+                                        if os.path.exists(journal_path):
+                                            zipf.write(journal_path, file_name + '-journal')
+                                        
+                                        # JSON文件
+                                        json_path = os.path.splitext(file_path)[0] + '.json'
+                                        if os.path.exists(json_path):
+                                            json_name = os.path.splitext(file_name)[0] + '.json'
+                                            zipf.write(json_path, json_name)
+                                except Exception as e:
+                                    logger.warning(f"⚠️ 打包失败文件失败 {file_name}: {e}")
+                    
+                    # 创建失败原因详细说明文件
+                    failed_report = "查询失败账号详细信息\n"
+                    failed_report += "=" * 80 + "\n"
+                    failed_report += f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    failed_report += f"失败总数: {error_count}\n"
+                    failed_report += "=" * 80 + "\n\n"
+                    
+                    # 按类别分组
+                    category_names = {
+                        'frozen': '冻结账号',
+                        'banned': '封禁账号',
+                        'error': '其他错误'
+                    }
+                    
+                    for category in ['frozen', 'banned', 'error']:
+                        category_items = [d for d in failed_details if d['category'] == category]
+                        if category_items:
+                            failed_report += f"\n【{category_names[category]}】({len(category_items)} 个)\n"
+                            failed_report += "-" * 80 + "\n"
+                            for item in category_items:
+                                failed_report += f"文件: {item['file_name']}\n"
+                                failed_report += f"类型: {item['file_type']}\n"
+                                failed_report += f"失败原因: {item['error']}\n"
+                                failed_report += "\n"
+                    
+                    # 将失败原因文件添加到ZIP
+                    zipf.writestr("失败原因详细说明.txt", failed_report.encode('utf-8'))
+                
+                logger.info(f"✅ 失败账号已打包到: {failed_zip}")
+                print(f"✅ 失败账号已打包到: {failed_zip}", flush=True)
+                
+                # 添加到发送列表
+                zip_files.append(("failed", failed_zip, error_count))
+                
+            except Exception as e:
+                logger.error(f"❌ 打包失败账号失败: {e}")
+                print(f"❌ 打包失败账号失败: {e}", flush=True)
         
         # 发送统计信息
         summary = f"""
@@ -20418,8 +20517,11 @@ admin3</code>
             print(f"📤 发送ZIP文件: {os.path.basename(zip_path)}", flush=True)
             
             try:
-                # 统一ZIP文件的标题
-                caption = f"📦 注册时间分类账号 (共 {count} 个账号，按日期分类到不同文件夹)"
+                # 根据ZIP类型设置不同的标题
+                if zip_type == "failed":
+                    caption = f"❌ 查询失败的账号 (共 {count} 个，含详细失败原因说明)"
+                else:
+                    caption = f"📦 注册时间分类账号 (共 {count} 个账号，按日期分类到不同文件夹)"
                 
                 max_retries = 3
                 for attempt in range(max_retries):
