@@ -19222,32 +19222,25 @@ admin3</code>
                         tdata_path = result.get('tdata_path')
                         if tdata_path and os.path.exists(tdata_path):
                             # SaveTData会在指定路径下创建tdata子目录
-                            # 所以tdata_path指向的目录包含tdata子目录
-                            # 我们需要找到实际的tdata目录
+                            # 需要找到包含D877...目录的实际tdata目录
                             actual_tdata_dir = os.path.join(tdata_path, 'tdata')
                             
-                            if os.path.exists(actual_tdata_dir):
-                                # 添加tdata目录下的所有文件，路径为：手机号/tdata/D877.../
-                                for root, dirs, files in os.walk(actual_tdata_dir):
-                                    for file in files:
-                                        file_full_path = os.path.join(root, file)
-                                        # 计算相对于actual_tdata_dir的相对路径
-                                        rel_path = os.path.relpath(file_full_path, actual_tdata_dir)
-                                        # 构建完整的归档路径：手机号/tdata/D877.../file
-                                        arc_path = os.path.join(phone, 'tdata', rel_path)
-                                        zipf.write(file_full_path, arc_path)
+                            if os.path.exists(actual_tdata_dir) and os.path.isdir(actual_tdata_dir):
+                                # 有tdata子目录，使用它
+                                source_dir = actual_tdata_dir
                             else:
-                                # 如果没有tdata子目录，可能是旧格式，直接使用tdata_path
-                                # 获取TData目录名（如D877F783D5D3EF8C）
-                                tdata_dirname = os.path.basename(tdata_path)
-                                
-                                # 添加TData目录下的所有文件
-                                for root, dirs, files in os.walk(tdata_path):
-                                    for file in files:
-                                        file_full_path = os.path.join(root, file)
-                                        rel_path_inside_tdata = os.path.relpath(file_full_path, tdata_path)
-                                        arc_path = os.path.join(phone, 'tdata', tdata_dirname, rel_path_inside_tdata)
-                                        zipf.write(file_full_path, arc_path)
+                                # 没有tdata子目录，tdata_path本身就是tdata目录
+                                source_dir = tdata_path
+                            
+                            # 添加source_dir下的所有文件，路径为：手机号/tdata/D877.../
+                            for root, dirs, files in os.walk(source_dir):
+                                for file in files:
+                                    file_full_path = os.path.join(root, file)
+                                    # 计算相对于source_dir的相对路径
+                                    rel_path = os.path.relpath(file_full_path, source_dir)
+                                    # 构建完整的归档路径：手机号/tdata/D877.../file
+                                    arc_path = os.path.join(phone, 'tdata', rel_path)
+                                    zipf.write(file_full_path, arc_path)
                             
                             # 如果密码设置成功，创建2fa.txt文件
                             password_set_success = result.get('password_set_success', False)
@@ -19310,23 +19303,20 @@ admin3</code>
                             # 检查是否有tdata子目录
                             actual_tdata_dir = os.path.join(file_path, 'tdata')
                             
-                            if os.path.exists(actual_tdata_dir):
-                                # 有tdata子目录，直接打包tdata目录的内容
-                                for root, dirs, files in os.walk(actual_tdata_dir):
-                                    for file in files:
-                                        file_full_path = os.path.join(root, file)
-                                        rel_path = os.path.relpath(file_full_path, actual_tdata_dir)
-                                        arc_path = os.path.join(phone, 'tdata', rel_path)
-                                        zipf.write(file_full_path, arc_path)
+                            if os.path.exists(actual_tdata_dir) and os.path.isdir(actual_tdata_dir):
+                                # 有tdata子目录，使用它
+                                source_dir = actual_tdata_dir
                             else:
-                                # 没有tdata子目录，可能是旧格式
-                                tdata_dirname = os.path.basename(file_path)
-                                for root, dirs, files in os.walk(file_path):
-                                    for file in files:
-                                        file_full_path = os.path.join(root, file)
-                                        rel_path_inside_tdata = os.path.relpath(file_full_path, file_path)
-                                        arc_path = os.path.join(phone, 'tdata', tdata_dirname, rel_path_inside_tdata)
-                                        zipf.write(file_full_path, arc_path)
+                                # 没有tdata子目录，file_path本身就是tdata目录
+                                source_dir = file_path
+                            
+                            # 打包source_dir的内容
+                            for root, dirs, files in os.walk(source_dir):
+                                for file in files:
+                                    file_full_path = os.path.join(root, file)
+                                    rel_path = os.path.relpath(file_full_path, source_dir)
+                                    arc_path = os.path.join(phone, 'tdata', rel_path)
+                                    zipf.write(file_full_path, arc_path)
                         else:
                             # Session文件
                             if os.path.exists(file_path):
