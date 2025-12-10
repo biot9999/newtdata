@@ -91,9 +91,9 @@ try:
         PasswordHashInvalidError, PhoneCodeInvalidError, AuthRestartError,
         UsernameOccupiedError, UsernameInvalidError
     )
-    from telethon.tl.types import User, CodeSettings
+    from telethon.tl.types import User, CodeSettings, PasswordInputSettings
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
-    from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest
+    from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest, UpdatePasswordSettingsRequest
     from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
     TELETHON_AVAILABLE = True
     print("✅ telethon库导入成功")
@@ -18793,14 +18793,41 @@ admin3</code>
                     return {'status': 'wrong_password', 'error': '2FA密码错误'}
             
             # 步骤8: 设置新密码（如果提供）
-            # TODO: 实现密码设置功能
-            # Telethon需要使用account.UpdatePasswordSettings来设置新密码
-            # 这需要提供正确的password_input_settings参数
             if new_password and new_password != old_password:
-                logger.info(f"🔑 [{file_name}] 步骤7: 准备设置新密码...")
-                print(f"🔑 [{file_name}] 步骤7: 准备设置新密码...", flush=True)
-                logger.info(f"ℹ️ [{file_name}] 注意: 新密码需要通过Telegram客户端完成设置")
-                print(f"ℹ️ [{file_name}] 注意: 新密码需要通过Telegram客户端完成设置", flush=True)
+                logger.info(f"🔑 [{file_name}] 步骤7: 设置新密码...")
+                print(f"🔑 [{file_name}] 步骤7: 设置新密码...", flush=True)
+                
+                try:
+                    # 获取当前密码配置
+                    pwd_info = await new_client(GetPasswordRequest())
+                    
+                    # 构建新密码设置
+                    # 如果账号当前有密码，需要提供旧密码的哈希
+                    current_password = old_password if old_password else ""
+                    
+                    # 使用edit_2fa方法来设置新密码
+                    # 这是Telethon推荐的方式
+                    await new_client.edit_2fa(
+                        current_password=current_password,
+                        new_password=new_password,
+                        hint='',  # 可选的密码提示
+                        email=None  # 可选的恢复邮箱
+                    )
+                    
+                    logger.info(f"✅ [{file_name}] 新密码设置成功")
+                    print(f"✅ [{file_name}] 新密码设置成功", flush=True)
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    logger.warning(f"⚠️ [{file_name}] 设置新密码失败: {error_msg}")
+                    print(f"⚠️ [{file_name}] 设置新密码失败: {error_msg}", flush=True)
+                    # 不阻止整个流程，继续执行
+            elif new_password and new_password == old_password:
+                logger.info(f"ℹ️ [{file_name}] 新密码与旧密码相同，跳过密码设置")
+                print(f"ℹ️ [{file_name}] 新密码与旧密码相同，跳过密码设置", flush=True)
+            else:
+                logger.info(f"ℹ️ [{file_name}] 未提供新密码，跳过密码设置")
+                print(f"ℹ️ [{file_name}] 未提供新密码，跳过密码设置", flush=True)
             
             # 步骤9: 登出旧会话
             logger.info(f"🚪 [{file_name}] 步骤8: 登出旧会话...")
