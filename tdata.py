@@ -18078,7 +18078,7 @@ admin3</code>
             if self.proxy_manager.is_proxy_mode_active(self.db):
                 proxy_info = self.proxy_manager.get_next_proxy()
                 if proxy_info:
-                    proxy_dict = self.spambot_checker.create_proxy_dict(proxy_info)
+                    proxy_dict = self.checker.create_proxy_dict(proxy_info)
                     proxy_type = "住宅代理" if proxy_info.get('is_residential', False) else "代理"
                     logger.info(f"🌐 [{file_name}] 使用{proxy_type}")
                     print(f"🌐 [{file_name}] 使用{proxy_type}", flush=True)
