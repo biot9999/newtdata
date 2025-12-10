@@ -10641,7 +10641,7 @@ class EnhancedBot:
             row = c.fetchone()
             conn.close()
 
-            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files, waiting_cleanup_file, batch_create_upload, reauthorize_upload
+            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files, waiting_cleanup_file, batch_create_upload, reauthorize_upload, registration_check_upload
             if not row or row[0] not in [
                 "waiting_file",
                 "waiting_convert_tdata",
@@ -10658,6 +10658,7 @@ class EnhancedBot:
                 "batch_create_names",
                 "batch_create_usernames",
                 "reauthorize_upload",
+                "registration_check_upload",
             ]:
                 self.safe_send_message(update, "❌ 请先点击相应的功能按钮")
                 return
@@ -10828,6 +10829,19 @@ class EnhancedBot:
                     import traceback
                     traceback.print_exc()
             thread = threading.Thread(target=process_reauthorize, daemon=True)
+            thread.start()
+        elif user_status == "registration_check_upload":
+            # 查询注册时间文件处理
+            def process_registration_check():
+                try:
+                    asyncio.run(self.process_registration_check_upload(update, context, document))
+                except asyncio.CancelledError:
+                    print(f"[process_registration_check] 任务被取消")
+                except Exception as e:
+                    print(f"[process_registration_check] 处理异常: {e}")
+                    import traceback
+                    traceback.print_exc()
+            thread = threading.Thread(target=process_registration_check, daemon=True)
             thread.start()
         # 清空用户状态
         self.db.save_user(
@@ -19703,6 +19717,9 @@ admin3</code>
             reply_markup=keyboard,
             parse_mode='HTML'
         )
+        
+        # 设置数据库状态
+        self.db.save_user(user_id, "", "", "registration_check_upload")
         
         # 设置pending状态
         self.pending_registration_check[user_id] = {
