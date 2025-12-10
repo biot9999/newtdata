@@ -91,9 +91,9 @@ try:
         PasswordHashInvalidError, PhoneCodeInvalidError, AuthRestartError,
         UsernameOccupiedError, UsernameInvalidError
     )
-    from telethon.tl.types import User, CodeSettings, PasswordInputSettings
+    from telethon.tl.types import User, CodeSettings
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
-    from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest, UpdatePasswordSettingsRequest
+    from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest
     from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
     TELETHON_AVAILABLE = True
     print("✅ telethon库导入成功")
@@ -18797,65 +18797,41 @@ admin3</code>
                 logger.info(f"🔑 [{file_name}] 步骤7: 设置新密码...")
                 print(f"🔑 [{file_name}] 步骤7: 设置新密码...", flush=True)
                 
+                password_set_success = False
+                
                 try:
                     # 使用edit_2fa方法来设置新密码
                     # 这是Telethon推荐的方式
                     await new_client.edit_2fa(
                         current_password=old_password if old_password else None,
                         new_password=new_password,
-                        hint='',  # 可选的密码提示
+                        hint=f"Modified {datetime.now().strftime('%Y-%m-%d')}",  # 密码提示包含修改日期
                         email=None  # 可选的恢复邮箱
                     )
                     
+                    password_set_success = True
                     logger.info(f"✅ [{file_name}] 新密码设置成功")
                     print(f"✅ [{file_name}] 新密码设置成功", flush=True)
                     
-                except AttributeError:
-                    # 如果edit_2fa方法不存在，使用手动方法
-                    logger.info(f"ℹ️ [{file_name}] edit_2fa不可用，尝试手动设置密码...")
-                    print(f"ℹ️ [{file_name}] edit_2fa不可用，尝试手动设置密码...", flush=True)
-                    
-                    try:
-                        # 获取当前密码配置
-                        pwd_info = await new_client(GetPasswordRequest())
-                        
-                        # 构建新密码设置
-                        # 注意：Telethon需要通过compute_password_hash来正确计算密码哈希
-                        from telethon.password import compute_password_hash
-                        
-                        if old_password and pwd_info.has_password:
-                            # 如果有旧密码，需要提供
-                            password = compute_password_hash(pwd_info, old_password)
-                        else:
-                            password = b''
-                        
-                        # 创建新密码设置
-                        new_settings = PasswordInputSettings(
-                            new_password_hash=compute_password_hash(pwd_info, new_password),
-                            hint='',  # 可选的密码提示
-                            email=None  # 可选的恢复邮箱
-                        )
-                        
-                        # 更新密码
-                        await new_client(UpdatePasswordSettingsRequest(
-                            password=password,
-                            new_settings=new_settings
-                        ))
-                        
-                        logger.info(f"✅ [{file_name}] 新密码设置成功（手动方法）")
-                        print(f"✅ [{file_name}] 新密码设置成功（手动方法）", flush=True)
-                        
-                    except Exception as manual_e:
-                        error_msg = str(manual_e)
-                        logger.warning(f"⚠️ [{file_name}] 手动设置密码失败: {error_msg}")
-                        print(f"⚠️ [{file_name}] 手动设置密码失败: {error_msg}", flush=True)
-                        # 不阻止整个流程，继续执行
-                    
                 except Exception as e:
                     error_msg = str(e)
-                    logger.warning(f"⚠️ [{file_name}] 设置新密码失败: {error_msg}")
-                    print(f"⚠️ [{file_name}] 设置新密码失败: {error_msg}", flush=True)
+                    error_lower = error_msg.lower()
+                    
+                    # 检查是否是密码错误
+                    if 'password' in error_lower and ('invalid' in error_lower or 'incorrect' in error_lower or 'wrong' in error_lower):
+                        logger.warning(f"⚠️ [{file_name}] 旧密码不正确，无法设置新密码: {error_msg[:100]}")
+                        print(f"⚠️ [{file_name}] 旧密码不正确，无法设置新密码", flush=True)
+                    else:
+                        logger.warning(f"⚠️ [{file_name}] 设置新密码失败: {error_msg[:100]}")
+                        print(f"⚠️ [{file_name}] 设置新密码失败: {error_msg[:100]}", flush=True)
+                    
                     # 不阻止整个流程，继续执行
+                
+                # 如果密码设置失败，记录到结果中
+                if not password_set_success:
+                    logger.info(f"ℹ️ [{file_name}] 注意: 新密码未成功设置，账号当前密码保持不变")
+                    print(f"ℹ️ [{file_name}] 注意: 新密码未成功设置，账号当前密码保持不变", flush=True)
+                    
             elif new_password and new_password == old_password:
                 logger.info(f"ℹ️ [{file_name}] 新密码与旧密码相同，跳过密码设置")
                 print(f"ℹ️ [{file_name}] 新密码与旧密码相同，跳过密码设置", flush=True)
@@ -18915,8 +18891,8 @@ admin3</code>
                     # 连接新Session
                     convert_client = TelegramClient(
                         session_base,
-                        int(api_id),
-                        str(api_hash)
+                        int(new_api_id),
+                        str(new_api_hash)
                     )
                     await convert_client.connect()
                     
@@ -19236,15 +19212,20 @@ admin3</code>
                 failed_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_{category_key}_{timestamp}.zip")
                 with zipfile.ZipFile(failed_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
                     for file_path, file_name, result in items:
+                        # 获取手机号（用于创建目录结构）
+                        phone = result.get('phone', 'unknown')
+                        
                         # 失败的账号保持原始格式
                         # TData格式失败时返回原始TData
                         if os.path.isdir(file_path):
-                            # TData目录
+                            # TData目录 - 打包为 手机号/tdata/D877...
                             for root, dirs, files in os.walk(file_path):
                                 for file in files:
                                     file_full_path = os.path.join(root, file)
+                                    # 计算相对路径：手机号/tdata/...
                                     rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
-                                    zipf.write(file_full_path, rel_path)
+                                    arc_path = os.path.join(phone, rel_path)
+                                    zipf.write(file_full_path, arc_path)
                         else:
                             # Session文件
                             if os.path.exists(file_path):
