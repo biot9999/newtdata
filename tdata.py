@@ -95,7 +95,7 @@ try:
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
     from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest, UpdatePasswordSettings
     from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
-    import hashlib
+    from telethon.password import compute_check, compute_digest
     TELETHON_AVAILABLE = True
     print("✅ telethon库导入成功")
 except ImportError:
@@ -18667,13 +18667,11 @@ admin3</code>
                     # 如果账号当前有密码，需要提供旧密码的哈希
                     if password_data.has_password and old_password:
                         # 计算旧密码哈希用于验证
-                        from telethon.password import compute_check
                         password_check = compute_check(password_data, old_password)
                     else:
                         password_check = None
                     
                     # 创建新密码的输入设置
-                    from telethon.password import compute_digest
                     new_password_hash = compute_digest(password_data.new_algo, new_password)
                     
                     # 更新密码
@@ -18682,7 +18680,7 @@ admin3</code>
                         new_settings=PasswordInputSettings(
                             new_algo=password_data.new_algo,
                             new_password_hash=new_password_hash,
-                            hint=''  # 可选的密码提示
+                            hint='2FA'  # 密码提示
                         )
                     ))
                     
