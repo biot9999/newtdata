@@ -18378,21 +18378,20 @@ admin3</code>
             old_api_hash = config.API_HASH
             
             # 获取随机设备参数（用于新会话）
+            # 注意：API凭据必须使用配置的有效凭据，不能随机化
+            # 只随机化设备指纹参数（device_model, system_version等）
             random_device_params = None
-            new_api_id = old_api_id
-            new_api_hash = old_api_hash
+            new_api_id = old_api_id  # 使用相同的API凭据
+            new_api_hash = old_api_hash  # 使用相同的API凭据
             
             if config.REAUTH_USE_RANDOM_DEVICE:
                 try:
                     random_device_params = self.device_params_manager.get_random_device_params()
-                    if 'api_id' in random_device_params and 'api_hash' in random_device_params:
-                        new_api_id = random_device_params['api_id']
-                        new_api_hash = random_device_params['api_hash']
-                        logger.info(f"📱 [{file_name}] 新会话将使用随机设备参数: API_ID={new_api_id}")
-                        print(f"📱 [{file_name}] 新会话将使用随机设备参数: API_ID={new_api_id}", flush=True)
+                    logger.info(f"📱 [{file_name}] 新会话将使用随机设备指纹")
+                    print(f"📱 [{file_name}] 新会话将使用随机设备指纹", flush=True)
                 except Exception as e:
-                    logger.warning(f"⚠️ [{file_name}] 获取随机设备参数失败，使用配置的API: {e}")
-                    print(f"⚠️ [{file_name}] 获取随机设备参数失败，使用配置的API: {e}", flush=True)
+                    logger.warning(f"⚠️ [{file_name}] 获取随机设备参数失败: {e}")
+                    print(f"⚠️ [{file_name}] 获取随机设备参数失败: {e}", flush=True)
             
             logger.info(f"📱 [{file_name}] 旧会话使用配置的API凭据: API_ID={old_api_id}")
             print(f"📱 [{file_name}] 旧会话使用配置的API凭据: API_ID={old_api_id}", flush=True)
@@ -18741,8 +18740,68 @@ admin3</code>
                 'status': 'success',
                 'phone': phone,
                 'message': '重新授权成功',
-                'file_type': file_type
+                'file_type': file_type,
+                'new_password': new_password if new_password else '无',  # 新密码
+                'device_model': random_device_params.get('device_model', '默认设备') if random_device_params else '默认设备',
+                'system_version': random_device_params.get('system_version', '默认系统') if random_device_params else '默认系统',
+                'app_version': random_device_params.get('app_version', '默认版本') if random_device_params else '默认版本',
+                'proxy_used': '使用代理' if proxy_dict else '本地连接',
+                'proxy_type': proxy_info.get('type', 'N/A') if proxy_info else 'N/A'
             }
+            
+            # 更新JSON文件中的twoFA字段（如果有新密码）
+            if new_password and file_type == 'session':
+                json_path = os.path.splitext(f"{session_base}.session")[0] + '.json'
+                try:
+                    if os.path.exists(json_path):
+                        with open(json_path, 'r', encoding='utf-8') as f:
+                            json_data = json.load(f)
+                        json_data['twoFA'] = new_password
+                        with open(json_path, 'w', encoding='utf-8') as f:
+                            json.dump(json_data, f, ensure_ascii=False, indent=2)
+                        logger.info(f"✅ [{file_name}] 已更新JSON文件中的twoFA字段")
+                        print(f"✅ [{file_name}] 已更新JSON文件中的twoFA字段", flush=True)
+                    else:
+                        # 创建新的JSON文件
+                        json_data = {
+                            'phone': phone,
+                            'twoFA': new_password
+                        }
+                        with open(json_path, 'w', encoding='utf-8') as f:
+                            json.dump(json_data, f, ensure_ascii=False, indent=2)
+                        logger.info(f"✅ [{file_name}] 已创建JSON文件并保存twoFA")
+                        print(f"✅ [{file_name}] 已创建JSON文件并保存twoFA", flush=True)
+                except Exception as e:
+                    logger.warning(f"⚠️ [{file_name}] 更新JSON文件失败: {e}")
+                    print(f"⚠️ [{file_name}] 更新JSON文件失败: {e}", flush=True)
+            
+            # 更新TData格式的密码文件（如果有新密码）
+            if new_password and file_type == 'tdata' and original_tdata_path:
+                try:
+                    # 尝试常见的密码文件名
+                    password_files = ['2fa.txt', 'twofa.txt', 'password.txt']
+                    password_file_path = None
+                    
+                    # 检查是否已存在密码文件
+                    for pf in password_files:
+                        test_path = os.path.join(original_tdata_path, pf)
+                        if os.path.exists(test_path):
+                            password_file_path = test_path
+                            break
+                    
+                    # 如果不存在，创建2fa.txt
+                    if not password_file_path:
+                        password_file_path = os.path.join(original_tdata_path, '2fa.txt')
+                    
+                    # 写入新密码
+                    with open(password_file_path, 'w', encoding='utf-8') as f:
+                        f.write(new_password)
+                    
+                    logger.info(f"✅ [{file_name}] 已更新TData密码文件: {os.path.basename(password_file_path)}")
+                    print(f"✅ [{file_name}] 已更新TData密码文件: {os.path.basename(password_file_path)}", flush=True)
+                except Exception as e:
+                    logger.warning(f"⚠️ [{file_name}] 更新TData密码文件失败: {e}")
+                    print(f"⚠️ [{file_name}] 更新TData密码文件失败: {e}", flush=True)
             
             # 添加文件路径信息
             if file_type == 'session':
@@ -18833,6 +18892,23 @@ admin3</code>
                         f.write(f"文件: {file_name}\n")
                         if 'phone' in result:
                             f.write(f"手机号: {result['phone']}\n")
+                        
+                        # 成功的账户显示详细信息
+                        if category == 'success':
+                            if 'device_model' in result:
+                                f.write(f"设备型号: {result['device_model']}\n")
+                            if 'system_version' in result:
+                                f.write(f"系统版本: {result['system_version']}\n")
+                            if 'app_version' in result:
+                                f.write(f"应用版本: {result['app_version']}\n")
+                            if 'proxy_used' in result:
+                                f.write(f"连接方式: {result['proxy_used']}")
+                                if result.get('proxy_type') and result['proxy_type'] != 'N/A':
+                                    f.write(f" ({result['proxy_type'].upper()})")
+                                f.write("\n")
+                            if 'new_password' in result:
+                                f.write(f"新密码: {result['new_password']}\n")
+                        
                         if 'error' in result:
                             f.write(f"错误: {result['error']}\n")
                         f.write("\n")
