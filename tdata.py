@@ -3070,6 +3070,29 @@ class FileProcessor:
             # 返回一个基于时间戳的标识符
             return f"tdata_{int(time.time())}"
     
+    def _validate_tdata_structure(self, d877_path: str) -> Tuple[bool, Optional[str]]:
+        """
+        验证TData目录结构是否有效
+        
+        Args:
+            d877_path: D877F783D5D3EF8C 目录的完整路径
+            
+        Returns:
+            (is_valid, maps_file_path): 是否有效以及maps文件路径
+        """
+        try:
+            maps_file = os.path.join(d877_path, "maps")
+            key_data_file = os.path.join(d877_path, "key_data")
+            key_datas_file = os.path.join(d877_path, "key_datas")
+            
+            has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
+            is_valid = os.path.exists(maps_file) and has_key_file
+            
+            return is_valid, maps_file if is_valid else None
+        except Exception as e:
+            print(f"⚠️ 验证TData结构失败: {e}")
+            return False, None
+    
     def scan_zip_file(self, zip_path: str, user_id: int, task_id: str) -> Tuple[List[Tuple[str, str]], str, str]:
         """扫描ZIP文件 - 修复重复计数问题"""
         session_files = []
@@ -3139,43 +3162,27 @@ class FileProcessor:
                     if os.path.exists(tdata_wrapper_path) and os.path.isdir(tdata_wrapper_path):
                         tdata_d877_path = os.path.join(tdata_wrapper_path, "D877F783D5D3EF8C")
                         if os.path.exists(tdata_d877_path):
-                            d877_check_path = tdata_d877_path
-                            maps_file = os.path.join(d877_check_path, "maps")
-                            key_data_file = os.path.join(d877_check_path, "key_data")
-                            key_datas_file = os.path.join(d877_check_path, "key_datas")
-                            
-                            has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
-                            is_valid_tdata = os.path.exists(maps_file) and has_key_file
-                            
+                            is_valid_tdata, maps_file = self._validate_tdata_structure(tdata_d877_path)
                             if is_valid_tdata:
+                                d877_check_path = tdata_d877_path
                                 print(f"📂 检测到tdata包装结构: {dir_name}/tdata/D877F783D5D3EF8C")
                     
                     # 情况1: 检查是否有标准的D877F783D5D3EF8C子目录
                     if not is_valid_tdata:
                         standard_d877_path = os.path.join(dir_path, "D877F783D5D3EF8C")
                         if os.path.exists(standard_d877_path):
-                            d877_check_path = standard_d877_path
-                            maps_file = os.path.join(d877_check_path, "maps")
-                            key_data_file = os.path.join(d877_check_path, "key_data")
-                            key_datas_file = os.path.join(d877_check_path, "key_datas")
-                            
-                            has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
-                            is_valid_tdata = os.path.exists(maps_file) and has_key_file
-                            
-                            # 如果标准路径下没有文件，检查嵌套的D877子目录
-                            if not is_valid_tdata:
+                            is_valid_tdata, maps_file = self._validate_tdata_structure(standard_d877_path)
+                            if is_valid_tdata:
+                                d877_check_path = standard_d877_path
+                            else:
+                                # 如果标准路径下没有文件，检查嵌套的D877子目录（情况4）
                                 try:
-                                    for sub_dir in os.listdir(d877_check_path):
-                                        sub_dir_path = os.path.join(d877_check_path, sub_dir)
+                                    for sub_dir in os.listdir(standard_d877_path):
+                                        sub_dir_path = os.path.join(standard_d877_path, sub_dir)
                                         if os.path.isdir(sub_dir_path) and sub_dir.startswith("D877"):
-                                            sub_maps = os.path.join(sub_dir_path, "maps")
-                                            sub_key_data = os.path.join(sub_dir_path, "key_data")
-                                            sub_key_datas = os.path.join(sub_dir_path, "key_datas")
-                                            sub_has_key = os.path.exists(sub_key_data) or os.path.exists(sub_key_datas)
-                                            
-                                            if os.path.exists(sub_maps) and sub_has_key:
+                                            is_valid_nested, maps_file = self._validate_tdata_structure(sub_dir_path)
+                                            if is_valid_nested:
                                                 d877_check_path = sub_dir_path
-                                                maps_file = sub_maps
                                                 is_valid_tdata = True
                                                 print(f"🔍 检测到嵌套TData结构: {dir_name} -> {sub_dir}")
                                                 break
@@ -3186,28 +3193,16 @@ class FileProcessor:
                     if not is_valid_tdata and dir_name.lower() == "tdata":
                         tdata_d877_path = os.path.join(dir_path, "D877F783D5D3EF8C")
                         if os.path.exists(tdata_d877_path):
-                            d877_check_path = tdata_d877_path
-                            maps_file = os.path.join(d877_check_path, "maps")
-                            key_data_file = os.path.join(d877_check_path, "key_data")
-                            key_datas_file = os.path.join(d877_check_path, "key_datas")
-                            
-                            has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
-                            is_valid_tdata = os.path.exists(maps_file) and has_key_file
-                            
+                            is_valid_tdata, maps_file = self._validate_tdata_structure(tdata_d877_path)
                             if is_valid_tdata:
+                                d877_check_path = tdata_d877_path
                                 print(f"📂 检测到tdata目录结构: tdata/D877F783D5D3EF8C")
                     
                     # 情况3: 当前目录本身就是D877开头的目录（直接包含TData文件）
                     if not is_valid_tdata and dir_name.startswith("D877"):
-                        d877_check_path = dir_path
-                        maps_file = os.path.join(d877_check_path, "maps")
-                        key_data_file = os.path.join(d877_check_path, "key_data")
-                        key_datas_file = os.path.join(d877_check_path, "key_datas")
-                        
-                        has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
-                        is_valid_tdata = os.path.exists(maps_file) and has_key_file
-                        
+                        is_valid_tdata, maps_file = self._validate_tdata_structure(dir_path)
                         if is_valid_tdata:
+                            d877_check_path = dir_path
                             print(f"📂 检测到D877目录直接包含TData文件: {dir_name}")
                     
                     # 如果没有找到有效的TData结构，跳过
