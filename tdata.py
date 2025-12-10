@@ -115,6 +115,7 @@ try:
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
     from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest
     from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
+    from telethon.tl.functions.users import GetFullUserRequest
     TELETHON_AVAILABLE = True
     print("✅ telethon库导入成功")
 except ImportError:
@@ -8183,6 +8184,9 @@ class EnhancedBot:
         # 重新授权待处理任务
         self.pending_reauthorize: Dict[int, Dict[str, Any]] = {}
         
+        # 查询注册时间任务跟踪
+        self.pending_registration_check: Dict[int, Dict[str, Any]] = {}
+        
         # 初始化设备参数加载器
         self.device_loader = DeviceParamsLoader()
         
@@ -8618,6 +8622,7 @@ class EnhancedBot:
                 InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start")
             ],
             [
+                InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start"),
                 InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
             ]
         ]
@@ -9682,6 +9687,10 @@ class EnhancedBot:
             self.handle_reauthorize_start(query)
         elif data.startswith("reauthorize_") or data.startswith("reauth_"):
             self.handle_reauthorize_callbacks(update, context, query, data)
+        elif data == "check_registration_start":
+            self.handle_check_registration_start(query)
+        elif data.startswith("check_reg_"):
+            self.handle_check_registration_callbacks(update, context, query, data)
         elif query.data == "back_to_main":
             self.show_main_menu(update, user_id)
             # 返回主菜单 - 横排2x2布局
@@ -19641,6 +19650,76 @@ admin3</code>
                 )
             except:
                 pass
+    
+    # ================================
+    # 查询注册时间功能
+    # ================================
+    
+    def handle_check_registration_start(self, query):
+        """处理查询注册时间开始"""
+        query.answer()
+        user_id = query.from_user.id
+        
+        # 检查会员权限
+        if not self.db.is_admin(user_id):
+            is_member, level, expiry = self.db.check_membership(user_id)
+            if not is_member:
+                query.edit_message_text(
+                    text="❌ 查询注册时间功能需要会员权限\n\n请先开通会员",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
+                        InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")
+                    ]]),
+                    parse_mode='HTML'
+                )
+                return
+        
+        text = """
+<b>🕰️ 查询注册时间</b>
+
+该功能将查询账号的注册时间，并按时间分类：
+• 📅 按年份分类
+• 📆 按月份分类  
+• 📌 按日期分类
+
+<b>⚠️ 注意事项：</b>
+1. 支持 Session 和 TData 格式
+2. 需要使用官方 Telegram API
+3. 查询速度取决于账号数量和网络状况
+4. 建议批量处理不超过100个账号
+5. 注册时间是基于用户ID估算的大致时间范围
+
+<b>📤 请上传账号文件：</b>
+• Session格式：上传.session文件（可打包成zip）
+• TData格式：上传包含tdata目录的zip文件
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+        ])
+        
+        query.edit_message_text(
+            text=text,
+            reply_markup=keyboard,
+            parse_mode='HTML'
+        )
+        
+        # 设置pending状态
+        self.pending_registration_check[user_id] = {
+            'status': 'waiting_file',
+            'files': [],
+            'file_type': None
+        }
+    
+    def handle_check_registration_callbacks(self, update: Update, context: CallbackContext, query, data: str):
+        """处理查询注册时间相关回调"""
+        user_id = query.from_user.id
+        
+        if data == "check_reg_cancel":
+            query.answer()
+            if 'pending_registration_check' in context.user_data:
+                context.user_data.pop('pending_registration_check', None)
+            self.show_main_menu(update, user_id)
     
     def run(self):
         print("🚀 启动增强版机器人（速度优化版）...")
