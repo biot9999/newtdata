@@ -12514,7 +12514,8 @@ class EnhancedBot:
         for min_id, max_id, year, description in USER_ID_RANGES:
             if min_id <= user_id < max_id:
                 return year, description
-        return datetime.now().year, "Unknown Period"
+        # 如果user_id超出所有范围，返回-1表示未知
+        return -1, "Unknown Period"
     
     async def query_account_registration(self, session_path: str, api_id: int, api_hash: str, proxy_dict=None):
         """查询单个账号的注册信息"""
@@ -12588,13 +12589,12 @@ class EnhancedBot:
         )
         
         temp_dir = None
-        temp_zip_fd = None
         temp_zip = None
         try:
             # 下载文件 - 使用安全的临时文件
             file = context.bot.get_file(document.file_id)
-            temp_zip_fd, temp_zip = tempfile.mkstemp(suffix=".zip")
-            os.close(temp_zip_fd)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp:
+                temp_zip = tmp.name
             file.download(temp_zip)
             
             # 解压文件
@@ -12700,12 +12700,15 @@ class EnhancedBot:
             report_lines.append("")
             
             # 按年份统计
+            UNKNOWN_YEAR = -1  # 常量表示未知年份
             by_year = {}
             for result in results:
                 if result['success']:
                     year = result['estimated_year']
+                    if year == UNKNOWN_YEAR:
+                        year = 0  # 0表示未知/错误
                 else:
-                    year = 0
+                    year = 0  # 0表示未知/错误
                 
                 if year not in by_year:
                     by_year[year] = []
@@ -12766,17 +12769,27 @@ class EnhancedBot:
                         if not account['success']:
                             continue
                         
-                        # 查找对应的session文件
+                        # 查找对应的session文件 - 精确匹配
                         for session_file in session_files:
                             session_base = os.path.basename(session_file).replace('.session', '')
                             
-                            # 精确匹配
+                            # 精确匹配用户ID或手机号
+                            user_id_str = str(account['user_id'])
                             user_id_match = (account['user_id'] > 0 and 
-                                           (session_base == str(account['user_id']) or 
-                                            f"_{account['user_id']}_" in session_base))
-                            phone_match = (account['phone'] and 
-                                         (session_base == account['phone'] or
-                                          session_base == account['phone'].replace('+', '')))
+                                           (session_base == user_id_str or 
+                                            session_base.startswith(f"{user_id_str}_") or
+                                            session_base.endswith(f"_{user_id_str}") or
+                                            f"_{user_id_str}_" in session_base))
+                            
+                            phone = account['phone']
+                            phone_clean = phone.replace('+', '') if phone else None
+                            phone_match = (phone and 
+                                         (session_base == phone or
+                                          session_base == phone_clean or
+                                          session_base.startswith(f"{phone}_") or
+                                          session_base.endswith(f"_{phone}") or
+                                          session_base.startswith(f"{phone_clean}_") or
+                                          session_base.endswith(f"_{phone_clean}")))
                             
                             if user_id_match or phone_match:
                                 # 添加session文件
