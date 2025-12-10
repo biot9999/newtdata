@@ -3107,15 +3107,30 @@ class FileProcessor:
             
             # 检查是否ZIP包含单个根文件夹（常见的ZIP打包方式）
             # 如果是，自动进入该文件夹作为扫描根目录
+            # 支持多层嵌套的单个文件夹（例如：zip/tdata/tdata/D877...）
             extracted_items = os.listdir(task_upload_dir)
             print(f"📋 解压后的内容: {extracted_items}")
             
             scan_root = task_upload_dir
-            if len(extracted_items) == 1 and os.path.isdir(os.path.join(task_upload_dir, extracted_items[0])):
-                # 只有一个项目且是文件夹，进入该文件夹
-                potential_root = os.path.join(task_upload_dir, extracted_items[0])
-                print(f"🔽 检测到单个根文件夹，进入: {extracted_items[0]}")
-                scan_root = potential_root
+            max_depth = 3  # 最多进入3层单个文件夹
+            current_depth = 0
+            
+            while current_depth < max_depth:
+                items = os.listdir(scan_root)
+                # 过滤掉隐藏文件和系统文件
+                visible_items = [item for item in items if not item.startswith('.') and item not in ['__MACOSX']]
+                
+                if len(visible_items) == 1 and os.path.isdir(os.path.join(scan_root, visible_items[0])):
+                    # 只有一个可见项目且是文件夹，进入该文件夹
+                    old_scan_root = scan_root
+                    scan_root = os.path.join(scan_root, visible_items[0])
+                    print(f"🔽 第{current_depth + 1}层：检测到单个文件夹，自动进入: {visible_items[0]}")
+                    current_depth += 1
+                else:
+                    # 有多个项目或不是文件夹，停止深入
+                    if current_depth > 0:
+                        print(f"✓ 已自动进入 {current_depth} 层文件夹，当前目录内容: {visible_items[:10]}")
+                    break
             
             # 扫描解压后的文件
             print(f"🔍 开始扫描目录: {scan_root}")
@@ -3178,29 +3193,53 @@ class FileProcessor:
                     
                     if d877_exists:
                         print(f"      ✓ 找到 D877F783D5D3EF8C 目录")
+                        
+                        # 列出D877F783D5D3EF8C目录中的实际文件
+                        try:
+                            d877_contents = os.listdir(d877_check_path)
+                            print(f"      D877F783D5D3EF8C 目录内容: {d877_contents}")
+                        except Exception as e:
+                            print(f"      ⚠️ 无法列出D877目录内容: {e}")
+                            d877_contents = []
+                        
                         # 【修复】验证这是真正的TData目录，不是空文件夹
-                        # 检查必需的TData文件是否存在
-                        maps_file = os.path.join(d877_check_path, "maps")
-                        key_data_file = os.path.join(d877_check_path, "key_data")
+                        # 检查必需的TData文件是否存在（不区分大小写）
+                        maps_file = None
+                        key_data_file = None
+                        
+                        # 查找 maps 文件（不区分大小写）
+                        for item in d877_contents:
+                            if item.lower() == "maps":
+                                maps_file = os.path.join(d877_check_path, item)
+                                print(f"      ✓ 找到 maps 文件: {item}")
+                                break
+                        
+                        # 查找 key_data 文件（不区分大小写，也检查 key_datas）
+                        for item in d877_contents:
+                            if item.lower() in ["key_data", "key_datas"]:
+                                key_data_file = os.path.join(d877_check_path, item)
+                                print(f"      ✓ 找到 key_data 文件: {item}")
+                                break
                         
                         # 如果没有必需的TData文件，跳过（可能是空文件夹或假TData结构）
-                        if not os.path.exists(maps_file):
+                        if not maps_file:
                             print(f"⚠️ 跳过无效TData目录（缺少 maps 文件）: {dir_name}")
-                            print(f"   期望路径: {maps_file}")
+                            print(f"   D877目录内容: {d877_contents}")
                             continue
-                        if not os.path.exists(key_data_file):
+                        if not key_data_file:
                             print(f"⚠️ 跳过无效TData目录（缺少 key_data 文件）: {dir_name}")
-                            print(f"   期望路径: {key_data_file}")
+                            print(f"   D877目录内容: {d877_contents}")
                             continue
                         
                         # 检查maps文件大小（有效的TData maps文件通常大于30字节）
                         try:
                             maps_size = os.path.getsize(maps_file)
+                            print(f"      maps文件大小: {maps_size} 字节")
                             if maps_size < 30:
                                 print(f"⚠️ 跳过无效TData目录（maps文件过小: {maps_size}字节）: {dir_name}")
                                 continue
-                        except:
-                            print(f"⚠️ 跳过无效TData目录（无法读取maps文件）: {dir_name}")
+                        except Exception as e:
+                            print(f"⚠️ 跳过无效TData目录（无法读取maps文件: {e}）: {dir_name}")
                             continue
                         
                         # 使用规范化路径防止重复计数（处理符号链接和相对路径）
