@@ -3072,12 +3072,6 @@ class FileProcessor:
     
     def scan_zip_file(self, zip_path: str, user_id: int, task_id: str) -> Tuple[List[Tuple[str, str]], str, str]:
         """扫描ZIP文件 - 修复重复计数问题"""
-        # TData目录名长度限制
-        # 标准TData使用16字符的十六进制字符串（如D877F783D5D3EF8C）
-        # 但某些变体可能使用不同长度，因此允许12-20字符范围以兼容更多格式
-        TDATA_DIR_NAME_MIN_LENGTH = 12
-        TDATA_DIR_NAME_MAX_LENGTH = 20
-        
         session_files = []
         tdata_folders = []
         seen_tdata_paths = set()  # 防止重复计数TData目录
@@ -3128,44 +3122,44 @@ class FileProcessor:
                 
                 for dir_name in dirs:
                     dir_path = os.path.join(root, dir_name)
-                    
-                    # 检查是否存在D877开头的子目录（标准TData结构）
-                    d877_check_path = None
-                    
-                    # 情况1：dir_path下有D877F783D5D3EF8C子目录（标准结构）
-                    standard_path = os.path.join(dir_path, "D877F783D5D3EF8C")
-                    if os.path.exists(standard_path):
-                        d877_check_path = standard_path
-                    else:
-                        # 情况2：dir_path下有其他D877开头的子目录（兼容其他TData变体）
-                        try:
-                            for item in os.listdir(dir_path):
-                                item_path = os.path.join(dir_path, item)
-                                # 检查：1) 是目录 2) 以D877开头 3) 长度在合理范围内 4) 包含必需文件
-                                if (os.path.isdir(item_path) and 
-                                    item.startswith("D877") and 
-                                    TDATA_DIR_NAME_MIN_LENGTH <= len(item) <= TDATA_DIR_NAME_MAX_LENGTH):
-                                    # 验证是否包含TData必需文件
-                                    test_maps = os.path.join(item_path, "maps")
-                                    test_key_data = os.path.join(item_path, "key_data")
-                                    test_key_datas = os.path.join(item_path, "key_datas")
-                                    if os.path.exists(test_maps) and (os.path.exists(test_key_data) or os.path.exists(test_key_datas)):
-                                        d877_check_path = item_path
-                                        print(f"🔍 检测到TData变体目录: {item}")
-                                        break
-                        except (OSError, PermissionError) as e:
-                            print(f"⚠️ 无法读取目录 {dir_name}: {e}")
-                    
-                    if d877_check_path:
-                        # 【修复】验证这是真正的TData目录，不是空文件夹
-                        # 检查必需的TData文件是否存在
+                    d877_check_path = os.path.join(dir_path, "D877F783D5D3EF8C")
+                    if os.path.exists(d877_check_path):
+                        # 【修复】验证这是真正的TData目录，支持两种结构：
+                        # 1. 直接结构: D877F783D5D3EF8C 下直接有 maps 和 key_data(s)
+                        # 2. 嵌套结构: D877F783D5D3EF8C 下有子目录，子目录中有 maps 和 key_data(s)
                         maps_file = os.path.join(d877_check_path, "maps")
                         key_data_file = os.path.join(d877_check_path, "key_data")
-                        key_datas_file = os.path.join(d877_check_path, "key_datas")  # 支持复数形式
+                        key_datas_file = os.path.join(d877_check_path, "key_datas")
                         
-                        # 如果没有必需的TData文件，跳过（可能是空文件夹或假TData结构）
+                        # 检查直接结构
                         has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
-                        if not os.path.exists(maps_file) or not has_key_file:
+                        has_direct_structure = os.path.exists(maps_file) and has_key_file
+                        
+                        # 如果直接结构不存在，检查是否有嵌套的D877子目录
+                        if not has_direct_structure:
+                            try:
+                                # 查找 D877F783D5D3EF8C 下的所有D877开头的子目录
+                                for sub_dir in os.listdir(d877_check_path):
+                                    sub_dir_path = os.path.join(d877_check_path, sub_dir)
+                                    if os.path.isdir(sub_dir_path) and sub_dir.startswith("D877"):
+                                        # 检查子目录中的文件
+                                        sub_maps = os.path.join(sub_dir_path, "maps")
+                                        sub_key_data = os.path.join(sub_dir_path, "key_data")
+                                        sub_key_datas = os.path.join(sub_dir_path, "key_datas")
+                                        sub_has_key = os.path.exists(sub_key_data) or os.path.exists(sub_key_datas)
+                                        
+                                        if os.path.exists(sub_maps) and sub_has_key:
+                                            # 找到嵌套结构，使用子目录作为检查路径
+                                            d877_check_path = sub_dir_path
+                                            maps_file = sub_maps
+                                            has_direct_structure = True
+                                            print(f"🔍 检测到嵌套TData结构: {dir_name} -> {sub_dir}")
+                                            break
+                            except (OSError, PermissionError) as e:
+                                print(f"⚠️ 无法读取D877F783D5D3EF8C子目录: {e}")
+                        
+                        # 如果两种结构都没有找到，跳过
+                        if not has_direct_structure:
                             print(f"⚠️ 跳过无效TData目录（缺少必需文件）: {dir_name}")
                             continue
                         
