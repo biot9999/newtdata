@@ -18890,47 +18890,72 @@ admin3</code>
                 logger.info(f"📂 [{file_name}] 步骤10: 转换Session回TData格式...")
                 print(f"📂 [{file_name}] 步骤10: 转换Session回TData格式...", flush=True)
                 
+                convert_client = None
                 try:
                     # 使用新Session创建TData
                     new_tdata_path = f"{original_tdata_path}_new"
                     os.makedirs(new_tdata_path, exist_ok=True)
                     
-                    # 连接新Session
-                    convert_client = TelegramClient(
+                    # 连接新Session - 使用OpenTele的TelegramClient
+                    from opentele.tl import TelegramClient as OpenTeleClient
+                    convert_client = OpenTeleClient(
                         session_base,
                         int(new_api_id),
                         str(new_api_hash)
                     )
                     await convert_client.connect()
                     
-                    if await convert_client.is_user_authorized():
-                        # 转换Session为TData
-                        tdesk_new = await convert_client.ToTDesktop(
-                            flag=UseCurrentSession,
-                            api=API.TelegramDesktop
-                        )
-                        
-                        # 保存TData
-                        tdesk_new.SaveTData(new_tdata_path)
-                        
-                        # 创建2fa.txt文件（如果有新密码）
-                        if new_password:
-                            password_file = os.path.join(new_tdata_path, "2fa.txt")
-                            with open(password_file, 'w', encoding='utf-8') as f:
-                                f.write(new_password)
-                            logger.info(f"✅ [{file_name}] 已创建2fa.txt密码文件")
-                            print(f"✅ [{file_name}] 已创建2fa.txt密码文件", flush=True)
-                        
-                        # 删除旧TData，替换为新TData
-                        if os.path.exists(original_tdata_path):
-                            shutil.rmtree(original_tdata_path, ignore_errors=True)
-                        shutil.move(new_tdata_path, original_tdata_path)
-                        
-                        logger.info(f"✅ [{file_name}] Session已转换回TData格式")
-                        print(f"✅ [{file_name}] Session已转换回TData格式", flush=True)
-                    else:
-                        logger.warning(f"⚠️ [{file_name}] 新Session未授权，无法转换回TData")
-                        print(f"⚠️ [{file_name}] 新Session未授权，无法转换回TData", flush=True)
+                    if not await convert_client.is_user_authorized():
+                        logger.error(f"❌ [{file_name}] 新Session未授权，无法转换回TData")
+                        print(f"❌ [{file_name}] 新Session未授权，无法转换回TData", flush=True)
+                        # 清理临时目录
+                        if os.path.exists(new_tdata_path):
+                            shutil.rmtree(new_tdata_path, ignore_errors=True)
+                        return {'status': 'other_error', 'error': '新Session未授权，无法转换回TData'}
+                    
+                    # 转换Session为TData
+                    logger.info(f"🔄 [{file_name}] 开始转换Session为TData...")
+                    print(f"🔄 [{file_name}] 开始转换Session为TData...", flush=True)
+                    
+                    tdesk_new = await convert_client.ToTDesktop(
+                        flag=UseCurrentSession,
+                        api=API.TelegramDesktop
+                    )
+                    
+                    # 保存TData
+                    logger.info(f"💾 [{file_name}] 保存TData到: {new_tdata_path}")
+                    print(f"💾 [{file_name}] 保存TData到: {new_tdata_path}", flush=True)
+                    tdesk_new.SaveTData(new_tdata_path)
+                    
+                    # 验证TData目录是否创建成功
+                    tdata_dirs = [d for d in os.listdir(new_tdata_path) if os.path.isdir(os.path.join(new_tdata_path, d))]
+                    if not tdata_dirs:
+                        logger.error(f"❌ [{file_name}] TData转换失败：未生成TData目录")
+                        print(f"❌ [{file_name}] TData转换失败：未生成TData目录", flush=True)
+                        if os.path.exists(new_tdata_path):
+                            shutil.rmtree(new_tdata_path, ignore_errors=True)
+                        return {'status': 'other_error', 'error': 'TData转换失败：未生成TData目录'}
+                    
+                    logger.info(f"✅ [{file_name}] TData目录已生成: {tdata_dirs}")
+                    print(f"✅ [{file_name}] TData目录已生成: {tdata_dirs}", flush=True)
+                    
+                    # 创建2fa.txt文件（只在密码设置成功时）
+                    if new_password and password_set_success:
+                        password_file = os.path.join(new_tdata_path, "2fa.txt")
+                        with open(password_file, 'w', encoding='utf-8') as f:
+                            f.write(new_password)
+                        logger.info(f"✅ [{file_name}] 已创建2fa.txt密码文件")
+                        print(f"✅ [{file_name}] 已创建2fa.txt密码文件", flush=True)
+                    
+                    # 删除旧TData，替换为新TData
+                    logger.info(f"🔄 [{file_name}] 替换旧TData...")
+                    print(f"🔄 [{file_name}] 替换旧TData...", flush=True)
+                    if os.path.exists(original_tdata_path):
+                        shutil.rmtree(original_tdata_path, ignore_errors=True)
+                    shutil.move(new_tdata_path, original_tdata_path)
+                    
+                    logger.info(f"✅ [{file_name}] Session已成功转换回TData格式")
+                    print(f"✅ [{file_name}] Session已成功转换回TData格式", flush=True)
                     
                     # 断开客户端
                     if convert_client:
@@ -18939,7 +18964,22 @@ admin3</code>
                 except Exception as e:
                     logger.error(f"❌ [{file_name}] 转换回TData失败: {e}")
                     print(f"❌ [{file_name}] 转换回TData失败: {e}", flush=True)
-                    # 不阻止成功状态，但记录错误
+                    import traceback
+                    traceback.print_exc()
+                    
+                    # 清理临时目录
+                    if os.path.exists(f"{original_tdata_path}_new"):
+                        shutil.rmtree(f"{original_tdata_path}_new", ignore_errors=True)
+                    
+                    # 断开客户端
+                    if convert_client:
+                        try:
+                            await convert_client.disconnect()
+                        except:
+                            pass
+                    
+                    # TData转换失败应该返回错误，不应该标记为成功
+                    return {'status': 'other_error', 'error': f'TData转换失败: {str(e)}'}
             
             logger.info(f"🎉 [{file_name}] 重新授权完成！")
             print(f"🎉 [{file_name}] 重新授权完成！", flush=True)
