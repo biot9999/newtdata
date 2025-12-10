@@ -43,6 +43,26 @@ print("🔍 Telegram账号检测机器人 V8.0")
 print(f"📅 当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 # ================================
+# Python版本兼容性 - asyncio.to_thread
+# ================================
+# asyncio.to_thread在Python 3.9+才可用，为老版本提供兼容实现
+import concurrent.futures
+
+if not hasattr(asyncio, 'to_thread'):
+    # Python < 3.9 兼容实现
+    _executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+    
+    async def _to_thread_compat(func, *args, **kwargs):
+        """兼容Python < 3.9的asyncio.to_thread实现"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(_executor, lambda: func(*args, **kwargs))
+    
+    asyncio.to_thread = _to_thread_compat
+    print("⚠️ Python < 3.9 检测到，使用兼容的asyncio.to_thread实现")
+else:
+    print("✅ Python 3.9+ 检测到，使用原生asyncio.to_thread")
+
+# ================================
 # 日志配置
 # ================================
 logging.basicConfig(
