@@ -494,9 +494,12 @@ class DeviceParamsManager:
         if 'api_credentials' in self.params and self.params['api_credentials']:
             cred = random.choice(self.params['api_credentials'])
             if ':' in cred:
-                api_id, api_hash = cred.split(':', 1)
-                params['api_id'] = int(api_id.strip())
-                params['api_hash'] = api_hash.strip()
+                try:
+                    api_id, api_hash = cred.split(':', 1)
+                    params['api_id'] = int(api_id.strip())
+                    params['api_hash'] = api_hash.strip()
+                except (ValueError, AttributeError) as e:
+                    print(f"⚠️ 解析API凭据失败: {cred} - {e}")
         
         # 其他参数
         for key in ['app_name', 'app_version', 'device_model', 'lang_code', 
@@ -506,10 +509,16 @@ class DeviceParamsManager:
         
         # 数值类型参数
         if 'cpu_cores' in self.params and self.params['cpu_cores']:
-            params['cpu_cores'] = int(random.choice(self.params['cpu_cores']))
+            try:
+                params['cpu_cores'] = int(random.choice(self.params['cpu_cores']))
+            except (ValueError, AttributeError) as e:
+                print(f"⚠️ 解析CPU核心数失败: {e}")
         
         if 'ram_size' in self.params and self.params['ram_size']:
-            params['ram_size'] = int(random.choice(self.params['ram_size']))
+            try:
+                params['ram_size'] = int(random.choice(self.params['ram_size']))
+            except (ValueError, AttributeError) as e:
+                print(f"⚠️ 解析RAM大小失败: {e}")
         
         # 设备和SDK
         if 'device_sdk' in self.params and self.params['device_sdk']:
@@ -523,9 +532,12 @@ class DeviceParamsManager:
         if 'screen_resolution' in self.params and self.params['screen_resolution']:
             resolution = random.choice(self.params['screen_resolution'])
             if 'x' in resolution:
-                width, height = resolution.split('x', 1)
-                params['screen_width'] = int(width.strip())
-                params['screen_height'] = int(height.strip())
+                try:
+                    width, height = resolution.split('x', 1)
+                    params['screen_width'] = int(width.strip())
+                    params['screen_height'] = int(height.strip())
+                except (ValueError, AttributeError) as e:
+                    print(f"⚠️ 解析屏幕分辨率失败: {resolution} - {e}")
         
         return params
     
@@ -18289,6 +18301,8 @@ admin3</code>
                 ]
                 
                 # 并发执行所有任务
+                # 使用return_exceptions=True允许部分失败不影响其他任务
+                # 异常已在process_account_wrapper中处理
                 await asyncio.gather(*tasks, return_exceptions=True)
             
             # 执行批量处理
@@ -18432,8 +18446,8 @@ admin3</code>
                     print(f"⚠️ [{file_name}] 代理连接超时，回退到本地连接", flush=True)
                     try:
                         await client.disconnect()
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"⚠️ [{file_name}] 断开旧客户端失败: {e}")
                     # 重新创建不带代理的客户端
                     client = TelegramClient(
                         session_base,
@@ -18446,10 +18460,10 @@ admin3</code>
                     print(f"✅ [{file_name}] 本地连接成功", flush=True)
                     connect_success = True
                 else:
-                    raise  # 如果不是代理超时，或者没有配置强制代理，则抛出异常
-            
-            if not connect_success:
-                return {'status': 'network_error', 'error': '无法连接到Telegram服务器'}
+                    # 如果不是代理超时，或者没有配置强制代理，则抛出异常
+                    logger.error(f"❌ [{file_name}] 连接超时且无法回退")
+                    print(f"❌ [{file_name}] 连接超时且无法回退", flush=True)
+                    return {'status': 'network_error', 'error': '连接超时'}
             
             # 检查授权状态
             if not await client.is_user_authorized():
@@ -18533,8 +18547,8 @@ admin3</code>
                     print(f"⚠️ [{file_name}] 新会话代理连接超时，回退到本地连接", flush=True)
                     try:
                         await new_client.disconnect()
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"⚠️ [{file_name}] 断开新客户端失败: {e}")
                     # 重新创建不带代理的客户端
                     new_client = TelegramClient(
                         new_session_path,
