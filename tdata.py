@@ -3106,7 +3106,12 @@ class FileProcessor:
             print(f"📦 文件解压完成: {task_upload_dir}")
             
             # 扫描解压后的文件
+            print(f"🔍 开始扫描目录: {task_upload_dir}")
             for root, dirs, files in os.walk(task_upload_dir):
+                print(f"📂 扫描: {root}")
+                print(f"   子目录: {dirs}")
+                print(f"   文件: {files[:5]}{'...' if len(files) > 5 else ''}")  # 只显示前5个文件
+                
                 for file in files:
                     if file.endswith('.session'):
                         # 【修复】过滤掉系统文件和临时文件
@@ -3145,8 +3150,13 @@ class FileProcessor:
                         key_data_file = os.path.join(d877_check_path, "key_data")
                         
                         # 如果没有必需的TData文件，跳过（可能是空文件夹或假TData结构）
-                        if not os.path.exists(maps_file) or not os.path.exists(key_data_file):
-                            print(f"⚠️ 跳过无效TData目录（缺少必需文件）: {dir_name}")
+                        if not os.path.exists(maps_file):
+                            print(f"⚠️ 跳过无效TData目录（缺少 maps 文件）: {dir_name}")
+                            print(f"   期望路径: {maps_file}")
+                            continue
+                        if not os.path.exists(key_data_file):
+                            print(f"⚠️ 跳过无效TData目录（缺少 key_data 文件）: {dir_name}")
+                            print(f"   期望路径: {key_data_file}")
                             continue
                         
                         # 检查maps文件大小（有效的TData maps文件通常大于30字节）
@@ -17947,7 +17957,42 @@ admin3</code>
             files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, unique_task_id)
             
             if not files:
-                self.safe_edit_message_text(progress_msg, "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
+                error_msg = """❌ <b>未找到有效的账号文件</b>
+
+<b>可能的原因：</b>
+1️⃣ ZIP文件结构不正确
+2️⃣ TData文件夹缺少必需文件（D877F783D5D3EF8C/maps 和 D877F783D5D3EF8C/key_data）
+3️⃣ Session文件格式不正确或为空
+
+<b>正确的文件结构：</b>
+
+📁 <b>TData格式：</b>
+<code>压缩包/
+  账号1/
+    D877F783D5D3EF8C/
+      maps
+      key_data
+  账号2/
+    D877F783D5D3EF8C/
+      maps
+      key_data</code>
+
+或
+
+<code>压缩包/
+  tdata/
+    D877F783D5D3EF8C/
+      maps
+      key_data</code>
+
+📱 <b>Session格式：</b>
+<code>压缩包/
+  账号1.session
+  账号2.session</code>
+
+💡 <b>提示：</b>请检查您的文件是否包含完整的TData结构（包括D877F783D5D3EF8C子文件夹及其内部文件）"""
+                
+                self.safe_edit_message_text(progress_msg, error_msg, parse_mode='HTML')
                 return
             
             # 保存任务信息
