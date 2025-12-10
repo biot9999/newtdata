@@ -91,9 +91,9 @@ try:
         PasswordHashInvalidError, PhoneCodeInvalidError, AuthRestartError,
         UsernameOccupiedError, UsernameInvalidError
     )
-    from telethon.tl.types import User, CodeSettings, PasswordInputSettings
+    from telethon.tl.types import User, CodeSettings
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
-    from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest, UpdatePasswordSettings
+    from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest
     from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
     TELETHON_AVAILABLE = True
     print("✅ telethon库导入成功")
@@ -101,21 +101,6 @@ except ImportError:
     print("❌ telethon未安装")
     print("💡 请安装: pip install telethon")
     TELETHON_AVAILABLE = False
-
-# Import password utilities separately to avoid breaking other imports if not available
-try:
-    from telethon.password import compute_check, compute_digest
-    TELETHON_PASSWORD_AVAILABLE = True
-except ImportError:
-    TELETHON_PASSWORD_AVAILABLE = False
-    print("⚠️ telethon.password 不可用，密码修改功能将受限")
-    # Define fallback functions
-    def compute_check(password_data, password):
-        """Fallback function when telethon.password is not available"""
-        return None
-    def compute_digest(algo, password):
-        """Fallback function when telethon.password is not available"""
-        return None
 
 # Define fallback exception classes for when imports fail
 try:
@@ -3105,40 +3090,8 @@ class FileProcessor:
             
             print(f"📦 文件解压完成: {task_upload_dir}")
             
-            # 检查是否ZIP包含单个根文件夹（常见的ZIP打包方式）
-            # 如果是，自动进入该文件夹作为扫描根目录
-            # 支持多层嵌套的单个文件夹（例如：zip/tdata/tdata/D877...）
-            extracted_items = os.listdir(task_upload_dir)
-            print(f"📋 解压后的内容: {extracted_items}")
-            
-            scan_root = task_upload_dir
-            max_depth = 3  # 最多进入3层单个文件夹
-            current_depth = 0
-            
-            while current_depth < max_depth:
-                items = os.listdir(scan_root)
-                # 过滤掉隐藏文件和系统文件
-                visible_items = [item for item in items if not item.startswith('.') and item not in ['__MACOSX']]
-                
-                if len(visible_items) == 1 and os.path.isdir(os.path.join(scan_root, visible_items[0])):
-                    # 只有一个可见项目且是文件夹，进入该文件夹
-                    old_scan_root = scan_root
-                    scan_root = os.path.join(scan_root, visible_items[0])
-                    print(f"🔽 第{current_depth + 1}层：检测到单个文件夹，自动进入: {visible_items[0]}")
-                    current_depth += 1
-                else:
-                    # 有多个项目或不是文件夹，停止深入
-                    if current_depth > 0:
-                        print(f"✓ 已自动进入 {current_depth} 层文件夹，当前目录内容: {visible_items[:10]}")
-                    break
-            
             # 扫描解压后的文件
-            print(f"🔍 开始扫描目录: {scan_root}")
-            for root, dirs, files in os.walk(scan_root):
-                print(f"📂 扫描: {root}")
-                print(f"   子目录: {dirs}")
-                print(f"   文件: {files[:5]}{'...' if len(files) > 5 else ''}")  # 只显示前5个文件
-                
+            for root, dirs, files in os.walk(task_upload_dir):
                 for file in files:
                     if file.endswith('.session'):
                         # 【修复】过滤掉系统文件和临时文件
@@ -3169,77 +3122,26 @@ class FileProcessor:
                 
                 for dir_name in dirs:
                     dir_path = os.path.join(root, dir_name)
-                    print(f"   🔍 检查目录: {dir_name}")
-                    
-                    # 尝试查找D877F783D5D3EF8C目录（不区分大小写）
                     d877_check_path = os.path.join(dir_path, "D877F783D5D3EF8C")
-                    d877_exists = os.path.exists(d877_check_path)
-                    
-                    # 如果标准大小写不存在，尝试列出实际的子目录看看有什么
-                    if not d877_exists:
-                        try:
-                            actual_subdirs = os.listdir(dir_path) if os.path.isdir(dir_path) else []
-                            if actual_subdirs:
-                                print(f"      实际子目录: {actual_subdirs}")
-                                # 检查是否有大小写不同的D877目录
-                                for subdir in actual_subdirs:
-                                    if subdir.upper() == "D877F783D5D3EF8C":
-                                        print(f"      ⚠️ 发现大小写不同的目录: {subdir}")
-                                        d877_check_path = os.path.join(dir_path, subdir)
-                                        d877_exists = True
-                                        break
-                        except Exception as e:
-                            print(f"      ⚠️ 无法列出子目录: {e}")
-                    
-                    if d877_exists:
-                        print(f"      ✓ 找到 D877F783D5D3EF8C 目录")
-                        
-                        # 列出D877F783D5D3EF8C目录中的实际文件
-                        try:
-                            d877_contents = os.listdir(d877_check_path)
-                            print(f"      D877F783D5D3EF8C 目录内容: {d877_contents}")
-                        except Exception as e:
-                            print(f"      ⚠️ 无法列出D877目录内容: {e}")
-                            d877_contents = []
-                        
+                    if os.path.exists(d877_check_path):
                         # 【修复】验证这是真正的TData目录，不是空文件夹
-                        # 检查必需的TData文件是否存在（不区分大小写）
-                        maps_file = None
-                        key_data_file = None
-                        
-                        # 查找 maps 文件（不区分大小写）
-                        for item in d877_contents:
-                            if item.lower() == "maps":
-                                maps_file = os.path.join(d877_check_path, item)
-                                print(f"      ✓ 找到 maps 文件: {item}")
-                                break
-                        
-                        # 查找 key_data 文件（不区分大小写，也检查 key_datas）
-                        for item in d877_contents:
-                            if item.lower() in ["key_data", "key_datas"]:
-                                key_data_file = os.path.join(d877_check_path, item)
-                                print(f"      ✓ 找到 key_data 文件: {item}")
-                                break
+                        # 检查必需的TData文件是否存在
+                        maps_file = os.path.join(d877_check_path, "maps")
+                        key_data_file = os.path.join(d877_check_path, "key_data")
                         
                         # 如果没有必需的TData文件，跳过（可能是空文件夹或假TData结构）
-                        if not maps_file:
-                            print(f"⚠️ 跳过无效TData目录（缺少 maps 文件）: {dir_name}")
-                            print(f"   D877目录内容: {d877_contents}")
-                            continue
-                        if not key_data_file:
-                            print(f"⚠️ 跳过无效TData目录（缺少 key_data 文件）: {dir_name}")
-                            print(f"   D877目录内容: {d877_contents}")
+                        if not os.path.exists(maps_file) or not os.path.exists(key_data_file):
+                            print(f"⚠️ 跳过无效TData目录（缺少必需文件）: {dir_name}")
                             continue
                         
                         # 检查maps文件大小（有效的TData maps文件通常大于30字节）
                         try:
                             maps_size = os.path.getsize(maps_file)
-                            print(f"      maps文件大小: {maps_size} 字节")
                             if maps_size < 30:
                                 print(f"⚠️ 跳过无效TData目录（maps文件过小: {maps_size}字节）: {dir_name}")
                                 continue
-                        except Exception as e:
-                            print(f"⚠️ 跳过无效TData目录（无法读取maps文件: {e}）: {dir_name}")
+                        except:
+                            print(f"⚠️ 跳过无效TData目录（无法读取maps文件）: {dir_name}")
                             continue
                         
                         # 使用规范化路径防止重复计数（处理符号链接和相对路径）
@@ -3260,18 +3162,10 @@ class FileProcessor:
         
         except Exception as e:
             print(f"❌ 文件扫描失败: {e}")
-            import traceback
-            traceback.print_exc()
             shutil.rmtree(task_upload_dir, ignore_errors=True)
             return [], "", "error"
         
         # 优先级：TData > Session（修复检测优先级问题）
-        print(f"\n{'='*60}")
-        print(f"📊 扫描结果汇总:")
-        print(f"   Session文件: {len(session_files)} 个")
-        print(f"   TData文件夹: {len(tdata_folders)} 个")
-        print(f"{'='*60}\n")
-        
         if tdata_folders:
             print(f"🎯 检测到TData文件，优先使用TData检测")
             print(f"✅ 找到 {len(tdata_folders)} 个唯一TData文件夹")
@@ -3284,7 +3178,6 @@ class FileProcessor:
             return session_files, task_upload_dir, "session"
         else:
             print("❌ 未找到有效的账号文件")
-            print("提示：请检查ZIP文件结构和TData必需文件")
             shutil.rmtree(task_upload_dir, ignore_errors=True)
             return [], "", "none"
     
@@ -18039,42 +17932,7 @@ admin3</code>
             files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, unique_task_id)
             
             if not files:
-                error_msg = """❌ <b>未找到有效的账号文件</b>
-
-<b>可能的原因：</b>
-1️⃣ ZIP文件结构不正确
-2️⃣ TData文件夹缺少必需文件（D877F783D5D3EF8C/maps 和 D877F783D5D3EF8C/key_data）
-3️⃣ Session文件格式不正确或为空
-
-<b>正确的文件结构：</b>
-
-📁 <b>TData格式：</b>
-<code>压缩包/
-  账号1/
-    D877F783D5D3EF8C/
-      maps
-      key_data
-  账号2/
-    D877F783D5D3EF8C/
-      maps
-      key_data</code>
-
-或
-
-<code>压缩包/
-  tdata/
-    D877F783D5D3EF8C/
-      maps
-      key_data</code>
-
-📱 <b>Session格式：</b>
-<code>压缩包/
-  账号1.session
-  账号2.session</code>
-
-💡 <b>提示：</b>请检查您的文件是否包含完整的TData结构（包括D877F783D5D3EF8C子文件夹及其内部文件）"""
-                
-                self.safe_edit_message_text(progress_msg, error_msg, parse_mode='HTML')
+                self.safe_edit_message_text(progress_msg, "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
                 return
             
             # 保存任务信息
@@ -18323,28 +18181,16 @@ admin3</code>
         """创建重新授权进度按钮"""
         return InlineKeyboardMarkup([
             [
-                InlineKeyboardButton(f"📊 账户数量", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"{total}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"总账号量 {total}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"授权成功 {success}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"✅ 授权成功", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"{success}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"冻结账户 {frozen}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"2FA错误 {wrong_pwd}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"❄️ 冻结账户", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"{frozen}", callback_data="reauthorize_noop")
-            ],
-            [
-                InlineKeyboardButton(f"🚫 封禁账户", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"{banned}", callback_data="reauthorize_noop")
-            ],
-            [
-                InlineKeyboardButton(f"🔐 2FA错误", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"{wrong_pwd}", callback_data="reauthorize_noop")
-            ],
-            [
-                InlineKeyboardButton(f"⚠️ 网络错误", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"{network_error}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"封禁账户 {banned}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"网络错误 {network_error}", callback_data="reauthorize_noop")
             ]
         ])
     
@@ -18809,56 +18655,14 @@ admin3</code>
                     return {'status': 'wrong_password', 'error': '2FA密码错误'}
             
             # 步骤8: 设置新密码（如果提供）
+            # TODO: 实现密码设置功能
+            # Telethon需要使用account.UpdatePasswordSettings来设置新密码
+            # 这需要提供正确的password_input_settings参数
             if new_password and new_password != old_password:
-                logger.info(f"🔑 [{file_name}] 步骤7: 设置新密码...")
-                print(f"🔑 [{file_name}] 步骤7: 设置新密码...", flush=True)
-                
-                if not TELETHON_PASSWORD_AVAILABLE:
-                    logger.warning(f"⚠️ [{file_name}] telethon.password 不可用，无法设置新密码")
-                    print(f"⚠️ [{file_name}] telethon.password 不可用，无法设置新密码", flush=True)
-                else:
-                    try:
-                        # 获取当前密码设置
-                        password_data = await new_client(GetPasswordRequest())
-                        
-                        # 创建新密码设置
-                        # 如果账号当前有密码，需要提供旧密码的哈希
-                        if password_data.has_password and old_password:
-                            # 计算旧密码哈希用于验证
-                            password_check = compute_check(password_data, old_password)
-                        else:
-                            password_check = None
-                        
-                        # 创建新密码的输入设置
-                        new_password_hash = compute_digest(password_data.new_algo, new_password)
-                        
-                        # 更新密码
-                        result = await new_client(UpdatePasswordSettings(
-                            password=password_check,
-                            new_settings=PasswordInputSettings(
-                                new_algo=password_data.new_algo,
-                                new_password_hash=new_password_hash,
-                                hint='2FA'  # 密码提示
-                            )
-                        ))
-                        
-                        if result:
-                            logger.info(f"✅ [{file_name}] 新密码设置成功")
-                            print(f"✅ [{file_name}] 新密码设置成功", flush=True)
-                        else:
-                            logger.warning(f"⚠️ [{file_name}] 新密码设置可能失败")
-                            print(f"⚠️ [{file_name}] 新密码设置可能失败", flush=True)
-                            
-                    except Exception as e:
-                        logger.error(f"❌ [{file_name}] 设置新密码失败: {e}")
-                        print(f"❌ [{file_name}] 设置新密码失败: {e}", flush=True)
-                        # 不返回错误，继续执行其他步骤
-            elif new_password == old_password:
-                logger.info(f"ℹ️ [{file_name}] 新旧密码相同，跳过密码设置")
-                print(f"ℹ️ [{file_name}] 新旧密码相同，跳过密码设置", flush=True)
-            else:
-                logger.info(f"ℹ️ [{file_name}] 未提供新密码，跳过密码设置")
-                print(f"ℹ️ [{file_name}] 未提供新密码，跳过密码设置", flush=True)
+                logger.info(f"🔑 [{file_name}] 步骤7: 准备设置新密码...")
+                print(f"🔑 [{file_name}] 步骤7: 准备设置新密码...", flush=True)
+                logger.info(f"ℹ️ [{file_name}] 注意: 新密码需要通过Telegram客户端完成设置")
+                print(f"ℹ️ [{file_name}] 注意: 新密码需要通过Telegram客户端完成设置", flush=True)
             
             # 步骤9: 登出旧会话
             logger.info(f"🚪 [{file_name}] 步骤8: 登出旧会话...")
