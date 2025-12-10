@@ -18055,6 +18055,7 @@ admin3</code>
         import asyncio
         
         files = task['files']
+        file_type = task['file_type']
         password_mode = task.get('password_mode', 'manual')
         password_map = task.get('password_map', {})  # For auto mode
         old_password = task.get('old_password', '')  # For manual mode
@@ -18131,7 +18132,7 @@ admin3</code>
                     
                     result = loop.run_until_complete(
                         self._reauthorize_single_account(
-                            file_path, file_name, account_old_password, new_password, user_id
+                            file_path, file_name, account_old_password, new_password, user_id, file_type
                         )
                     )
                     
@@ -18162,15 +18163,61 @@ admin3</code>
             if task.get('temp_dir') and os.path.exists(task['temp_dir']):
                 shutil.rmtree(task['temp_dir'], ignore_errors=True)
     
-    async def _reauthorize_single_account(self, file_path: str, file_name: str, old_password: str, new_password: str, user_id: int) -> Dict:
-        """重新授权单个账号"""
-        logger.info(f"🔄 开始处理账号: {file_name}")
-        print(f"🔄 开始处理账号: {file_name}", flush=True)
+    async def _reauthorize_single_account(self, file_path: str, file_name: str, old_password: str, new_password: str, user_id: int, file_type: str = 'session') -> Dict:
+        """重新授权单个账号（支持Session和TData格式）"""
+        logger.info(f"🔄 开始处理账号: {file_name} (格式: {file_type.upper()})")
+        print(f"🔄 开始处理账号: {file_name} (格式: {file_type.upper()})", flush=True)
         
         client = None
         new_client = None
+        temp_session_path = None
+        original_tdata_path = None
         
         try:
+            # 如果是TData格式，先转换为Session
+            if file_type == 'tdata':
+                if not OPENTELE_AVAILABLE:
+                    return {'status': 'other_error', 'error': 'opentele库未安装，无法处理TData格式'}
+                
+                logger.info(f"📂 [{file_name}] TData格式 - 转换为Session进行处理...")
+                print(f"📂 [{file_name}] TData格式 - 转换为Session进行处理...", flush=True)
+                
+                try:
+                    # 保存原始TData路径
+                    original_tdata_path = file_path
+                    
+                    # 加载TData
+                    tdesk = TDesktop(file_path)
+                    if not tdesk.isLoaded():
+                        return {'status': 'frozen', 'error': 'TData未授权或无效'}
+                    
+                    # 创建临时Session文件
+                    os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
+                    temp_session_name = f"reauth_tdata_{time.time_ns()}"
+                    temp_session_path = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
+                    
+                    # 转换TData为Session
+                    temp_client = await tdesk.ToTelethon(
+                        session=temp_session_path,
+                        flag=UseCurrentSession,
+                        api=API.TelegramDesktop
+                    )
+                    
+                    # 断开临时客户端
+                    if temp_client:
+                        await temp_client.disconnect()
+                    
+                    # 使用转换后的Session路径
+                    file_path = temp_session_path
+                    
+                    logger.info(f"✅ [{file_name}] TData转Session完成")
+                    print(f"✅ [{file_name}] TData转Session完成", flush=True)
+                    
+                except Exception as e:
+                    logger.error(f"❌ [{file_name}] TData转换失败: {e}")
+                    print(f"❌ [{file_name}] TData转换失败: {e}", flush=True)
+                    return {'status': 'other_error', 'error': f'TData转换失败: {str(e)}'}
+            
             # 使用配置中的API凭据（不能使用随机设备的API凭据，因为现有session是用特定API凭据创建的）
             # Telegram会验证API凭据与手机号的匹配关系
             api_id = config.API_ID
@@ -18396,13 +18443,73 @@ admin3</code>
                 logger.info(f"✅ [{file_name}] 新会话文件已替换旧会话")
                 print(f"✅ [{file_name}] 新会话文件已替换旧会话", flush=True)
             
+            # 步骤11: 如果原始格式是TData，转换回TData
+            if file_type == 'tdata' and original_tdata_path:
+                logger.info(f"📂 [{file_name}] 步骤10: 转换Session回TData格式...")
+                print(f"📂 [{file_name}] 步骤10: 转换Session回TData格式...", flush=True)
+                
+                try:
+                    # 使用新Session创建TData
+                    new_tdata_path = f"{original_tdata_path}_new"
+                    os.makedirs(new_tdata_path, exist_ok=True)
+                    
+                    # 连接新Session
+                    convert_client = TelegramClient(
+                        session_base,
+                        int(api_id),
+                        str(api_hash)
+                    )
+                    await convert_client.connect()
+                    
+                    if await convert_client.is_user_authorized():
+                        # 转换Session为TData
+                        tdesk_new = await convert_client.ToTDesktop(
+                            flag=UseCurrentSession,
+                            api=API.TelegramDesktop
+                        )
+                        
+                        # 保存TData
+                        tdesk_new.SaveTData(new_tdata_path)
+                        
+                        # 创建2fa.txt文件（如果有新密码）
+                        if new_password:
+                            password_file = os.path.join(new_tdata_path, "2fa.txt")
+                            with open(password_file, 'w', encoding='utf-8') as f:
+                                f.write(new_password)
+                            logger.info(f"✅ [{file_name}] 已创建2fa.txt密码文件")
+                            print(f"✅ [{file_name}] 已创建2fa.txt密码文件", flush=True)
+                        
+                        # 断开客户端
+                        await convert_client.disconnect()
+                        
+                        # 删除旧TData，替换为新TData
+                        if os.path.exists(original_tdata_path):
+                            shutil.rmtree(original_tdata_path, ignore_errors=True)
+                        shutil.move(new_tdata_path, original_tdata_path)
+                        
+                        logger.info(f"✅ [{file_name}] Session已转换回TData格式")
+                        print(f"✅ [{file_name}] Session已转换回TData格式", flush=True)
+                    else:
+                        logger.warning(f"⚠️ [{file_name}] 新Session未授权，无法转换回TData")
+                        print(f"⚠️ [{file_name}] 新Session未授权，无法转换回TData", flush=True)
+                    
+                    await convert_client.disconnect()
+                    
+                except Exception as e:
+                    logger.error(f"❌ [{file_name}] 转换回TData失败: {e}")
+                    print(f"❌ [{file_name}] 转换回TData失败: {e}", flush=True)
+                    # 不阻止成功状态，但记录错误
+            
             logger.info(f"🎉 [{file_name}] 重新授权完成！")
             print(f"🎉 [{file_name}] 重新授权完成！", flush=True)
             
             return {
                 'status': 'success',
                 'phone': phone,
-                'message': '重新授权成功'
+                'message': '重新授权成功',
+                'file_type': file_type,
+                'session_path': old_session_file if file_type == 'session' else None,
+                'tdata_path': original_tdata_path if file_type == 'tdata' else None
             }
             
         except UserDeactivatedError:
@@ -18430,6 +18537,17 @@ admin3</code>
                     await new_client.disconnect()
                 except:
                     pass
+            
+            # 清理临时Session文件（如果是从TData转换的）
+            if temp_session_path and os.path.exists(f"{temp_session_path}.session"):
+                try:
+                    os.remove(f"{temp_session_path}.session")
+                    journal_file = f"{temp_session_path}.session-journal"
+                    if os.path.exists(journal_file):
+                        os.remove(journal_file)
+                    logger.info(f"🧹 [{file_name}] 已清理临时Session文件")
+                except Exception as e:
+                    logger.warning(f"⚠️ [{file_name}] 清理临时Session失败: {e}")
     
     def _generate_reauthorize_report(self, context: CallbackContext, user_id: int, results: Dict, progress_msg):
         """生成重新授权报告和打包结果"""
@@ -18475,22 +18593,55 @@ admin3</code>
                             f.write(f"错误: {result['error']}\n")
                         f.write("\n")
         
-        # 打包成功的账号
+        # 打包成功的账号（支持TData和Session格式）
         zip_files = []
         if results['success']:
             success_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_success_{timestamp}.zip")
             with zipfile.ZipFile(success_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
                 for file_path, file_name, result in results['success']:
-                    if os.path.exists(file_path):
-                        zipf.write(file_path, file_name)
-                    # 添加journal文件
-                    journal_path = file_path + '-journal'
-                    if os.path.exists(journal_path):
-                        zipf.write(journal_path, file_name + '-journal')
-                    # 添加JSON文件
-                    json_path = os.path.splitext(file_path)[0] + '.json'
-                    if os.path.exists(json_path):
-                        zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
+                    result_file_type = result.get('file_type', 'session')
+                    phone = result.get('phone', 'unknown')
+                    
+                    if result_file_type == 'tdata':
+                        # TData格式：创建 手机号/tdata/ 结构
+                        tdata_path = result.get('tdata_path')
+                        if tdata_path and os.path.exists(tdata_path):
+                            # 添加TData目录下的所有文件
+                            for root, dirs, files in os.walk(tdata_path):
+                                for file in files:
+                                    file_full_path = os.path.join(root, file)
+                                    # 计算相对路径：手机号/tdata/...
+                                    rel_path = os.path.relpath(file_full_path, os.path.dirname(tdata_path))
+                                    arc_path = os.path.join(phone, rel_path)
+                                    zipf.write(file_full_path, arc_path)
+                            
+                            # 添加Session文件（如果有）到tdata同级目录
+                            session_path = result.get('session_path')
+                            if session_path and os.path.exists(session_path):
+                                session_base = os.path.splitext(session_path)[0]
+                                # Session文件
+                                if os.path.exists(session_path):
+                                    zipf.write(session_path, f"{phone}/{phone}.session")
+                                # Journal文件
+                                journal_path = f"{session_base}.session-journal"
+                                if os.path.exists(journal_path):
+                                    zipf.write(journal_path, f"{phone}/{phone}.session-journal")
+                                # JSON文件
+                                json_path = f"{session_base}.json"
+                                if os.path.exists(json_path):
+                                    zipf.write(json_path, f"{phone}/{phone}.json")
+                    else:
+                        # Session格式：直接打包
+                        if os.path.exists(file_path):
+                            zipf.write(file_path, file_name)
+                        # 添加journal文件
+                        journal_path = file_path + '-journal'
+                        if os.path.exists(journal_path):
+                            zipf.write(journal_path, file_name + '-journal')
+                        # 添加JSON文件
+                        json_path = os.path.splitext(file_path)[0] + '.json'
+                        if os.path.exists(json_path):
+                            zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
             zip_files.append(('success', success_zip, success_count))
         
         # 打包失败的账号（分类）
@@ -18507,14 +18658,25 @@ admin3</code>
                 failed_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_{category_key}_{timestamp}.zip")
                 with zipfile.ZipFile(failed_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
                     for file_path, file_name, result in items:
-                        if os.path.exists(file_path):
-                            zipf.write(file_path, file_name)
-                        journal_path = file_path + '-journal'
-                        if os.path.exists(journal_path):
-                            zipf.write(journal_path, file_name + '-journal')
-                        json_path = os.path.splitext(file_path)[0] + '.json'
-                        if os.path.exists(json_path):
-                            zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
+                        # 失败的账号保持原始格式
+                        # TData格式失败时返回原始TData
+                        if os.path.isdir(file_path):
+                            # TData目录
+                            for root, dirs, files in os.walk(file_path):
+                                for file in files:
+                                    file_full_path = os.path.join(root, file)
+                                    rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
+                                    zipf.write(file_full_path, rel_path)
+                        else:
+                            # Session文件
+                            if os.path.exists(file_path):
+                                zipf.write(file_path, file_name)
+                            journal_path = file_path + '-journal'
+                            if os.path.exists(journal_path):
+                                zipf.write(journal_path, file_name + '-journal')
+                            json_path = os.path.splitext(file_path)[0] + '.json'
+                            if os.path.exists(json_path):
+                                zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
                 zip_files.append((category_key, failed_zip, len(items)))
         
         # 发送统计信息
