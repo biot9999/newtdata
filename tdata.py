@@ -8752,6 +8752,7 @@ class EnhancedBot:
 • 实时进度显示和自动文件发送
 • 支持Session和TData格式
 • Tdata与Session格式互转
+• 注册时间查询和分类
 
 <b>📁 支持格式</b>
 • Session文件 (.session)
@@ -8763,6 +8764,12 @@ class EnhancedBot:
 • Tdata → Session: 转换为Session格式
 • Session → Tdata: 转换为Tdata格式
 • 批量并发处理，提高效率
+
+<b>📅 注册时间查询</b>
+• 查询账号估算注册时期
+• 按年份自动分类打包
+• 生成详细分析报告
+• 基于用户ID范围估算
 
 <b>📡 代理功能</b>
 • 自动读取proxy.txt文件
