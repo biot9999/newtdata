@@ -91,10 +91,10 @@ try:
         PasswordHashInvalidError, PhoneCodeInvalidError, AuthRestartError,
         UsernameOccupiedError, UsernameInvalidError
     )
-    from telethon.tl.types import User
+    from telethon.tl.types import User, CodeSettings
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
     from telethon.tl.functions.account import GetPasswordRequest
-    from telethon.tl.functions.auth import ResetAuthorizationsRequest
+    from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
     TELETHON_AVAILABLE = True
     print("✅ telethon库导入成功")
 except ImportError:
@@ -18133,7 +18133,7 @@ admin3</code>
             try:
                 sessions = await client(functions.account.GetAuthorizationsRequest())
                 if len(sessions.authorizations) > 1:
-                    await client(functions.auth.ResetAuthorizationsRequest())
+                    await client(ResetAuthorizationsRequest())
                     logger.info(f"✅ [{file_name}] 已踢掉其他设备登录")
                     print(f"✅ [{file_name}] 已踢掉其他设备登录", flush=True)
                 else:
@@ -18143,21 +18143,24 @@ admin3</code>
                 logger.warning(f"⚠️ [{file_name}] 重置会话失败: {e}")
                 print(f"⚠️ [{file_name}] 重置会话失败: {e}", flush=True)
             
-            # 步骤3: 删除旧密码（如果有）
+            # 步骤3: 检查密码状态（如果提供了旧密码）
+            # TODO: 实际的密码验证需要在登录时进行
+            # Telethon不提供独立的密码验证API，只能在sign_in时验证
             if old_password:
-                logger.info(f"🔐 [{file_name}] 步骤2: 删除旧密码...")
-                print(f"🔐 [{file_name}] 步骤2: 删除旧密码...", flush=True)
+                logger.info(f"🔐 [{file_name}] 步骤2: 检查2FA状态...")
+                print(f"🔐 [{file_name}] 步骤2: 检查2FA状态...", flush=True)
                 
                 try:
-                    # 验证旧密码并删除
                     password_data = await client(GetPasswordRequest())
                     if password_data.has_password:
-                        # 这里应该调用删除密码的API，但Telethon没有直接的API
-                        # 我们将在重新登录时设置新密码来覆盖
-                        logger.info(f"ℹ️ [{file_name}] 账号有2FA，将在重新登录时更新")
-                        print(f"ℹ️ [{file_name}] 账号有2FA，将在重新登录时更新", flush=True)
-                except PasswordHashInvalidError:
-                    return {'status': 'wrong_password', 'error': '旧密码错误'}
+                        logger.info(f"ℹ️ [{file_name}] 账号有2FA，将在重新登录时验证密码")
+                        print(f"ℹ️ [{file_name}] 账号有2FA，将在重新登录时验证密码", flush=True)
+                    else:
+                        logger.info(f"ℹ️ [{file_name}] 账号没有2FA")
+                        print(f"ℹ️ [{file_name}] 账号没有2FA", flush=True)
+                except Exception as e:
+                    logger.warning(f"⚠️ [{file_name}] 检查2FA状态失败: {e}")
+                    print(f"⚠️ [{file_name}] 检查2FA状态失败: {e}", flush=True)
                 except Exception as e:
                     logger.warning(f"⚠️ [{file_name}] 检查密码失败: {e}")
                     print(f"⚠️ [{file_name}] 检查密码失败: {e}", flush=True)
@@ -18183,9 +18186,6 @@ admin3</code>
             logger.info(f"📲 [{file_name}] 步骤4: 请求验证码...")
             print(f"📲 [{file_name}] 步骤4: 请求验证码...", flush=True)
             
-            from telethon.tl.functions.auth import SendCodeRequest
-            from telethon.tl.types import CodeSettings
-            
             sent_code = await new_client(SendCodeRequest(
                 phone,
                 int(api_id),
@@ -18208,7 +18208,8 @@ admin3</code>
             if not messages:
                 return {'status': 'other_error', 'error': '未收到验证码'}
             
-            code_match = re.search(r"\b\d{5}\b", messages[0].message)
+            # Support both 5 and 6 digit verification codes
+            code_match = re.search(r"\b\d{5,6}\b", messages[0].message)
             if not code_match:
                 return {'status': 'other_error', 'error': '验证码格式不正确'}
             
@@ -18238,18 +18239,14 @@ admin3</code>
                 print(f"✅ [{file_name}] 使用2FA密码登录成功", flush=True)
             
             # 步骤8: 设置新密码（如果提供）
+            # TODO: 实现密码设置功能
+            # Telethon需要使用account.UpdatePasswordSettings来设置新密码
+            # 这需要提供正确的password_input_settings参数
             if new_password and new_password != old_password:
-                logger.info(f"🔑 [{file_name}] 步骤7: 设置新密码...")
-                print(f"🔑 [{file_name}] 步骤7: 设置新密码...", flush=True)
-                
-                try:
-                    # 这里应该调用设置密码的API
-                    # 由于Telethon API限制，我们只能在这里记录
-                    logger.info(f"ℹ️ [{file_name}] 新密码将在下次2FA验证时生效")
-                    print(f"ℹ️ [{file_name}] 新密码将在下次2FA验证时生效", flush=True)
-                except Exception as e:
-                    logger.warning(f"⚠️ [{file_name}] 设置新密码失败: {e}")
-                    print(f"⚠️ [{file_name}] 设置新密码失败: {e}", flush=True)
+                logger.info(f"🔑 [{file_name}] 步骤7: 准备设置新密码...")
+                print(f"🔑 [{file_name}] 步骤7: 准备设置新密码...", flush=True)
+                logger.info(f"ℹ️ [{file_name}] 注意: 新密码需要通过Telegram客户端完成设置")
+                print(f"ℹ️ [{file_name}] 注意: 新密码需要通过Telegram客户端完成设置", flush=True)
             
             # 步骤9: 登出旧会话
             logger.info(f"🚪 [{file_name}] 步骤8: 登出旧会话...")
