@@ -3243,8 +3243,9 @@ class FileProcessor:
                     if not is_valid_tdata:
                         continue
                     
-                    # 使用规范化路径防止重复计数（处理符号链接和相对路径）
-                    normalized_path = os.path.normpath(os.path.abspath(dir_path))
+                    # 使用D877目录的规范化路径防止重复计数（而不是父目录）
+                    # 这样即使从不同路径访问同一个D877目录，也能正确去重
+                    normalized_path = os.path.normpath(os.path.abspath(d877_check_path))
                     
                     # 检查是否已经添加过此TData目录
                     if normalized_path in seen_tdata_paths:
