@@ -18798,17 +18798,10 @@ admin3</code>
                 print(f"🔑 [{file_name}] 步骤7: 设置新密码...", flush=True)
                 
                 try:
-                    # 获取当前密码配置
-                    pwd_info = await new_client(GetPasswordRequest())
-                    
-                    # 构建新密码设置
-                    # 如果账号当前有密码，需要提供旧密码的哈希
-                    current_password = old_password if old_password else ""
-                    
                     # 使用edit_2fa方法来设置新密码
                     # 这是Telethon推荐的方式
                     await new_client.edit_2fa(
-                        current_password=current_password,
+                        current_password=old_password if old_password else None,
                         new_password=new_password,
                         hint='',  # 可选的密码提示
                         email=None  # 可选的恢复邮箱
@@ -18816,6 +18809,47 @@ admin3</code>
                     
                     logger.info(f"✅ [{file_name}] 新密码设置成功")
                     print(f"✅ [{file_name}] 新密码设置成功", flush=True)
+                    
+                except AttributeError:
+                    # 如果edit_2fa方法不存在，使用手动方法
+                    logger.info(f"ℹ️ [{file_name}] edit_2fa不可用，尝试手动设置密码...")
+                    print(f"ℹ️ [{file_name}] edit_2fa不可用，尝试手动设置密码...", flush=True)
+                    
+                    try:
+                        # 获取当前密码配置
+                        pwd_info = await new_client(GetPasswordRequest())
+                        
+                        # 构建新密码设置
+                        # 注意：Telethon需要通过compute_password_hash来正确计算密码哈希
+                        from telethon.password import compute_password_hash
+                        
+                        if old_password and pwd_info.has_password:
+                            # 如果有旧密码，需要提供
+                            password = compute_password_hash(pwd_info, old_password)
+                        else:
+                            password = b''
+                        
+                        # 创建新密码设置
+                        new_settings = PasswordInputSettings(
+                            new_password_hash=compute_password_hash(pwd_info, new_password),
+                            hint='',  # 可选的密码提示
+                            email=None  # 可选的恢复邮箱
+                        )
+                        
+                        # 更新密码
+                        await new_client(UpdatePasswordSettingsRequest(
+                            password=password,
+                            new_settings=new_settings
+                        ))
+                        
+                        logger.info(f"✅ [{file_name}] 新密码设置成功（手动方法）")
+                        print(f"✅ [{file_name}] 新密码设置成功（手动方法）", flush=True)
+                        
+                    except Exception as manual_e:
+                        error_msg = str(manual_e)
+                        logger.warning(f"⚠️ [{file_name}] 手动设置密码失败: {error_msg}")
+                        print(f"⚠️ [{file_name}] 手动设置密码失败: {error_msg}", flush=True)
+                        # 不阻止整个流程，继续执行
                     
                 except Exception as e:
                     error_msg = str(e)
