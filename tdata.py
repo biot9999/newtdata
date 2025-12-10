@@ -3085,10 +3085,22 @@ class FileProcessor:
             key_data_file = os.path.join(d877_path, "key_data")
             key_datas_file = os.path.join(d877_path, "key_datas")
             
+            # 检查必需文件是否存在
             has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
-            is_valid = os.path.exists(maps_file) and has_key_file
+            has_maps_file = os.path.exists(maps_file)
             
-            return is_valid, maps_file if is_valid else None
+            if not (has_maps_file and has_key_file):
+                return False, None
+            
+            # 检查maps文件大小（有效的TData maps文件通常大于30字节）
+            try:
+                maps_size = os.path.getsize(maps_file)
+                if maps_size < 30:
+                    return False, None
+            except:
+                return False, None
+            
+            return True, maps_file
         except Exception as e:
             print(f"⚠️ 验证TData结构失败: {e}")
             return False, None
@@ -3209,16 +3221,6 @@ class FileProcessor:
                     if not is_valid_tdata:
                         continue
                     
-                    # 检查maps文件大小（有效的TData maps文件通常大于30字节）
-                    try:
-                        maps_size = os.path.getsize(maps_file)
-                        if maps_size < 30:
-                            print(f"⚠️ 跳过无效TData目录（maps文件过小: {maps_size}字节）: {dir_name}")
-                            continue
-                    except:
-                        print(f"⚠️ 跳过无效TData目录（无法读取maps文件）: {dir_name}")
-                        continue
-                    
                     # 使用规范化路径防止重复计数（处理符号链接和相对路径）
                     normalized_path = os.path.normpath(os.path.abspath(dir_path))
                     
@@ -3255,14 +3257,14 @@ class FileProcessor:
             print("❌ 未找到有效的账号文件")
             print("💡 TData格式要求:")
             print("   • 必须包含 D877F783D5D3EF8C 目录")
-            print("   • D877F783D5D3EF8C 目录下必须有 maps 文件")
+            print("   • D877F783D5D3EF8C 目录下必须有 maps 文件 (大小 > 30 字节)")
             print("   • D877F783D5D3EF8C 目录下必须有 key_data 或 key_datas 文件")
-            print("   • maps 文件大小必须 > 30 字节")
             print("💡 支持的目录结构:")
             print("   1. account/tdata/D877F783D5D3EF8C/ (最常见)")
-            print("   2. account/D877F783D5D3EF8C/")
-            print("   3. tdata/D877F783D5D3EF8C/")
-            print("   4. D877F783D5D3EF8C/")
+            print("   2. account/D877F783D5D3EF8C/ (标准)")
+            print("   3. tdata/D877F783D5D3EF8C/ (直接tdata)")
+            print("   4. D877F783D5D3EF8C/ (直接D877)")
+            print("   5. D877F783D5D3EF8C/D877*/ (嵌套D877)")
             shutil.rmtree(task_upload_dir, ignore_errors=True)
             return [], "", "none"
     
