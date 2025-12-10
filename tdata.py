@@ -18177,6 +18177,23 @@ admin3</code>
             parse_mode='HTML'
         )
     
+    def _create_reauth_progress_keyboard(self, total: int, success: int, frozen: int, wrong_pwd: int, banned: int, network_error: int) -> InlineKeyboardMarkup:
+        """创建重新授权进度按钮"""
+        return InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(f"总账号量 {total}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"授权成功 {success}", callback_data="reauthorize_noop")
+            ],
+            [
+                InlineKeyboardButton(f"冻结账户 {frozen}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"2FA错误 {wrong_pwd}", callback_data="reauthorize_noop")
+            ],
+            [
+                InlineKeyboardButton(f"封禁账户 {banned}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"网络错误 {network_error}", callback_data="reauthorize_noop")
+            ]
+        ])
+    
     def _execute_reauthorize(self, update: Update, context: CallbackContext, user_id: int, task: Dict):
         """实际执行重新授权"""
         import asyncio
@@ -18191,13 +18208,12 @@ admin3</code>
         # 创建进度消息
         total_files = len(files)
         
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📊 实时进度", callback_data="reauthorize_noop")]
-        ])
+        # 创建初始按钮布局
+        keyboard = self._create_reauth_progress_keyboard(total_files, 0, 0, 0, 0, 0)
         
         progress_msg = context.bot.send_message(
             chat_id=user_id,
-            text=f"🚀 <b>开始重新授权</b>\n\n进度: 0/{total_files} (0%)\n状态: 准备中...",
+            text=f"🚀 <b>开始重新授权</b>\n\n进度：0/{total_files} (0%)",
             parse_mode='HTML',
             reply_markup=keyboard
         )
@@ -18220,20 +18236,31 @@ admin3</code>
         
         def progress_callback(current, total, message):
             nonlocal last_update_count
-            # 每50个更新一次，或者是最后一个
-            if current - last_update_count >= 50 or current == total:
+            # 每10个更新一次，或者是最后一个
+            if current - last_update_count >= 10 or current == total:
                 try:
                     progress = int(current / total * 100)
-                    keyboard = InlineKeyboardMarkup([
-                        [InlineKeyboardButton("📊 实时进度", callback_data="reauthorize_noop")]
-                    ])
-                    logger.info(f"📊 重新授权进度: {current}/{total} ({progress}%)")
-                    print(f"📊 重新授权进度: {current}/{total} ({progress}%)", flush=True)
+                    
+                    # 统计当前结果
+                    success_count = len(results['success'])
+                    frozen_count = len(results['frozen'])
+                    banned_count = len(results['banned'])
+                    wrong_pwd_count = len(results['wrong_password'])
+                    network_error_count = len(results['network_error'])
+                    other_error_count = len(results['other_error'])
+                    
+                    # 创建实时统计按钮
+                    keyboard = self._create_reauth_progress_keyboard(
+                        total, success_count, frozen_count, wrong_pwd_count, banned_count, network_error_count
+                    )
+                    
+                    logger.info(f"📊 重新授权进度: {current}/{total} ({progress}%) - 成功:{success_count} 冻结:{frozen_count} 封禁:{banned_count} 密码错误:{wrong_pwd_count} 网络:{network_error_count}")
+                    print(f"📊 重新授权进度: {current}/{total} ({progress}%) - 成功:{success_count} 冻结:{frozen_count} 封禁:{banned_count} 密码错误:{wrong_pwd_count} 网络:{network_error_count}", flush=True)
                     
                     context.bot.edit_message_text(
                         chat_id=user_id,
                         message_id=progress_msg.message_id,
-                        text=f"🚀 <b>重新授权中</b>\n\n进度: {current}/{total} ({progress}%)\n状态: {message}",
+                        text=f"🚀 <b>重新授权中</b>\n\n进度：{current}/{total} ({progress}%)",
                         parse_mode='HTML',
                         reply_markup=keyboard
                     )
@@ -18749,28 +18776,61 @@ admin3</code>
                 'proxy_type': proxy_info.get('type', 'N/A') if proxy_info else 'N/A'
             }
             
-            # 更新JSON文件中的twoFA字段（如果有新密码）
-            if new_password and file_type == 'session':
+            # 更新JSON文件（包括新设备参数和twoFA）
+            if file_type == 'session':
                 json_path = os.path.splitext(f"{session_base}.session")[0] + '.json'
                 try:
+                    current_time = datetime.now()
+                    
+                    # 读取或创建JSON数据
                     if os.path.exists(json_path):
                         with open(json_path, 'r', encoding='utf-8') as f:
                             json_data = json.load(f)
+                        logger.info(f"📄 [{file_name}] 读取现有JSON文件")
+                        print(f"📄 [{file_name}] 读取现有JSON文件", flush=True)
+                    else:
+                        # 创建新的JSON文件结构
+                        json_data = {
+                            "phone": phone,
+                            "session_file": os.path.splitext(file_name)[0],
+                            "last_connect_date": current_time.strftime('%Y-%m-%dT%H:%M:%S+0000'),
+                            "session_created_date": current_time.strftime('%Y-%m-%dT%H:%M:%S+0000'),
+                            "last_check_time": int(current_time.timestamp())
+                        }
+                        logger.info(f"📄 [{file_name}] 创建新JSON文件")
+                        print(f"📄 [{file_name}] 创建新JSON文件", flush=True)
+                    
+                    # 更新设备参数（如果使用了随机设备）
+                    if random_device_params:
+                        json_data['app_id'] = new_api_id
+                        json_data['app_hash'] = new_api_hash
+                        json_data['device_model'] = random_device_params.get('device_model', 'Desktop')
+                        json_data['system_version'] = random_device_params.get('system_version', 'Windows 10')
+                        json_data['app_version'] = random_device_params.get('app_version', '3.2.8 x64')
+                        json_data['lang_pack'] = random_device_params.get('lang_code', 'en')
+                        json_data['system_lang_pack'] = random_device_params.get('system_lang_code', 'en-US')
+                        
+                        # 兼容旧字段名
+                        json_data['device'] = random_device_params.get('device', 'Desktop')
+                        json_data['sdk'] = random_device_params.get('sdk', 'Windows 10 x64')
+                        
+                        logger.info(f"✅ [{file_name}] 已更新JSON文件中的设备参数")
+                        print(f"✅ [{file_name}] 已更新JSON文件中的设备参数", flush=True)
+                    
+                    # 更新2FA密码（如果有）
+                    if new_password:
                         json_data['twoFA'] = new_password
-                        with open(json_path, 'w', encoding='utf-8') as f:
-                            json.dump(json_data, f, ensure_ascii=False, indent=2)
+                        json_data['has_password'] = True
                         logger.info(f"✅ [{file_name}] 已更新JSON文件中的twoFA字段")
                         print(f"✅ [{file_name}] 已更新JSON文件中的twoFA字段", flush=True)
-                    else:
-                        # 创建新的JSON文件
-                        json_data = {
-                            'phone': phone,
-                            'twoFA': new_password
-                        }
-                        with open(json_path, 'w', encoding='utf-8') as f:
-                            json.dump(json_data, f, ensure_ascii=False, indent=2)
-                        logger.info(f"✅ [{file_name}] 已创建JSON文件并保存twoFA")
-                        print(f"✅ [{file_name}] 已创建JSON文件并保存twoFA", flush=True)
+                    
+                    # 保存JSON文件
+                    with open(json_path, 'w', encoding='utf-8') as f:
+                        json.dump(json_data, f, ensure_ascii=False, indent=2)
+                    
+                    logger.info(f"💾 [{file_name}] JSON文件已保存")
+                    print(f"💾 [{file_name}] JSON文件已保存", flush=True)
+                    
                 except Exception as e:
                     logger.warning(f"⚠️ [{file_name}] 更新JSON文件失败: {e}")
                     print(f"⚠️ [{file_name}] 更新JSON文件失败: {e}", flush=True)
