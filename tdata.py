@@ -3105,9 +3105,21 @@ class FileProcessor:
             
             print(f"📦 文件解压完成: {task_upload_dir}")
             
+            # 检查是否ZIP包含单个根文件夹（常见的ZIP打包方式）
+            # 如果是，自动进入该文件夹作为扫描根目录
+            extracted_items = os.listdir(task_upload_dir)
+            print(f"📋 解压后的内容: {extracted_items}")
+            
+            scan_root = task_upload_dir
+            if len(extracted_items) == 1 and os.path.isdir(os.path.join(task_upload_dir, extracted_items[0])):
+                # 只有一个项目且是文件夹，进入该文件夹
+                potential_root = os.path.join(task_upload_dir, extracted_items[0])
+                print(f"🔽 检测到单个根文件夹，进入: {extracted_items[0]}")
+                scan_root = potential_root
+            
             # 扫描解压后的文件
-            print(f"🔍 开始扫描目录: {task_upload_dir}")
-            for root, dirs, files in os.walk(task_upload_dir):
+            print(f"🔍 开始扫描目录: {scan_root}")
+            for root, dirs, files in os.walk(scan_root):
                 print(f"📂 扫描: {root}")
                 print(f"   子目录: {dirs}")
                 print(f"   文件: {files[:5]}{'...' if len(files) > 5 else ''}")  # 只显示前5个文件
