@@ -91,10 +91,11 @@ try:
         PasswordHashInvalidError, PhoneCodeInvalidError, AuthRestartError,
         UsernameOccupiedError, UsernameInvalidError
     )
-    from telethon.tl.types import User, CodeSettings
+    from telethon.tl.types import User, CodeSettings, PasswordInputSettings
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
-    from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest
+    from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest, UpdatePasswordSettings
     from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
+    import hashlib
     TELETHON_AVAILABLE = True
     print("✅ telethon库导入成功")
 except ImportError:
@@ -18181,16 +18182,15 @@ admin3</code>
         """创建重新授权进度按钮"""
         return InlineKeyboardMarkup([
             [
-                InlineKeyboardButton(f"总账号量 {total}", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"授权成功 {success}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"🟢 无限制 {success}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"🟡 应授权量 {wrong_pwd}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"冻结账户 {frozen}", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"2FA错误 {wrong_pwd}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"🔴 冻结 {frozen}", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(f"🚫 封禁 {banned}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"封禁账户 {banned}", callback_data="reauthorize_noop"),
-                InlineKeyboardButton(f"网络错误 {network_error}", callback_data="reauthorize_noop")
+                InlineKeyboardButton(f"⚠️ 连接错误 {network_error}", callback_data="reauthorize_noop")
             ]
         ])
     
@@ -18655,14 +18655,54 @@ admin3</code>
                     return {'status': 'wrong_password', 'error': '2FA密码错误'}
             
             # 步骤8: 设置新密码（如果提供）
-            # TODO: 实现密码设置功能
-            # Telethon需要使用account.UpdatePasswordSettings来设置新密码
-            # 这需要提供正确的password_input_settings参数
             if new_password and new_password != old_password:
-                logger.info(f"🔑 [{file_name}] 步骤7: 准备设置新密码...")
-                print(f"🔑 [{file_name}] 步骤7: 准备设置新密码...", flush=True)
-                logger.info(f"ℹ️ [{file_name}] 注意: 新密码需要通过Telegram客户端完成设置")
-                print(f"ℹ️ [{file_name}] 注意: 新密码需要通过Telegram客户端完成设置", flush=True)
+                logger.info(f"🔑 [{file_name}] 步骤7: 设置新密码...")
+                print(f"🔑 [{file_name}] 步骤7: 设置新密码...", flush=True)
+                
+                try:
+                    # 获取当前密码设置
+                    password_data = await new_client(GetPasswordRequest())
+                    
+                    # 创建新密码设置
+                    # 如果账号当前有密码，需要提供旧密码的哈希
+                    if password_data.has_password and old_password:
+                        # 计算旧密码哈希用于验证
+                        from telethon.password import compute_check
+                        password_check = compute_check(password_data, old_password)
+                    else:
+                        password_check = None
+                    
+                    # 创建新密码的输入设置
+                    from telethon.password import compute_digest
+                    new_password_hash = compute_digest(password_data.new_algo, new_password)
+                    
+                    # 更新密码
+                    result = await new_client(UpdatePasswordSettings(
+                        password=password_check,
+                        new_settings=PasswordInputSettings(
+                            new_algo=password_data.new_algo,
+                            new_password_hash=new_password_hash,
+                            hint=''  # 可选的密码提示
+                        )
+                    ))
+                    
+                    if result:
+                        logger.info(f"✅ [{file_name}] 新密码设置成功")
+                        print(f"✅ [{file_name}] 新密码设置成功", flush=True)
+                    else:
+                        logger.warning(f"⚠️ [{file_name}] 新密码设置可能失败")
+                        print(f"⚠️ [{file_name}] 新密码设置可能失败", flush=True)
+                        
+                except Exception as e:
+                    logger.error(f"❌ [{file_name}] 设置新密码失败: {e}")
+                    print(f"❌ [{file_name}] 设置新密码失败: {e}", flush=True)
+                    # 不返回错误，继续执行其他步骤
+            elif new_password == old_password:
+                logger.info(f"ℹ️ [{file_name}] 新旧密码相同，跳过密码设置")
+                print(f"ℹ️ [{file_name}] 新旧密码相同，跳过密码设置", flush=True)
+            else:
+                logger.info(f"ℹ️ [{file_name}] 未提供新密码，跳过密码设置")
+                print(f"ℹ️ [{file_name}] 未提供新密码，跳过密码设置", flush=True)
             
             # 步骤9: 登出旧会话
             logger.info(f"🚪 [{file_name}] 步骤8: 登出旧会话...")
