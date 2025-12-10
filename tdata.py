@@ -19349,70 +19349,70 @@ admin3</code>
             try:
                 success_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_success_{timestamp}.zip")
                 with zipfile.ZipFile(success_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for file_path, file_name, result in results['success']:
-                    result_file_type = result.get('file_type', 'session')
-                    phone = result.get('phone', 'unknown')
-                    
-                    if result_file_type == 'tdata':
-                        # TData格式：创建 手机号/tdata/D877... 结构
-                        tdata_path = result.get('tdata_path')
-                        if tdata_path and os.path.exists(tdata_path):
-                            # SaveTData会在指定路径下创建tdata子目录
-                            # 需要找到包含D877...目录的实际tdata目录
-                            actual_tdata_dir = os.path.join(tdata_path, 'tdata')
-                            
-                            if os.path.exists(actual_tdata_dir) and os.path.isdir(actual_tdata_dir):
-                                # 有tdata子目录，使用它
-                                source_dir = actual_tdata_dir
-                            else:
-                                # 没有tdata子目录，tdata_path本身就是tdata目录
-                                source_dir = tdata_path
-                            
-                            # 添加source_dir下的所有文件，路径为：手机号/tdata/D877.../
-                            for root, dirs, files in os.walk(source_dir):
-                                for file in files:
-                                    file_full_path = os.path.join(root, file)
-                                    # 计算相对于source_dir的相对路径
-                                    rel_path = os.path.relpath(file_full_path, source_dir)
-                                    # 构建完整的归档路径：手机号/tdata/D877.../file
-                                    arc_path = os.path.join(phone, 'tdata', rel_path)
-                                    zipf.write(file_full_path, arc_path)
-                            
-                            # 如果密码设置成功，创建2fa.txt文件
-                            password_set_success = result.get('password_set_success', False)
-                            new_password = result.get('new_password', '')
-                            if password_set_success and new_password and new_password != '无':
-                                # 在zip中创建 手机号/2fa.txt 文件（与tdata同级）
-                                password_content = new_password.encode('utf-8')
-                                password_arcname = os.path.join(phone, '2fa.txt')
-                                zipf.writestr(password_arcname, password_content)
-                            
-                            # 添加Session文件（如果有）到手机号根目录
-                            session_path = result.get('session_path')
-                            if session_path and os.path.exists(session_path):
-                                session_base = os.path.splitext(session_path)[0]
-                                # Session文件
-                                zipf.write(session_path, f"{phone}/{phone}.session")
-                                # Journal文件
-                                journal_path = f"{session_base}.session-journal"
-                                if os.path.exists(journal_path):
-                                    zipf.write(journal_path, f"{phone}/{phone}.session-journal")
-                                # JSON文件
-                                json_path = f"{session_base}.json"
-                                if os.path.exists(json_path):
-                                    zipf.write(json_path, f"{phone}/{phone}.json")
-                    else:
-                        # Session格式：直接打包
-                        if os.path.exists(file_path):
-                            zipf.write(file_path, file_name)
-                        # 添加journal文件
-                        journal_path = file_path + '-journal'
-                        if os.path.exists(journal_path):
-                            zipf.write(journal_path, file_name + '-journal')
-                        # 添加JSON文件
-                        json_path = os.path.splitext(file_path)[0] + '.json'
-                        if os.path.exists(json_path):
-                            zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
+                    for file_path, file_name, result in results['success']:
+                        result_file_type = result.get('file_type', 'session')
+                        phone = result.get('phone', 'unknown')
+                        
+                        if result_file_type == 'tdata':
+                            # TData格式：创建 手机号/tdata/D877... 结构
+                            tdata_path = result.get('tdata_path')
+                            if tdata_path and os.path.exists(tdata_path):
+                                # SaveTData会在指定路径下创建tdata子目录
+                                # 需要找到包含D877...目录的实际tdata目录
+                                actual_tdata_dir = os.path.join(tdata_path, 'tdata')
+                                
+                                if os.path.exists(actual_tdata_dir) and os.path.isdir(actual_tdata_dir):
+                                    # 有tdata子目录，使用它
+                                    source_dir = actual_tdata_dir
+                                else:
+                                    # 没有tdata子目录，tdata_path本身就是tdata目录
+                                    source_dir = tdata_path
+                                
+                                # 添加source_dir下的所有文件，路径为：手机号/tdata/D877.../
+                                for root, dirs, files in os.walk(source_dir):
+                                    for file in files:
+                                        file_full_path = os.path.join(root, file)
+                                        # 计算相对于source_dir的相对路径
+                                        rel_path = os.path.relpath(file_full_path, source_dir)
+                                        # 构建完整的归档路径：手机号/tdata/D877.../file
+                                        arc_path = os.path.join(phone, 'tdata', rel_path)
+                                        zipf.write(file_full_path, arc_path)
+                                
+                                # 如果密码设置成功，创建2fa.txt文件
+                                password_set_success = result.get('password_set_success', False)
+                                new_password = result.get('new_password', '')
+                                if password_set_success and new_password and new_password != '无':
+                                    # 在zip中创建 手机号/2fa.txt 文件（与tdata同级）
+                                    password_content = new_password.encode('utf-8')
+                                    password_arcname = os.path.join(phone, '2fa.txt')
+                                    zipf.writestr(password_arcname, password_content)
+                                
+                                # 添加Session文件（如果有）到手机号根目录
+                                session_path = result.get('session_path')
+                                if session_path and os.path.exists(session_path):
+                                    session_base = os.path.splitext(session_path)[0]
+                                    # Session文件
+                                    zipf.write(session_path, f"{phone}/{phone}.session")
+                                    # Journal文件
+                                    journal_path = f"{session_base}.session-journal"
+                                    if os.path.exists(journal_path):
+                                        zipf.write(journal_path, f"{phone}/{phone}.session-journal")
+                                    # JSON文件
+                                    json_path = f"{session_base}.json"
+                                    if os.path.exists(json_path):
+                                        zipf.write(json_path, f"{phone}/{phone}.json")
+                        else:
+                            # Session格式：直接打包
+                            if os.path.exists(file_path):
+                                zipf.write(file_path, file_name)
+                            # 添加journal文件
+                            journal_path = file_path + '-journal'
+                            if os.path.exists(journal_path):
+                                zipf.write(journal_path, file_name + '-journal')
+                            # 添加JSON文件
+                            json_path = os.path.splitext(file_path)[0] + '.json'
+                            if os.path.exists(json_path):
+                                zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
                 zip_files.append(('success', success_zip, success_count))
                 logger.info(f"✅ 成功账号已打包: {success_zip}")
                 print(f"✅ 成功账号已打包: {success_zip}", flush=True)
@@ -19436,53 +19436,53 @@ admin3</code>
                 try:
                     failed_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_{category_key}_{timestamp}.zip")
                     with zipfile.ZipFile(failed_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for file_path, file_name, result in items:
-                        # 失败的账号直接返回原始上传的完整文件结构
-                        # 不做任何修改，保持原样
-                        if os.path.isdir(file_path):
-                            # TData目录 - 找到并打包包含手机号的完整文件夹
-                            # file_path通常指向D877...或tdata目录
-                            # 需要找到最顶层的手机号文件夹并完整打包
-                            
-                            # 向上查找，找到手机号文件夹（通常是数字命名的文件夹）
-                            current_path = file_path
-                            phone_folder = None
-                            
-                            # 最多向上查找3层
-                            for _ in range(3):
-                                parent = os.path.dirname(current_path)
-                                folder_name = os.path.basename(current_path)
+                        for file_path, file_name, result in items:
+                            # 失败的账号直接返回原始上传的完整文件结构
+                            # 不做任何修改，保持原样
+                            if os.path.isdir(file_path):
+                                # TData目录 - 找到并打包包含手机号的完整文件夹
+                                # file_path通常指向D877...或tdata目录
+                                # 需要找到最顶层的手机号文件夹并完整打包
                                 
-                                # 如果文件夹名是数字（手机号），就是我们要找的
-                                if folder_name.isdigit() and len(folder_name) > 10:
-                                    phone_folder = current_path
-                                    break
-                                current_path = parent
-                            
-                            # 如果没找到手机号文件夹，就用file_path的父目录
-                            if not phone_folder:
-                                phone_folder = os.path.dirname(file_path)
-                            
-                            # 打包整个手机号文件夹及其所有内容
-                            base_dir = os.path.dirname(phone_folder)
-                            for root, dirs, files in os.walk(phone_folder):
-                                for file in files:
-                                    file_full_path = os.path.join(root, file)
-                                    # 保持从base_dir开始的相对路径
-                                    rel_path = os.path.relpath(file_full_path, base_dir)
-                                    zipf.write(file_full_path, rel_path)
-                        else:
-                            # Session文件 - 直接使用原始文件名
-                            if os.path.exists(file_path):
-                                zipf.write(file_path, file_name)
-                            # 添加journal文件（如果存在）
-                            journal_path = file_path + '-journal'
-                            if os.path.exists(journal_path):
-                                zipf.write(journal_path, file_name + '-journal')
-                            # 添加json文件（如果存在）
-                            json_path = os.path.splitext(file_path)[0] + '.json'
-                            if os.path.exists(json_path):
-                                zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
+                                # 向上查找，找到手机号文件夹（通常是数字命名的文件夹）
+                                current_path = file_path
+                                phone_folder = None
+                                
+                                # 最多向上查找3层
+                                for _ in range(3):
+                                    parent = os.path.dirname(current_path)
+                                    folder_name = os.path.basename(current_path)
+                                    
+                                    # 如果文件夹名是数字（手机号），就是我们要找的
+                                    if folder_name.isdigit() and len(folder_name) > 10:
+                                        phone_folder = current_path
+                                        break
+                                    current_path = parent
+                                
+                                # 如果没找到手机号文件夹，就用file_path的父目录
+                                if not phone_folder:
+                                    phone_folder = os.path.dirname(file_path)
+                                
+                                # 打包整个手机号文件夹及其所有内容
+                                base_dir = os.path.dirname(phone_folder)
+                                for root, dirs, files in os.walk(phone_folder):
+                                    for file in files:
+                                        file_full_path = os.path.join(root, file)
+                                        # 保持从base_dir开始的相对路径
+                                        rel_path = os.path.relpath(file_full_path, base_dir)
+                                        zipf.write(file_full_path, rel_path)
+                            else:
+                                # Session文件 - 直接使用原始文件名
+                                if os.path.exists(file_path):
+                                    zipf.write(file_path, file_name)
+                                # 添加journal文件（如果存在）
+                                journal_path = file_path + '-journal'
+                                if os.path.exists(journal_path):
+                                    zipf.write(journal_path, file_name + '-journal')
+                                # 添加json文件（如果存在）
+                                json_path = os.path.splitext(file_path)[0] + '.json'
+                                if os.path.exists(json_path):
+                                    zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
                     zip_files.append((category_key, failed_zip, len(items)))
                     logger.info(f"✅ {category_name}账号已打包: {failed_zip}")
                     print(f"✅ {category_name}账号已打包: {failed_zip}", flush=True)
