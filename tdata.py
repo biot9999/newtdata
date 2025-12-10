@@ -17764,6 +17764,10 @@ admin3</code>
             self.show_main_menu(update, user_id)
         elif data == "reauthorize_confirm":
             self.handle_reauthorize_execute(update, context, query, user_id)
+        elif data == "reauth_auto_detect":
+            self.handle_reauthorize_auto_detect(update, context, query, user_id)
+        elif data == "reauth_manual_input":
+            self.handle_reauthorize_manual_input(update, context, query, user_id)
     
     def cleanup_reauthorize_task(self, user_id: int):
         """清理重新授权任务"""
@@ -17804,12 +17808,6 @@ admin3</code>
                 self.safe_edit_message_text(progress_msg, "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
                 return
             
-            self.safe_edit_message_text(
-                progress_msg,
-                f"✅ <b>找到 {len(files)} 个账号文件</b>\n\n请输入旧密码（如果账号有2FA密码）\n\n💡 <i>如果没有密码，请输入 \"无\" 或 \"skip\"</i>",
-                parse_mode='HTML'
-            )
-            
             # 保存任务信息
             self.pending_reauthorize[user_id] = {
                 'files': files,
@@ -17819,8 +17817,34 @@ admin3</code>
                 'total_files': len(files)
             }
             
-            # 设置用户状态为等待输入旧密码
-            self.db.save_user(user_id, "", "", "reauthorize_old_password")
+            # 显示选择密码输入方式的按钮
+            text = f"""✅ <b>找到 {len(files)} 个账号文件</b>
+
+<b>文件类型：</b>{file_type.upper()}
+
+<b>请选择旧密码输入方式：</b>
+• 自动识别：从文件中自动查找密码
+• 手动输入：手动输入旧密码
+
+💡 <i>自动识别支持：</i>
+- Session格式：JSON中的twofa/password/2fa字段
+- TData格式：2fa.txt、twofa.txt、password.txt等文件
+"""
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔍 自动识别2FA", callback_data="reauth_auto_detect"),
+                    InlineKeyboardButton("✍️ 手动输入2FA", callback_data="reauth_manual_input")
+                ],
+                [InlineKeyboardButton("❌ 取消", callback_data="reauthorize_cancel")]
+            ])
+            
+            self.safe_edit_message_text(
+                progress_msg,
+                text,
+                parse_mode='HTML',
+                reply_markup=keyboard
+            )
             
         except Exception as e:
             logger.error(f"Reauthorize upload failed: {e}")
@@ -17837,8 +17861,83 @@ admin3</code>
             if temp_zip and os.path.exists(os.path.dirname(temp_zip)):
                 shutil.rmtree(os.path.dirname(temp_zip), ignore_errors=True)
     
+    def handle_reauthorize_auto_detect(self, update: Update, context: CallbackContext, query, user_id: int):
+        """处理自动识别2FA"""
+        query.answer()
+        
+        if user_id not in self.pending_reauthorize:
+            self.safe_edit_message(query, "❌ 会话已过期")
+            return
+        
+        task = self.pending_reauthorize[user_id]
+        files = task['files']
+        file_type = task['file_type']
+        
+        # 自动检测每个文件的密码
+        progress_text = f"🔍 <b>正在自动识别密码...</b>\n\n处理中..."
+        self.safe_edit_message(query, progress_text, parse_mode='HTML')
+        
+        detected_count = 0
+        password_map = {}  # {file_path: password}
+        
+        for file_path, file_name in files:
+            try:
+                detected_password = self.two_factor_manager.password_detector.detect_password(file_path, file_type)
+                if detected_password:
+                    password_map[file_path] = detected_password
+                    detected_count += 1
+            except Exception as e:
+                logger.warning(f"Failed to detect password for {file_name}: {e}")
+        
+        # 保存检测结果
+        task['password_map'] = password_map
+        task['password_mode'] = 'auto'
+        
+        # 显示检测结果
+        result_text = f"""✅ <b>密码自动识别完成</b>
+
+<b>统计：</b>
+• 总文件数：{len(files)} 个
+• 识别成功：{detected_count} 个
+• 未识别：{len(files) - detected_count} 个
+
+💡 <i>未识别到密码的账号将使用空密码处理</i>
+
+<b>请输入新密码（用于重新授权后的账号）</b>
+
+💡 <i>如果不需要设置新密码，请输入 \"无\" 或 \"skip\"</i>
+"""
+        
+        self.safe_edit_message(query, result_text, parse_mode='HTML')
+        
+        # 设置用户状态为等待输入新密码
+        self.db.save_user(user_id, "", "", "reauthorize_new_password")
+    
+    def handle_reauthorize_manual_input(self, update: Update, context: CallbackContext, query, user_id: int):
+        """处理手动输入2FA"""
+        query.answer()
+        
+        if user_id not in self.pending_reauthorize:
+            self.safe_edit_message(query, "❌ 会话已过期")
+            return
+        
+        task = self.pending_reauthorize[user_id]
+        task['password_mode'] = 'manual'
+        
+        text = """📝 <b>手动输入旧密码</b>
+
+请输入旧密码（如果账号有2FA密码）
+
+💡 <i>如果没有密码，请输入 \"无\" 或 \"skip\"</i>
+"""
+        
+        self.safe_edit_message(query, text, parse_mode='HTML')
+        
+        # 设置用户状态为等待输入旧密码
+        self.db.save_user(user_id, "", "", "reauthorize_old_password")
+    
     def handle_reauthorize_old_password_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
-        """处理旧密码输入"""
+        """处理旧密码输入（手动模式）"""
         if user_id not in self.pending_reauthorize:
             self.safe_send_message(update, "❌ 会话已过期，请重新开始")
             return
@@ -17956,7 +18055,9 @@ admin3</code>
         import asyncio
         
         files = task['files']
-        old_password = task.get('old_password', '')
+        password_mode = task.get('password_mode', 'manual')
+        password_map = task.get('password_map', {})  # For auto mode
+        old_password = task.get('old_password', '')  # For manual mode
         new_password = task.get('new_password', '')
         
         # 创建进度消息
@@ -18022,9 +18123,15 @@ admin3</code>
                 progress_callback(current, total_files, f"正在处理 {file_name}...")
                 
                 try:
+                    # 根据模式决定使用哪个密码
+                    if password_mode == 'auto':
+                        account_old_password = password_map.get(file_path, '')
+                    else:
+                        account_old_password = old_password
+                    
                     result = loop.run_until_complete(
                         self._reauthorize_single_account(
-                            file_path, file_name, old_password, new_password, user_id
+                            file_path, file_name, account_old_password, new_password, user_id
                         )
                     )
                     
