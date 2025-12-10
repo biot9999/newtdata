@@ -95,13 +95,27 @@ try:
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
     from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest, UpdatePasswordSettings
     from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
-    from telethon.password import compute_check, compute_digest
     TELETHON_AVAILABLE = True
     print("✅ telethon库导入成功")
 except ImportError:
     print("❌ telethon未安装")
     print("💡 请安装: pip install telethon")
     TELETHON_AVAILABLE = False
+
+# Import password utilities separately to avoid breaking other imports if not available
+try:
+    from telethon.password import compute_check, compute_digest
+    TELETHON_PASSWORD_AVAILABLE = True
+except ImportError:
+    TELETHON_PASSWORD_AVAILABLE = False
+    print("⚠️ telethon.password 不可用，密码修改功能将受限")
+    # Define fallback functions
+    def compute_check(password_data, password):
+        """Fallback function when telethon.password is not available"""
+        return None
+    def compute_digest(algo, password):
+        """Fallback function when telethon.password is not available"""
+        return None
 
 # Define fallback exception classes for when imports fail
 try:
@@ -18672,42 +18686,46 @@ admin3</code>
                 logger.info(f"🔑 [{file_name}] 步骤7: 设置新密码...")
                 print(f"🔑 [{file_name}] 步骤7: 设置新密码...", flush=True)
                 
-                try:
-                    # 获取当前密码设置
-                    password_data = await new_client(GetPasswordRequest())
-                    
-                    # 创建新密码设置
-                    # 如果账号当前有密码，需要提供旧密码的哈希
-                    if password_data.has_password and old_password:
-                        # 计算旧密码哈希用于验证
-                        password_check = compute_check(password_data, old_password)
-                    else:
-                        password_check = None
-                    
-                    # 创建新密码的输入设置
-                    new_password_hash = compute_digest(password_data.new_algo, new_password)
-                    
-                    # 更新密码
-                    result = await new_client(UpdatePasswordSettings(
-                        password=password_check,
-                        new_settings=PasswordInputSettings(
-                            new_algo=password_data.new_algo,
-                            new_password_hash=new_password_hash,
-                            hint='2FA'  # 密码提示
-                        )
-                    ))
-                    
-                    if result:
-                        logger.info(f"✅ [{file_name}] 新密码设置成功")
-                        print(f"✅ [{file_name}] 新密码设置成功", flush=True)
-                    else:
-                        logger.warning(f"⚠️ [{file_name}] 新密码设置可能失败")
-                        print(f"⚠️ [{file_name}] 新密码设置可能失败", flush=True)
+                if not TELETHON_PASSWORD_AVAILABLE:
+                    logger.warning(f"⚠️ [{file_name}] telethon.password 不可用，无法设置新密码")
+                    print(f"⚠️ [{file_name}] telethon.password 不可用，无法设置新密码", flush=True)
+                else:
+                    try:
+                        # 获取当前密码设置
+                        password_data = await new_client(GetPasswordRequest())
                         
-                except Exception as e:
-                    logger.error(f"❌ [{file_name}] 设置新密码失败: {e}")
-                    print(f"❌ [{file_name}] 设置新密码失败: {e}", flush=True)
-                    # 不返回错误，继续执行其他步骤
+                        # 创建新密码设置
+                        # 如果账号当前有密码，需要提供旧密码的哈希
+                        if password_data.has_password and old_password:
+                            # 计算旧密码哈希用于验证
+                            password_check = compute_check(password_data, old_password)
+                        else:
+                            password_check = None
+                        
+                        # 创建新密码的输入设置
+                        new_password_hash = compute_digest(password_data.new_algo, new_password)
+                        
+                        # 更新密码
+                        result = await new_client(UpdatePasswordSettings(
+                            password=password_check,
+                            new_settings=PasswordInputSettings(
+                                new_algo=password_data.new_algo,
+                                new_password_hash=new_password_hash,
+                                hint='2FA'  # 密码提示
+                            )
+                        ))
+                        
+                        if result:
+                            logger.info(f"✅ [{file_name}] 新密码设置成功")
+                            print(f"✅ [{file_name}] 新密码设置成功", flush=True)
+                        else:
+                            logger.warning(f"⚠️ [{file_name}] 新密码设置可能失败")
+                            print(f"⚠️ [{file_name}] 新密码设置可能失败", flush=True)
+                            
+                    except Exception as e:
+                        logger.error(f"❌ [{file_name}] 设置新密码失败: {e}")
+                        print(f"❌ [{file_name}] 设置新密码失败: {e}", flush=True)
+                        # 不返回错误，继续执行其他步骤
             elif new_password == old_password:
                 logger.info(f"ℹ️ [{file_name}] 新旧密码相同，跳过密码设置")
                 print(f"ℹ️ [{file_name}] 新旧密码相同，跳过密码设置", flush=True)
