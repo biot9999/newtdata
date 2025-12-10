@@ -3070,26 +3070,22 @@ class FileProcessor:
             # 返回一个基于时间戳的标识符
             return f"tdata_{int(time.time())}"
     
-    def _validate_tdata_structure(self, d877_path: str) -> Tuple[bool, Optional[str]]:
+    def _validate_tdata_structure(self, d877_path: str, check_parent_for_keys: bool = False) -> Tuple[bool, Optional[str]]:
         """
         验证TData目录结构是否有效
         
         Args:
             d877_path: D877F783D5D3EF8C 目录的完整路径
+            check_parent_for_keys: 是否检查父目录中的key_data(s)文件（某些TData变体将key文件放在D877目录外）
             
         Returns:
             (is_valid, maps_file_path): 是否有效以及maps文件路径
         """
         try:
             maps_file = os.path.join(d877_path, "maps")
-            key_data_file = os.path.join(d877_path, "key_data")
-            key_datas_file = os.path.join(d877_path, "key_datas")
             
-            # 检查必需文件是否存在
-            has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
-            has_maps_file = os.path.exists(maps_file)
-            
-            if not (has_maps_file and has_key_file):
+            # 首先检查maps文件（必须在D877目录内）
+            if not os.path.exists(maps_file):
                 return False, None
             
             # 检查maps文件大小（有效的TData maps文件通常大于30字节）
@@ -3098,6 +3094,24 @@ class FileProcessor:
                 if maps_size < 30:
                     return False, None
             except:
+                return False, None
+            
+            # 检查key_data(s)文件 - 可能在D877目录内或父目录
+            key_data_file = os.path.join(d877_path, "key_data")
+            key_datas_file = os.path.join(d877_path, "key_datas")
+            has_key_file = os.path.exists(key_data_file) or os.path.exists(key_datas_file)
+            
+            # 如果D877目录内没有找到key文件，且允许检查父目录
+            if not has_key_file and check_parent_for_keys:
+                parent_dir = os.path.dirname(d877_path)
+                parent_key_data = os.path.join(parent_dir, "key_data")
+                parent_key_datas = os.path.join(parent_dir, "key_datas")
+                has_key_file = os.path.exists(parent_key_data) or os.path.exists(parent_key_datas)
+                
+                if has_key_file:
+                    print(f"📍 检测到key_datas在D877F783D5D3EF8C的父目录中（变体结构）")
+            
+            if not has_key_file:
                 return False, None
             
             return True, maps_file
@@ -3158,10 +3172,12 @@ class FileProcessor:
                 for dir_name in dirs:
                     dir_path = os.path.join(root, dir_name)
                     
-                    # 【关键修复】支持五种TData结构：
+                    # 【关键修复】支持六种TData结构（包括变体）：
                     # 0. tdata子目录包装: account/tdata/D877F783D5D3EF8C/maps + key_data(s)（最常见）
+                    #    变体: account/tdata/key_datas + D877F783D5D3EF8C/maps（key文件在D877外）
                     # 1. 标准结构: account/D877F783D5D3EF8C/maps + key_data(s)
                     # 2. tdata目录自身: tdata/D877F783D5D3EF8C/maps + key_data(s)
+                    #    变体: tdata/key_datas + D877F783D5D3EF8C/maps（key文件在D877外）
                     # 3. 直接D877结构: D877F783D5D3EF8C/maps + key_data(s)
                     # 4. 嵌套结构: D877F783D5D3EF8C/D877*/maps + key_data(s)
                     
@@ -3174,7 +3190,10 @@ class FileProcessor:
                     if os.path.exists(tdata_wrapper_path) and os.path.isdir(tdata_wrapper_path):
                         tdata_d877_path = os.path.join(tdata_wrapper_path, "D877F783D5D3EF8C")
                         if os.path.exists(tdata_d877_path):
-                            is_valid_tdata, maps_file = self._validate_tdata_structure(tdata_d877_path)
+                            # 先检查标准结构（key文件在D877内），如果失败则检查变体结构（key文件在tdata目录）
+                            is_valid_tdata, maps_file = self._validate_tdata_structure(tdata_d877_path, check_parent_for_keys=False)
+                            if not is_valid_tdata:
+                                is_valid_tdata, maps_file = self._validate_tdata_structure(tdata_d877_path, check_parent_for_keys=True)
                             if is_valid_tdata:
                                 d877_check_path = tdata_d877_path
                                 print(f"📂 检测到tdata包装结构: {dir_name}/tdata/D877F783D5D3EF8C")
@@ -3205,7 +3224,10 @@ class FileProcessor:
                     if not is_valid_tdata and dir_name.lower() == "tdata":
                         tdata_d877_path = os.path.join(dir_path, "D877F783D5D3EF8C")
                         if os.path.exists(tdata_d877_path):
-                            is_valid_tdata, maps_file = self._validate_tdata_structure(tdata_d877_path)
+                            # 先检查标准结构（key文件在D877内），如果失败则检查变体结构（key文件在tdata目录）
+                            is_valid_tdata, maps_file = self._validate_tdata_structure(tdata_d877_path, check_parent_for_keys=False)
+                            if not is_valid_tdata:
+                                is_valid_tdata, maps_file = self._validate_tdata_structure(tdata_d877_path, check_parent_for_keys=True)
                             if is_valid_tdata:
                                 d877_check_path = tdata_d877_path
                                 print(f"📂 检测到tdata目录结构: tdata/D877F783D5D3EF8C")
@@ -3258,13 +3280,16 @@ class FileProcessor:
             print("💡 TData格式要求:")
             print("   • 必须包含 D877F783D5D3EF8C 目录")
             print("   • D877F783D5D3EF8C 目录下必须有 maps 文件 (大小 > 30 字节)")
-            print("   • D877F783D5D3EF8C 目录下必须有 key_data 或 key_datas 文件")
+            print("   • key_data 或 key_datas 文件可以在以下位置:")
+            print("     - D877F783D5D3EF8C 目录内（标准）")
+            print("     - D877F783D5D3EF8C 同级目录（变体）")
             print("💡 支持的目录结构:")
             print("   1. account/tdata/D877F783D5D3EF8C/ (最常见)")
-            print("   2. account/D877F783D5D3EF8C/ (标准)")
-            print("   3. tdata/D877F783D5D3EF8C/ (直接tdata)")
-            print("   4. D877F783D5D3EF8C/ (直接D877)")
-            print("   5. D877F783D5D3EF8C/D877*/ (嵌套D877)")
+            print("   2. account/tdata/key_datas + D877F783D5D3EF8C/ (变体-key在外)")
+            print("   3. account/D877F783D5D3EF8C/ (标准)")
+            print("   4. tdata/D877F783D5D3EF8C/ (直接tdata)")
+            print("   5. D877F783D5D3EF8C/ (直接D877)")
+            print("   6. D877F783D5D3EF8C/D877*/ (嵌套D877)")
             shutil.rmtree(task_upload_dir, ignore_errors=True)
             return [], "", "none"
     
