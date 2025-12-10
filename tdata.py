@@ -18792,12 +18792,13 @@ admin3</code>
                 except PasswordHashInvalidError:
                     return {'status': 'wrong_password', 'error': '2FA密码错误'}
             
+            # 初始化密码设置状态标志
+            password_set_success = False
+            
             # 步骤8: 设置新密码（如果提供）
             if new_password and new_password != old_password:
                 logger.info(f"🔑 [{file_name}] 步骤7: 设置新密码...")
                 print(f"🔑 [{file_name}] 步骤7: 设置新密码...", flush=True)
-                
-                password_set_success = False
                 
                 try:
                     # 使用edit_2fa方法来设置新密码
@@ -19189,8 +19190,8 @@ admin3</code>
                             
                             # 如果密码设置成功，创建2fa.txt文件
                             password_set_success = result.get('password_set_success', False)
-                            new_password = result.get('new_password', '无')
-                            if password_set_success and new_password != '无':
+                            new_password = result.get('new_password', '')
+                            if password_set_success and new_password and new_password != '无':
                                 # 在zip中创建 手机号/2fa.txt 文件
                                 password_content = new_password.encode('utf-8')
                                 password_arcname = os.path.join(phone, '2fa.txt')
