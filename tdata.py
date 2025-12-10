@@ -3142,8 +3142,30 @@ class FileProcessor:
                 
                 for dir_name in dirs:
                     dir_path = os.path.join(root, dir_name)
+                    print(f"   🔍 检查目录: {dir_name}")
+                    
+                    # 尝试查找D877F783D5D3EF8C目录（不区分大小写）
                     d877_check_path = os.path.join(dir_path, "D877F783D5D3EF8C")
-                    if os.path.exists(d877_check_path):
+                    d877_exists = os.path.exists(d877_check_path)
+                    
+                    # 如果标准大小写不存在，尝试列出实际的子目录看看有什么
+                    if not d877_exists:
+                        try:
+                            actual_subdirs = os.listdir(dir_path) if os.path.isdir(dir_path) else []
+                            if actual_subdirs:
+                                print(f"      实际子目录: {actual_subdirs}")
+                                # 检查是否有大小写不同的D877目录
+                                for subdir in actual_subdirs:
+                                    if subdir.upper() == "D877F783D5D3EF8C":
+                                        print(f"      ⚠️ 发现大小写不同的目录: {subdir}")
+                                        d877_check_path = os.path.join(dir_path, subdir)
+                                        d877_exists = True
+                                        break
+                        except Exception as e:
+                            print(f"      ⚠️ 无法列出子目录: {e}")
+                    
+                    if d877_exists:
+                        print(f"      ✓ 找到 D877F783D5D3EF8C 目录")
                         # 【修复】验证这是真正的TData目录，不是空文件夹
                         # 检查必需的TData文件是否存在
                         maps_file = os.path.join(d877_check_path, "maps")
@@ -3187,10 +3209,18 @@ class FileProcessor:
         
         except Exception as e:
             print(f"❌ 文件扫描失败: {e}")
+            import traceback
+            traceback.print_exc()
             shutil.rmtree(task_upload_dir, ignore_errors=True)
             return [], "", "error"
         
         # 优先级：TData > Session（修复检测优先级问题）
+        print(f"\n{'='*60}")
+        print(f"📊 扫描结果汇总:")
+        print(f"   Session文件: {len(session_files)} 个")
+        print(f"   TData文件夹: {len(tdata_folders)} 个")
+        print(f"{'='*60}\n")
+        
         if tdata_folders:
             print(f"🎯 检测到TData文件，优先使用TData检测")
             print(f"✅ 找到 {len(tdata_folders)} 个唯一TData文件夹")
@@ -3203,6 +3233,7 @@ class FileProcessor:
             return session_files, task_upload_dir, "session"
         else:
             print("❌ 未找到有效的账号文件")
+            print("提示：请检查ZIP文件结构和TData必需文件")
             shutil.rmtree(task_upload_dir, ignore_errors=True)
             return [], "", "none"
     
