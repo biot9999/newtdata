@@ -43,6 +43,26 @@ print("🔍 Telegram账号检测机器人 V8.0")
 print(f"📅 当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 # ================================
+# Python版本兼容性 - asyncio.to_thread
+# ================================
+# asyncio.to_thread在Python 3.9+才可用，为老版本提供兼容实现
+import concurrent.futures
+
+if not hasattr(asyncio, 'to_thread'):
+    # Python < 3.9 兼容实现
+    _executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+    
+    async def _to_thread_compat(func, *args, **kwargs):
+        """兼容Python < 3.9的asyncio.to_thread实现"""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(_executor, lambda: func(*args, **kwargs))
+    
+    asyncio.to_thread = _to_thread_compat
+    print("⚠️ Python < 3.9 检测到，使用兼容的asyncio.to_thread实现")
+else:
+    print("✅ Python 3.9+ 检测到，使用原生asyncio.to_thread")
+
+# ================================
 # 日志配置
 # ================================
 logging.basicConfig(
@@ -18414,7 +18434,7 @@ admin3</code>
             completed_count = 0
             
             async def process_account_wrapper(idx, file_path, file_name):
-                """处理单个账号的包装器"""
+                """处理单个账号的包装器 - 确保永不卡死"""
                 nonlocal completed_count
                 try:
                     # 根据模式决定使用哪个密码
@@ -18445,13 +18465,15 @@ admin3</code>
                     progress_callback(completed_count, total_files, f"已完成 {completed_count}/{total_files}")
                     
                 except Exception as e:
+                    # 确保任何异常都不会阻止进度
                     logger.error(f"❌ 处理账号失败 {file_name}: {e}")
+                    print(f"❌ 处理账号失败 {file_name}: {e}", flush=True)
                     results['other_error'].append((file_path, file_name, {'status': 'error', 'error': str(e)}))
                     completed_count += 1
                     progress_callback(completed_count, total_files, f"已完成 {completed_count}/{total_files}")
             
             async def process_batch():
-                """批量并发处理账号"""
+                """批量并发处理账号 - 确保永不卡死"""
                 # 创建信号量控制并发数
                 semaphore = asyncio.Semaphore(config.REAUTH_CONCURRENT)
                 
@@ -18465,16 +18487,60 @@ admin3</code>
                     for idx, (file_path, file_name) in enumerate(files)
                 ]
                 
-                # 并发执行所有任务
-                # 使用return_exceptions=True允许部分失败不影响其他任务
-                # 异常已在process_account_wrapper中处理
-                await asyncio.gather(*tasks, return_exceptions=True)
+                # 并发执行所有任务 - 添加总超时保护（每个账号最多3分钟，总共不超过账号数*3分钟）
+                # 但至少30分钟
+                MINIMUM_TOTAL_TIMEOUT = 1800  # 30分钟最小超时
+                PER_ACCOUNT_TIMEOUT = 180  # 每个账号3分钟
+                total_timeout = max(total_files * PER_ACCOUNT_TIMEOUT, MINIMUM_TOTAL_TIMEOUT)
+                logger.info(f"⏰ 设置总超时: {total_timeout}秒 ({total_timeout/60:.1f}分钟)")
+                print(f"⏰ 设置总超时: {total_timeout}秒 ({total_timeout/60:.1f}分钟)", flush=True)
+                
+                try:
+                    # 使用return_exceptions=True允许部分失败不影响其他任务
+                    # 异常已在process_account_wrapper中处理
+                    await asyncio.wait_for(
+                        asyncio.gather(*tasks, return_exceptions=True),
+                        timeout=total_timeout
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(f"⏰ 批量处理超时（{total_timeout}秒），强制结束")
+                    print(f"⏰ 批量处理超时（{total_timeout}秒），强制结束", flush=True)
             
             # 执行批量处理
             loop.run_until_complete(process_batch())
             
-            # 生成报告和打包结果
-            self._generate_reauthorize_report(context, user_id, results, progress_msg)
+            # 生成报告和打包结果 - 确保总是执行
+            logger.info("📊 开始生成报告...")
+            print("📊 开始生成报告...", flush=True)
+            try:
+                self._generate_reauthorize_report(context, user_id, results, progress_msg)
+            except Exception as e:
+                logger.error(f"❌ 生成报告失败，但继续尝试发送已有数据: {e}")
+                print(f"❌ 生成报告失败，但继续尝试发送已有数据: {e}", flush=True)
+                # 即使报告生成失败，也要尝试发送基本统计信息
+                try:
+                    total = sum(len(v) for v in results.values())
+                    success_count = len(results['success'])
+                    context.bot.send_message(
+                        chat_id=user_id,
+                        text=f"⚠️ 报告生成出现问题，但处理完成\n\n总数: {total}\n成功: {success_count}",
+                        parse_mode='HTML'
+                    )
+                except:
+                    pass
+            
+        except Exception as e:
+            logger.error(f"❌ 重新授权执行失败: {e}")
+            print(f"❌ 重新授权执行失败: {e}", flush=True)
+            # 即使整体失败，也尝试发送错误消息
+            try:
+                context.bot.send_message(
+                    chat_id=user_id,
+                    text=f"❌ 重新授权出现严重错误: {str(e)}\n\n已处理账号可能未完全保存",
+                    parse_mode='HTML'
+                )
+            except:
+                pass
             
         finally:
             loop.close()
@@ -18483,10 +18549,30 @@ admin3</code>
                 shutil.rmtree(task['temp_dir'], ignore_errors=True)
     
     async def _reauthorize_single_account(self, file_path: str, file_name: str, old_password: str, new_password: str, user_id: int, file_type: str = 'session') -> Dict:
-        """重新授权单个账号（支持Session和TData格式）"""
+        """重新授权单个账号（支持Session和TData格式）- 带超时保护"""
         logger.info(f"🔄 开始处理账号: {file_name} (格式: {file_type.upper()})")
         print(f"🔄 开始处理账号: {file_name} (格式: {file_type.upper()})", flush=True)
         
+        # 为每个账号设置最大处理时间（180秒 = 3分钟）
+        # 这确保即使账号出现问题也不会永久卡住
+        timeout_seconds = 180
+        
+        try:
+            return await asyncio.wait_for(
+                self._reauthorize_single_account_impl(file_path, file_name, old_password, new_password, user_id, file_type),
+                timeout=timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            logger.error(f"⏰ [{file_name}] 处理超时（{timeout_seconds}秒），自动跳过")
+            print(f"⏰ [{file_name}] 处理超时（{timeout_seconds}秒），自动跳过", flush=True)
+            return {'status': 'other_error', 'error': f'处理超时（{timeout_seconds}秒）'}
+        except Exception as e:
+            logger.error(f"❌ [{file_name}] 处理时发生未预期错误: {e}")
+            print(f"❌ [{file_name}] 处理时发生未预期错误: {e}", flush=True)
+            return {'status': 'other_error', 'error': f'未预期错误: {str(e)}'}
+    
+    async def _reauthorize_single_account_impl(self, file_path: str, file_name: str, old_password: str, new_password: str, user_id: int, file_type: str = 'session') -> Dict:
+        """重新授权单个账号的实际实现"""
         client = None
         new_client = None
         temp_session_path = None
@@ -18505,26 +18591,45 @@ admin3</code>
                     # 保存原始TData路径
                     original_tdata_path = file_path
                     
-                    # 加载TData
-                    tdesk = TDesktop(file_path)
-                    if not tdesk.isLoaded():
-                        return {'status': 'frozen', 'error': 'TData未授权或无效'}
+                    # 加载TData - 添加超时保护（30秒）
+                    try:
+                        tdesk = await asyncio.wait_for(
+                            asyncio.to_thread(TDesktop, file_path),
+                            timeout=30
+                        )
+                        if not tdesk.isLoaded():
+                            return {'status': 'frozen', 'error': 'TData未授权或无效'}
+                    except asyncio.TimeoutError:
+                        logger.error(f"⏰ [{file_name}] TData加载超时（30秒）")
+                        print(f"⏰ [{file_name}] TData加载超时（30秒）", flush=True)
+                        return {'status': 'other_error', 'error': 'TData加载超时'}
                     
                     # 创建临时Session文件
                     os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
                     temp_session_name = f"reauth_tdata_{time.time_ns()}"
                     temp_session_path = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
                     
-                    # 转换TData为Session
-                    temp_client = await tdesk.ToTelethon(
-                        session=temp_session_path,
-                        flag=UseCurrentSession,
-                        api=API.TelegramDesktop
-                    )
+                    # 转换TData为Session - 添加超时保护（60秒）
+                    try:
+                        temp_client = await asyncio.wait_for(
+                            tdesk.ToTelethon(
+                                session=temp_session_path,
+                                flag=UseCurrentSession,
+                                api=API.TelegramDesktop
+                            ),
+                            timeout=60
+                        )
+                    except asyncio.TimeoutError:
+                        logger.error(f"⏰ [{file_name}] TData转Session超时（60秒）")
+                        print(f"⏰ [{file_name}] TData转Session超时（60秒）", flush=True)
+                        return {'status': 'other_error', 'error': 'TData转Session超时'}
                     
                     # 断开临时客户端
                     if temp_client:
-                        await temp_client.disconnect()
+                        try:
+                            await asyncio.wait_for(temp_client.disconnect(), timeout=10)
+                        except Exception:
+                            pass
                     
                     # 使用转换后的Session路径
                     file_path = temp_session_path
@@ -18532,6 +18637,10 @@ admin3</code>
                     logger.info(f"✅ [{file_name}] TData转Session完成")
                     print(f"✅ [{file_name}] TData转Session完成", flush=True)
                     
+                except asyncio.TimeoutError:
+                    logger.error(f"⏰ [{file_name}] TData转换操作超时")
+                    print(f"⏰ [{file_name}] TData转换操作超时", flush=True)
+                    return {'status': 'other_error', 'error': 'TData转换操作超时'}
                 except Exception as e:
                     logger.error(f"❌ [{file_name}] TData转换失败: {e}")
                     print(f"❌ [{file_name}] TData转换失败: {e}", flush=True)
@@ -18892,41 +19001,69 @@ admin3</code>
                 
                 convert_client = None
                 try:
-                    # 使用新Session创建TData
-                    new_tdata_path = f"{original_tdata_path}_new"
-                    os.makedirs(new_tdata_path, exist_ok=True)
-                    
-                    # 连接新Session - 使用OpenTele的TelegramClient
-                    from opentele.tl import TelegramClient as OpenTeleClient
-                    convert_client = OpenTeleClient(
-                        session_base,
-                        int(new_api_id),
-                        str(new_api_hash)
-                    )
-                    await convert_client.connect()
-                    
-                    if not await convert_client.is_user_authorized():
-                        logger.error(f"❌ [{file_name}] 新Session未授权，无法转换回TData")
-                        print(f"❌ [{file_name}] 新Session未授权，无法转换回TData", flush=True)
-                        # 清理临时目录
+                    # 使用新Session创建TData - 添加总超时保护（90秒）
+                    try:
+                        new_tdata_path = f"{original_tdata_path}_new"
+                        os.makedirs(new_tdata_path, exist_ok=True)
+                        
+                        # 连接新Session - 使用OpenTele的TelegramClient
+                        from opentele.tl import TelegramClient as OpenTeleClient
+                        convert_client = OpenTeleClient(
+                            session_base,
+                            int(new_api_id),
+                            str(new_api_hash)
+                        )
+                        
+                        # 连接超时保护（15秒）
+                        await asyncio.wait_for(convert_client.connect(), timeout=15)
+                        
+                        if not await convert_client.is_user_authorized():
+                            logger.error(f"❌ [{file_name}] 新Session未授权，无法转换回TData")
+                            print(f"❌ [{file_name}] 新Session未授权，无法转换回TData", flush=True)
+                            # 清理临时目录
+                            if os.path.exists(new_tdata_path):
+                                shutil.rmtree(new_tdata_path, ignore_errors=True)
+                            return {'status': 'other_error', 'error': '新Session未授权，无法转换回TData'}
+                        
+                        # 转换Session为TData
+                        logger.info(f"🔄 [{file_name}] 开始转换Session为TData...")
+                        print(f"🔄 [{file_name}] 开始转换Session为TData...", flush=True)
+                        
+                        # 转换Session为TData - 添加超时保护（60秒）
+                        try:
+                            tdesk_new = await asyncio.wait_for(
+                                convert_client.ToTDesktop(flag=UseCurrentSession),
+                                timeout=60
+                            )
+                        except asyncio.TimeoutError:
+                            logger.error(f"⏰ [{file_name}] Session转TData超时（60秒）")
+                            print(f"⏰ [{file_name}] Session转TData超时（60秒）", flush=True)
+                            if os.path.exists(new_tdata_path):
+                                shutil.rmtree(new_tdata_path, ignore_errors=True)
+                            return {'status': 'other_error', 'error': 'Session转TData超时'}
+                        
+                        # 保存TData - 添加超时保护（使用线程，15秒）
+                        logger.info(f"💾 [{file_name}] 保存TData到: {new_tdata_path}")
+                        print(f"💾 [{file_name}] 保存TData到: {new_tdata_path}", flush=True)
+                        
+                        try:
+                            await asyncio.wait_for(
+                                asyncio.to_thread(tdesk_new.SaveTData, new_tdata_path),
+                                timeout=15
+                            )
+                        except asyncio.TimeoutError:
+                            logger.error(f"⏰ [{file_name}] 保存TData超时（15秒）")
+                            print(f"⏰ [{file_name}] 保存TData超时（15秒）", flush=True)
+                            if os.path.exists(new_tdata_path):
+                                shutil.rmtree(new_tdata_path, ignore_errors=True)
+                            return {'status': 'other_error', 'error': '保存TData超时'}
+                        
+                    except asyncio.TimeoutError:
+                        logger.error(f"⏰ [{file_name}] TData转换整体超时")
+                        print(f"⏰ [{file_name}] TData转换整体超时", flush=True)
                         if os.path.exists(new_tdata_path):
                             shutil.rmtree(new_tdata_path, ignore_errors=True)
-                        return {'status': 'other_error', 'error': '新Session未授权，无法转换回TData'}
-                    
-                    # 转换Session为TData
-                    logger.info(f"🔄 [{file_name}] 开始转换Session为TData...")
-                    print(f"🔄 [{file_name}] 开始转换Session为TData...", flush=True)
-                    
-                    # 转换Session为TData - 不指定api参数，让它使用session的API凭据
-                    # 这样可以保持与账号检测功能相同的行为
-                    tdesk_new = await convert_client.ToTDesktop(
-                        flag=UseCurrentSession
-                    )
-                    
-                    # 保存TData
-                    logger.info(f"💾 [{file_name}] 保存TData到: {new_tdata_path}")
-                    print(f"💾 [{file_name}] 保存TData到: {new_tdata_path}", flush=True)
-                    tdesk_new.SaveTData(new_tdata_path)
+                        return {'status': 'other_error', 'error': 'TData转换整体超时'}
                     
                     # 验证TData目录是否创建成功
                     if not os.path.exists(new_tdata_path):
@@ -19148,7 +19285,10 @@ admin3</code>
                     logger.warning(f"⚠️ [{file_name}] 清理临时Session失败: {e}")
     
     def _generate_reauthorize_report(self, context: CallbackContext, user_id: int, results: Dict, progress_msg):
-        """生成重新授权报告和打包结果"""
+        """生成重新授权报告和打包结果 - 确保永不卡死"""
+        logger.info("📊 开始生成报告和打包结果...")
+        print("📊 开始生成报告和打包结果...", flush=True)
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
         # 统计
@@ -19160,126 +19300,149 @@ admin3</code>
         network_error_count = len(results['network_error'])
         other_error_count = len(results['other_error'])
         
-        # 生成文本报告
+        # 生成文本报告 - 添加异常保护
         report_filename = f"reauthorize_report_{timestamp}.txt"
         report_path = os.path.join(config.RESULTS_DIR, report_filename)
         
-        with open(report_path, 'w', encoding='utf-8') as f:
-            f.write("=" * 80 + "\n")
-            f.write("重新授权报告\n")
-            f.write("=" * 80 + "\n")
-            f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"总账号数: {total}\n")
-            f.write(f"成功: {success_count}\n")
-            f.write(f"冻结: {frozen_count}\n")
-            f.write(f"封禁: {banned_count}\n")
-            f.write(f"密码错误: {wrong_pwd_count}\n")
-            f.write(f"网络错误: {network_error_count}\n")
-            f.write(f"其他错误: {other_error_count}\n")
-            f.write("=" * 80 + "\n\n")
-            
-            # 详细结果
-            for category, items in results.items():
-                if items:
-                    f.write(f"\n{category.upper()} ({len(items)})\n")
-                    f.write("-" * 80 + "\n")
-                    for file_path, file_name, result in items:
-                        f.write(f"文件: {file_name}\n")
-                        if 'phone' in result:
-                            f.write(f"手机号: {result['phone']}\n")
-                        
-                        # 成功的账户显示详细信息
-                        if category == 'success':
-                            if 'device_model' in result:
-                                f.write(f"设备型号: {result['device_model']}\n")
-                            if 'system_version' in result:
-                                f.write(f"系统版本: {result['system_version']}\n")
-                            if 'app_version' in result:
-                                f.write(f"应用版本: {result['app_version']}\n")
-                            if 'proxy_used' in result:
-                                f.write(f"连接方式: {result['proxy_used']}")
-                                if result.get('proxy_type') and result['proxy_type'] != 'N/A':
-                                    f.write(f" ({result['proxy_type'].upper()})")
-                                f.write("\n")
-                            if 'new_password' in result:
-                                f.write(f"新密码: {result['new_password']}\n")
-                        
-                        if 'error' in result:
-                            f.write(f"错误: {result['error']}\n")
-                        f.write("\n")
+        try:
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write("=" * 80 + "\n")
+                f.write("重新授权报告\n")
+                f.write("=" * 80 + "\n")
+                f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"总账号数: {total}\n")
+                f.write(f"成功: {success_count}\n")
+                f.write(f"冻结: {frozen_count}\n")
+                f.write(f"封禁: {banned_count}\n")
+                f.write(f"密码错误: {wrong_pwd_count}\n")
+                f.write(f"网络错误: {network_error_count}\n")
+                f.write(f"其他错误: {other_error_count}\n")
+                f.write("=" * 80 + "\n\n")
+                
+                # 详细结果
+                for category, items in results.items():
+                    if items:
+                        f.write(f"\n{category.upper()} ({len(items)})\n")
+                        f.write("-" * 80 + "\n")
+                        for file_path, file_name, result in items:
+                            f.write(f"文件: {file_name}\n")
+                            if 'phone' in result:
+                                f.write(f"手机号: {result['phone']}\n")
+                            
+                            # 成功的账户显示详细信息
+                            if category == 'success':
+                                if 'device_model' in result:
+                                    f.write(f"设备型号: {result['device_model']}\n")
+                                if 'system_version' in result:
+                                    f.write(f"系统版本: {result['system_version']}\n")
+                                if 'app_version' in result:
+                                    f.write(f"应用版本: {result['app_version']}\n")
+                                if 'proxy_used' in result:
+                                    f.write(f"连接方式: {result['proxy_used']}")
+                                    if result.get('proxy_type') and result['proxy_type'] != 'N/A':
+                                        f.write(f" ({result['proxy_type'].upper()})")
+                                    f.write("\n")
+                                if 'new_password' in result:
+                                    f.write(f"新密码: {result['new_password']}\n")
+                            
+                            if 'error' in result:
+                                f.write(f"错误: {result['error']}\n")
+                            f.write("\n")
+            logger.info(f"✅ 报告文件已生成: {report_path}")
+            print(f"✅ 报告文件已生成: {report_path}", flush=True)
+        except Exception as e:
+            logger.error(f"❌ 生成报告文件失败: {e}")
+            print(f"❌ 生成报告文件失败: {e}", flush=True)
+            # 创建一个简化的报告
+            try:
+                with open(report_path, 'w', encoding='utf-8') as f:
+                    f.write(f"报告生成失败: {e}\n\n")
+                    f.write(f"总计: {total}, 成功: {success_count}\n")
+            except:
+                pass
         
-        # 打包成功的账号（支持TData和Session格式）
+        # 打包成功的账号（支持TData和Session格式）- 添加异常保护
         zip_files = []
-        if results['success']:
-            success_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_success_{timestamp}.zip")
-            with zipfile.ZipFile(success_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for file_path, file_name, result in results['success']:
-                    result_file_type = result.get('file_type', 'session')
-                    phone = result.get('phone', 'unknown')
-                    
-                    if result_file_type == 'tdata':
-                        # TData格式：创建 手机号/tdata/D877... 结构
-                        tdata_path = result.get('tdata_path')
-                        if tdata_path and os.path.exists(tdata_path):
-                            # SaveTData会在指定路径下创建tdata子目录
-                            # 需要找到包含D877...目录的实际tdata目录
-                            actual_tdata_dir = os.path.join(tdata_path, 'tdata')
-                            
-                            if os.path.exists(actual_tdata_dir) and os.path.isdir(actual_tdata_dir):
-                                # 有tdata子目录，使用它
-                                source_dir = actual_tdata_dir
-                            else:
-                                # 没有tdata子目录，tdata_path本身就是tdata目录
-                                source_dir = tdata_path
-                            
-                            # 添加source_dir下的所有文件，路径为：手机号/tdata/D877.../
-                            for root, dirs, files in os.walk(source_dir):
-                                for file in files:
-                                    file_full_path = os.path.join(root, file)
-                                    # 计算相对于source_dir的相对路径
-                                    rel_path = os.path.relpath(file_full_path, source_dir)
-                                    # 构建完整的归档路径：手机号/tdata/D877.../file
-                                    arc_path = os.path.join(phone, 'tdata', rel_path)
-                                    zipf.write(file_full_path, arc_path)
-                            
-                            # 如果密码设置成功，创建2fa.txt文件
-                            password_set_success = result.get('password_set_success', False)
-                            new_password = result.get('new_password', '')
-                            if password_set_success and new_password and new_password != '无':
-                                # 在zip中创建 手机号/2fa.txt 文件（与tdata同级）
-                                password_content = new_password.encode('utf-8')
-                                password_arcname = os.path.join(phone, '2fa.txt')
-                                zipf.writestr(password_arcname, password_content)
-                            
-                            # 添加Session文件（如果有）到手机号根目录
-                            session_path = result.get('session_path')
-                            if session_path and os.path.exists(session_path):
-                                session_base = os.path.splitext(session_path)[0]
-                                # Session文件
-                                zipf.write(session_path, f"{phone}/{phone}.session")
-                                # Journal文件
-                                journal_path = f"{session_base}.session-journal"
-                                if os.path.exists(journal_path):
-                                    zipf.write(journal_path, f"{phone}/{phone}.session-journal")
-                                # JSON文件
-                                json_path = f"{session_base}.json"
-                                if os.path.exists(json_path):
-                                    zipf.write(json_path, f"{phone}/{phone}.json")
-                    else:
-                        # Session格式：直接打包
-                        if os.path.exists(file_path):
-                            zipf.write(file_path, file_name)
-                        # 添加journal文件
-                        journal_path = file_path + '-journal'
-                        if os.path.exists(journal_path):
-                            zipf.write(journal_path, file_name + '-journal')
-                        # 添加JSON文件
-                        json_path = os.path.splitext(file_path)[0] + '.json'
-                        if os.path.exists(json_path):
-                            zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
-            zip_files.append(('success', success_zip, success_count))
         
-        # 打包失败的账号（分类）
+        # 打包成功的账号
+        if results['success']:
+            logger.info("📦 开始打包成功的账号...")
+            print("📦 开始打包成功的账号...", flush=True)
+            try:
+                success_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_success_{timestamp}.zip")
+                with zipfile.ZipFile(success_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for file_path, file_name, result in results['success']:
+                        result_file_type = result.get('file_type', 'session')
+                        phone = result.get('phone', 'unknown')
+                        
+                        if result_file_type == 'tdata':
+                            # TData格式：创建 手机号/tdata/D877... 结构
+                            tdata_path = result.get('tdata_path')
+                            if tdata_path and os.path.exists(tdata_path):
+                                # SaveTData会在指定路径下创建tdata子目录
+                                # 需要找到包含D877...目录的实际tdata目录
+                                actual_tdata_dir = os.path.join(tdata_path, 'tdata')
+                                
+                                if os.path.exists(actual_tdata_dir) and os.path.isdir(actual_tdata_dir):
+                                    # 有tdata子目录，使用它
+                                    source_dir = actual_tdata_dir
+                                else:
+                                    # 没有tdata子目录，tdata_path本身就是tdata目录
+                                    source_dir = tdata_path
+                                
+                                # 添加source_dir下的所有文件，路径为：手机号/tdata/D877.../
+                                for root, dirs, files in os.walk(source_dir):
+                                    for file in files:
+                                        file_full_path = os.path.join(root, file)
+                                        # 计算相对于source_dir的相对路径
+                                        rel_path = os.path.relpath(file_full_path, source_dir)
+                                        # 构建完整的归档路径：手机号/tdata/D877.../file
+                                        arc_path = os.path.join(phone, 'tdata', rel_path)
+                                        zipf.write(file_full_path, arc_path)
+                                
+                                # 如果密码设置成功，创建2fa.txt文件
+                                password_set_success = result.get('password_set_success', False)
+                                new_password = result.get('new_password', '')
+                                if password_set_success and new_password and new_password != '无':
+                                    # 在zip中创建 手机号/2fa.txt 文件（与tdata同级）
+                                    password_content = new_password.encode('utf-8')
+                                    password_arcname = os.path.join(phone, '2fa.txt')
+                                    zipf.writestr(password_arcname, password_content)
+                                
+                                # 添加Session文件（如果有）到手机号根目录
+                                session_path = result.get('session_path')
+                                if session_path and os.path.exists(session_path):
+                                    session_base = os.path.splitext(session_path)[0]
+                                    # Session文件
+                                    zipf.write(session_path, f"{phone}/{phone}.session")
+                                    # Journal文件
+                                    journal_path = f"{session_base}.session-journal"
+                                    if os.path.exists(journal_path):
+                                        zipf.write(journal_path, f"{phone}/{phone}.session-journal")
+                                    # JSON文件
+                                    json_path = f"{session_base}.json"
+                                    if os.path.exists(json_path):
+                                        zipf.write(json_path, f"{phone}/{phone}.json")
+                        else:
+                            # Session格式：直接打包
+                            if os.path.exists(file_path):
+                                zipf.write(file_path, file_name)
+                            # 添加journal文件
+                            journal_path = file_path + '-journal'
+                            if os.path.exists(journal_path):
+                                zipf.write(journal_path, file_name + '-journal')
+                            # 添加JSON文件
+                            json_path = os.path.splitext(file_path)[0] + '.json'
+                            if os.path.exists(json_path):
+                                zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
+                zip_files.append(('success', success_zip, success_count))
+                logger.info(f"✅ 成功账号已打包: {success_zip}")
+                print(f"✅ 成功账号已打包: {success_zip}", flush=True)
+            except Exception as e:
+                logger.error(f"❌ 打包成功账号失败: {e}")
+                print(f"❌ 打包成功账号失败: {e}", flush=True)
+        
+        # 打包失败的账号（分类）- 添加异常保护
         failed_categories = {
             'frozen': ('冻结', results['frozen']),
             'banned': ('封禁', results['banned']),
@@ -19290,58 +19453,66 @@ admin3</code>
         
         for category_key, (category_name, items) in failed_categories.items():
             if items:
-                failed_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_{category_key}_{timestamp}.zip")
-                with zipfile.ZipFile(failed_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                    for file_path, file_name, result in items:
-                        # 失败的账号直接返回原始上传的完整文件结构
-                        # 不做任何修改，保持原样
-                        if os.path.isdir(file_path):
-                            # TData目录 - 找到并打包包含手机号的完整文件夹
-                            # file_path通常指向D877...或tdata目录
-                            # 需要找到最顶层的手机号文件夹并完整打包
-                            
-                            # 向上查找，找到手机号文件夹（通常是数字命名的文件夹）
-                            current_path = file_path
-                            phone_folder = None
-                            
-                            # 最多向上查找3层
-                            for _ in range(3):
-                                parent = os.path.dirname(current_path)
-                                folder_name = os.path.basename(current_path)
+                logger.info(f"📦 开始打包{category_name}账号...")
+                print(f"📦 开始打包{category_name}账号...", flush=True)
+                try:
+                    failed_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_{category_key}_{timestamp}.zip")
+                    with zipfile.ZipFile(failed_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                        for file_path, file_name, result in items:
+                            # 失败的账号直接返回原始上传的完整文件结构
+                            # 不做任何修改，保持原样
+                            if os.path.isdir(file_path):
+                                # TData目录 - 找到并打包包含手机号的完整文件夹
+                                # file_path通常指向D877...或tdata目录
+                                # 需要找到最顶层的手机号文件夹并完整打包
                                 
-                                # 如果文件夹名是数字（手机号），就是我们要找的
-                                if folder_name.isdigit() and len(folder_name) > 10:
-                                    phone_folder = current_path
-                                    break
-                                current_path = parent
-                            
-                            # 如果没找到手机号文件夹，就用file_path的父目录
-                            if not phone_folder:
-                                phone_folder = os.path.dirname(file_path)
-                            
-                            # 打包整个手机号文件夹及其所有内容
-                            base_dir = os.path.dirname(phone_folder)
-                            for root, dirs, files in os.walk(phone_folder):
-                                for file in files:
-                                    file_full_path = os.path.join(root, file)
-                                    # 保持从base_dir开始的相对路径
-                                    rel_path = os.path.relpath(file_full_path, base_dir)
-                                    zipf.write(file_full_path, rel_path)
-                        else:
-                            # Session文件 - 直接使用原始文件名
-                            if os.path.exists(file_path):
-                                zipf.write(file_path, file_name)
-                            # 添加journal文件（如果存在）
-                            journal_path = file_path + '-journal'
-                            if os.path.exists(journal_path):
-                                zipf.write(journal_path, file_name + '-journal')
-                            # 添加json文件（如果存在）
-                            json_path = os.path.splitext(file_path)[0] + '.json'
-                            if os.path.exists(json_path):
-                                zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
-                zip_files.append((category_key, failed_zip, len(items)))
+                                # 向上查找，找到手机号文件夹（通常是数字命名的文件夹）
+                                current_path = file_path
+                                phone_folder = None
+                                
+                                # 最多向上查找3层
+                                for _ in range(3):
+                                    parent = os.path.dirname(current_path)
+                                    folder_name = os.path.basename(current_path)
+                                    
+                                    # 如果文件夹名是数字（手机号），就是我们要找的
+                                    if folder_name.isdigit() and len(folder_name) > 10:
+                                        phone_folder = current_path
+                                        break
+                                    current_path = parent
+                                
+                                # 如果没找到手机号文件夹，就用file_path的父目录
+                                if not phone_folder:
+                                    phone_folder = os.path.dirname(file_path)
+                                
+                                # 打包整个手机号文件夹及其所有内容
+                                base_dir = os.path.dirname(phone_folder)
+                                for root, dirs, files in os.walk(phone_folder):
+                                    for file in files:
+                                        file_full_path = os.path.join(root, file)
+                                        # 保持从base_dir开始的相对路径
+                                        rel_path = os.path.relpath(file_full_path, base_dir)
+                                        zipf.write(file_full_path, rel_path)
+                            else:
+                                # Session文件 - 直接使用原始文件名
+                                if os.path.exists(file_path):
+                                    zipf.write(file_path, file_name)
+                                # 添加journal文件（如果存在）
+                                journal_path = file_path + '-journal'
+                                if os.path.exists(journal_path):
+                                    zipf.write(journal_path, file_name + '-journal')
+                                # 添加json文件（如果存在）
+                                json_path = os.path.splitext(file_path)[0] + '.json'
+                                if os.path.exists(json_path):
+                                    zipf.write(json_path, os.path.splitext(file_name)[0] + '.json')
+                    zip_files.append((category_key, failed_zip, len(items)))
+                    logger.info(f"✅ {category_name}账号已打包: {failed_zip}")
+                    print(f"✅ {category_name}账号已打包: {failed_zip}", flush=True)
+                except Exception as e:
+                    logger.error(f"❌ 打包{category_name}账号失败: {e}")
+                    print(f"❌ 打包{category_name}账号失败: {e}", flush=True)
         
-        # 发送统计信息
+        # 发送统计信息 - 添加异常保护
         summary = f"""
 ✅ <b>重新授权完成</b>
 
@@ -19359,27 +19530,52 @@ admin3</code>
 📄 详细报告见下方文件
 """
         
-        context.bot.edit_message_text(
-            chat_id=user_id,
-            message_id=progress_msg.message_id,
-            text=summary,
-            parse_mode='HTML'
-        )
-        
-        # 发送报告文件
         try:
-            with open(report_path, 'rb') as f:
-                context.bot.send_document(
-                    chat_id=user_id,
-                    document=f,
-                    filename=report_filename,
-                    caption="📊 重新授权详细报告"
-                )
+            context.bot.edit_message_text(
+                chat_id=user_id,
+                message_id=progress_msg.message_id,
+                text=summary,
+                parse_mode='HTML'
+            )
+            logger.info("✅ 统计信息已更新")
+            print("✅ 统计信息已更新", flush=True)
         except Exception as e:
-            logger.error(f"Failed to send report: {e}")
+            logger.error(f"❌ 更新统计信息失败: {e}")
+            print(f"❌ 更新统计信息失败: {e}", flush=True)
         
-        # 发送ZIP文件
+        # 发送报告文件 - 添加超时和重试机制
+        if os.path.exists(report_path):
+            logger.info("📤 开始发送报告文件...")
+            print("📤 开始发送报告文件...", flush=True)
+            try:
+                with open(report_path, 'rb') as f:
+                    context.bot.send_document(
+                        chat_id=user_id,
+                        document=f,
+                        filename=report_filename,
+                        caption="📊 重新授权详细报告",
+                        timeout=60  # 60秒超时
+                    )
+                logger.info("✅ 报告文件已发送")
+                print("✅ 报告文件已发送", flush=True)
+            except Exception as e:
+                logger.error(f"❌ 发送报告文件失败: {e}")
+                print(f"❌ 发送报告文件失败: {e}", flush=True)
+        
+        # 发送ZIP文件 - 添加超时和重试机制，确保每个文件都尝试发送
+        logger.info(f"📤 准备发送 {len(zip_files)} 个ZIP文件...")
+        print(f"📤 准备发送 {len(zip_files)} 个ZIP文件...", flush=True)
+        
+        sent_count = 0
         for zip_type, zip_path, count in zip_files:
+            if not os.path.exists(zip_path):
+                logger.warning(f"⚠️ ZIP文件不存在: {zip_path}")
+                print(f"⚠️ ZIP文件不存在: {zip_path}", flush=True)
+                continue
+            
+            logger.info(f"📤 发送ZIP文件 {sent_count + 1}/{len(zip_files)}: {os.path.basename(zip_path)}")
+            print(f"📤 发送ZIP文件 {sent_count + 1}/{len(zip_files)}: {os.path.basename(zip_path)}", flush=True)
+            
             try:
                 type_names = {
                     'success': '成功',
@@ -19390,15 +19586,61 @@ admin3</code>
                     'other_error': '其他错误'
                 }
                 caption = f"📦 {type_names.get(zip_type, zip_type)}的账号 ({count} 个)"
-                with open(zip_path, 'rb') as f:
-                    context.bot.send_document(
-                        chat_id=user_id,
-                        document=f,
-                        caption=caption,
-                        filename=os.path.basename(zip_path)
-                    )
+                
+                # 尝试发送，带重试机制
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        with open(zip_path, 'rb') as f:
+                            context.bot.send_document(
+                                chat_id=user_id,
+                                document=f,
+                                caption=caption,
+                                filename=os.path.basename(zip_path),
+                                timeout=120  # 120秒超时（针对大文件）
+                            )
+                        sent_count += 1
+                        logger.info(f"✅ ZIP文件已发送: {os.path.basename(zip_path)}")
+                        print(f"✅ ZIP文件已发送: {os.path.basename(zip_path)}", flush=True)
+                        break  # 成功发送，跳出重试循环
+                    except RetryAfter as e:
+                        # 被Telegram限流，等待后重试
+                        wait_time = e.retry_after + 1
+                        logger.warning(f"⚠️ 被限流，等待 {wait_time} 秒后重试...")
+                        print(f"⚠️ 被限流，等待 {wait_time} 秒后重试...", flush=True)
+                        time.sleep(wait_time)
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            logger.warning(f"⚠️ 发送失败，重试 {attempt + 1}/{max_retries}: {e}")
+                            print(f"⚠️ 发送失败，重试 {attempt + 1}/{max_retries}: {e}", flush=True)
+                            time.sleep(2)  # 等待2秒后重试
+                        else:
+                            logger.error(f"❌ 发送ZIP失败（已重试{max_retries}次）: {zip_type} - {e}")
+                            print(f"❌ 发送ZIP失败（已重试{max_retries}次）: {zip_type} - {e}", flush=True)
+                            # 即使这个失败，也继续发送下一个
+                
+                # 在文件之间添加延迟，避免被限流
+                if sent_count < len(zip_files):
+                    time.sleep(1)
+                    
             except Exception as e:
-                logger.error(f"Failed to send ZIP {zip_type}: {e}")
+                logger.error(f"❌ 处理ZIP文件失败 {zip_type}: {e}")
+                print(f"❌ 处理ZIP文件失败 {zip_type}: {e}", flush=True)
+                # 继续处理下一个文件，不要因为一个失败就停止
+        
+        logger.info(f"✅ 报告生成完成！成功发送 {sent_count}/{len(zip_files)} 个ZIP文件")
+        print(f"✅ 报告生成完成！成功发送 {sent_count}/{len(zip_files)} 个ZIP文件", flush=True)
+        
+        # 如果没有成功发送任何文件，发送警告消息
+        if sent_count == 0 and len(zip_files) > 0:
+            try:
+                context.bot.send_message(
+                    chat_id=user_id,
+                    text="⚠️ 所有结果文件发送失败，请联系管理员检查日志",
+                    parse_mode='HTML'
+                )
+            except:
+                pass
     
     def run(self):
         print("🚀 启动增强版机器人（速度优化版）...")
