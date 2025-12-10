@@ -18802,10 +18802,11 @@ admin3</code>
                 try:
                     # 使用edit_2fa方法来设置新密码
                     # 这是Telethon推荐的方式
+                    from datetime import timezone
                     await new_client.edit_2fa(
                         current_password=old_password if old_password else None,
                         new_password=new_password,
-                        hint=f"Modified {datetime.now().strftime('%Y-%m-%d')}",  # 密码提示包含修改日期
+                        hint=f"Modified {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",  # 使用UTC时间
                         email=None  # 可选的恢复邮箱
                     )
                     
@@ -18813,18 +18814,17 @@ admin3</code>
                     logger.info(f"✅ [{file_name}] 新密码设置成功")
                     print(f"✅ [{file_name}] 新密码设置成功", flush=True)
                     
+                except PasswordHashInvalidError:
+                    # 专门处理密码错误异常
+                    logger.warning(f"⚠️ [{file_name}] 旧密码不正确，无法设置新密码")
+                    print(f"⚠️ [{file_name}] 旧密码不正确，无法设置新密码", flush=True)
+                    # 不阻止整个流程，继续执行
+                    
                 except Exception as e:
-                    error_msg = str(e)
-                    error_lower = error_msg.lower()
-                    
-                    # 检查是否是密码错误
-                    if 'password' in error_lower and ('invalid' in error_lower or 'incorrect' in error_lower or 'wrong' in error_lower):
-                        logger.warning(f"⚠️ [{file_name}] 旧密码不正确，无法设置新密码: {error_msg[:100]}")
-                        print(f"⚠️ [{file_name}] 旧密码不正确，无法设置新密码", flush=True)
-                    else:
-                        logger.warning(f"⚠️ [{file_name}] 设置新密码失败: {error_msg[:100]}")
-                        print(f"⚠️ [{file_name}] 设置新密码失败: {error_msg[:100]}", flush=True)
-                    
+                    # 记录异常类型而不是详细信息，避免泄露敏感信息
+                    error_type = type(e).__name__
+                    logger.warning(f"⚠️ [{file_name}] 设置新密码失败: {error_type}")
+                    print(f"⚠️ [{file_name}] 设置新密码失败: {error_type}", flush=True)
                     # 不阻止整个流程，继续执行
                 
                 # 如果密码设置失败，记录到结果中
