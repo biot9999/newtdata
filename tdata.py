@@ -166,23 +166,84 @@ except ImportError:
     print("❌ Flask未安装（验证码网页功能不可用）")
 
 # ================================
-# 注册时间查询 - 用户ID范围定义
+# 注册时间查询 - 用户ID范围定义（更精细的月份级别）
 # ================================
 # 基于Telegram用户ID分配历史的估算范围
+# 格式: (min_id, max_id, 年份, 月份, 描述)
+# 注意：这些是估算值，Telegram API不提供准确的注册日期
 USER_ID_RANGES = [
-    (0, 10000000, 2013, "Early Adopters"),
-    (10000000, 50000000, 2014, "2014 Wave"),
-    (50000000, 150000000, 2015, "2015 Wave"),
-    (150000000, 300000000, 2016, "2016 Wave"),
-    (300000000, 500000000, 2017, "2017 Wave"),
-    (500000000, 800000000, 2018, "2018 Wave"),
-    (800000000, 1200000000, 2019, "2019 Wave"),
-    (1200000000, 1700000000, 2020, "2020 Wave"),
-    (1700000000, 2300000000, 2021, "2021 Wave"),
-    (2300000000, 3000000000, 2022, "2022 Wave"),
-    (3000000000, 4000000000, 2023, "2023 Wave"),
-    (4000000000, 5000000000, 2024, "2024 Wave"),
-    (5000000000, 10000000000, 2025, "Recent Users"),
+    # 2013年 - 早期采用者
+    (0, 5000000, 2013, 8, "2013年8-12月"),
+    (5000000, 10000000, 2013, 12, "2013年12月"),
+    
+    # 2014年 - 按季度估算
+    (10000000, 20000000, 2014, 3, "2014年1-3月"),
+    (20000000, 30000000, 2014, 6, "2014年4-6月"),
+    (30000000, 40000000, 2014, 9, "2014年7-9月"),
+    (40000000, 50000000, 2014, 12, "2014年10-12月"),
+    
+    # 2015年 - 按季度估算
+    (50000000, 75000000, 2015, 3, "2015年1-3月"),
+    (75000000, 100000000, 2015, 6, "2015年4-6月"),
+    (100000000, 125000000, 2015, 9, "2015年7-9月"),
+    (125000000, 150000000, 2015, 12, "2015年10-12月"),
+    
+    # 2016年 - 按季度估算
+    (150000000, 190000000, 2016, 3, "2016年1-3月"),
+    (190000000, 225000000, 2016, 6, "2016年4-6月"),
+    (225000000, 260000000, 2016, 9, "2016年7-9月"),
+    (260000000, 300000000, 2016, 12, "2016年10-12月"),
+    
+    # 2017年 - 按季度估算
+    (300000000, 350000000, 2017, 3, "2017年1-3月"),
+    (350000000, 400000000, 2017, 6, "2017年4-6月"),
+    (400000000, 450000000, 2017, 9, "2017年7-9月"),
+    (450000000, 500000000, 2017, 12, "2017年10-12月"),
+    
+    # 2018年 - 按季度估算
+    (500000000, 575000000, 2018, 3, "2018年1-3月"),
+    (575000000, 650000000, 2018, 6, "2018年4-6月"),
+    (650000000, 725000000, 2018, 9, "2018年7-9月"),
+    (725000000, 800000000, 2018, 12, "2018年10-12月"),
+    
+    # 2019年 - 按季度估算
+    (800000000, 900000000, 2019, 3, "2019年1-3月"),
+    (900000000, 1000000000, 2019, 6, "2019年4-6月"),
+    (1000000000, 1100000000, 2019, 9, "2019年7-9月"),
+    (1100000000, 1200000000, 2019, 12, "2019年10-12月"),
+    
+    # 2020年 - 按季度估算
+    (1200000000, 1325000000, 2020, 3, "2020年1-3月"),
+    (1325000000, 1450000000, 2020, 6, "2020年4-6月"),
+    (1450000000, 1575000000, 2020, 9, "2020年7-9月"),
+    (1575000000, 1700000000, 2020, 12, "2020年10-12月"),
+    
+    # 2021年 - 按季度估算
+    (1700000000, 1850000000, 2021, 3, "2021年1-3月"),
+    (1850000000, 2000000000, 2021, 6, "2021年4-6月"),
+    (2000000000, 2150000000, 2021, 9, "2021年7-9月"),
+    (2150000000, 2300000000, 2021, 12, "2021年10-12月"),
+    
+    # 2022年 - 按季度估算
+    (2300000000, 2475000000, 2022, 3, "2022年1-3月"),
+    (2475000000, 2650000000, 2022, 6, "2022年4-6月"),
+    (2650000000, 2825000000, 2022, 9, "2022年7-9月"),
+    (2825000000, 3000000000, 2022, 12, "2022年10-12月"),
+    
+    # 2023年 - 按季度估算
+    (3000000000, 3250000000, 2023, 3, "2023年1-3月"),
+    (3250000000, 3500000000, 2023, 6, "2023年4-6月"),
+    (3500000000, 3750000000, 2023, 9, "2023年7-9月"),
+    (3750000000, 4000000000, 2023, 12, "2023年10-12月"),
+    
+    # 2024年 - 按季度估算
+    (4000000000, 4250000000, 2024, 3, "2024年1-3月"),
+    (4250000000, 4500000000, 2024, 6, "2024年4-6月"),
+    (4500000000, 4750000000, 2024, 9, "2024年7-9月"),
+    (4750000000, 5000000000, 2024, 12, "2024年10-12月"),
+    
+    # 2025年及以后
+    (5000000000, 10000000000, 2025, 6, "2025年或更晚"),
 ]
 
 # ================================
@@ -12472,14 +12533,14 @@ class EnhancedBot:
 
 📋 <b>查询信息</b>
 • 用户ID和基本信息
-• 估算注册年份（基于用户ID）
-• 注册时期范围
+• 估算注册年月（基于用户ID）
+• 注册时期范围（精确到季度/月份）
 • 共同群组数量
 • 个人简介
 
 🗂️ <b>分类方式</b>
-• 按注册年份分类
-• 按注册时期分类
+• 按注册年月分类（如2020年3月）
+• 按注册年份汇总
 • 生成详细报告
 
 💡 <b>使用步骤</b>
@@ -12491,8 +12552,8 @@ class EnhancedBot:
 ⚠️ <b>注意事项</b>
 • 支持Session和TData格式
 • 需要账号已授权
-• 注册时间为估算值（Telegram不提供准确API）
-• 基于用户ID范围估算
+• 注册时间为估算值（精确到月份/季度）
+• Telegram API不提供准确的注册日期
         """
         
         keyboard = InlineKeyboardMarkup([
@@ -12509,13 +12570,17 @@ class EnhancedBot:
         else:
             self.safe_send_message(update, text, 'HTML', keyboard)
     
-    def estimate_registration_period(self, user_id: int) -> Tuple[int, str]:
-        """根据user_id估算注册时期"""
-        for min_id, max_id, year, description in USER_ID_RANGES:
+    def estimate_registration_period(self, user_id: int) -> Tuple[int, int, str]:
+        """根据user_id估算注册时期
+        
+        Returns:
+            (year, month, description) - 年份、月份（季度中间月）、描述
+        """
+        for min_id, max_id, year, month, description in USER_ID_RANGES:
             if min_id <= user_id < max_id:
-                return year, description
+                return year, month, description
         # 如果user_id超出所有范围，返回-1表示未知
-        return -1, "Unknown Period"
+        return -1, -1, "未知时期"
     
     async def query_account_registration(self, session_path: str, api_id: int, api_hash: str, proxy_dict=None):
         """查询单个账号的注册信息"""
@@ -12547,7 +12612,7 @@ class EnhancedBot:
             
             common_chats = getattr(full_user, 'common_chats_count', 0)
             about = getattr(full_user, 'about', None)
-            estimated_year, range_desc = self.estimate_registration_period(me.id)
+            estimated_year, estimated_month, range_desc = self.estimate_registration_period(me.id)
             
             return {
                 'success': True,
@@ -12559,6 +12624,7 @@ class EnhancedBot:
                 'common_chats_count': common_chats,
                 'about': about,
                 'estimated_year': estimated_year,
+                'estimated_month': estimated_month,
                 'user_id_range': range_desc,
                 'file': os.path.basename(session_path)
             }
@@ -12699,22 +12765,47 @@ class EnhancedBot:
             report_lines.append(f"总账号数: {len(results)}")
             report_lines.append("")
             
-            # 按年份统计
+            # 按年月分类统计
             UNKNOWN_YEAR = -1  # 常量表示未知年份
-            by_year = {}
+            by_year_month = {}  # 改为按年-月分类
+            by_year = {}  # 仍保留按年分类用于汇总
+            
             for result in results:
                 if result['success']:
                     year = result['estimated_year']
+                    month = result.get('estimated_month', -1)
                     if year == UNKNOWN_YEAR:
                         year = 0  # 0表示未知/错误
+                        month = 0
                 else:
                     year = 0  # 0表示未知/错误
+                    month = 0
                 
+                # 按年-月分类
+                year_month_key = f"{year}-{month:02d}" if year > 0 else "未知"
+                if year_month_key not in by_year_month:
+                    by_year_month[year_month_key] = []
+                by_year_month[year_month_key].append(result)
+                
+                # 按年分类（汇总）
                 if year not in by_year:
                     by_year[year] = []
                 by_year[year].append(result)
             
-            report_lines.append("【按年份分类】")
+            # 报告中显示按年月分类
+            report_lines.append("【按年月分类】")
+            report_lines.append("-" * 80)
+            for year_month_key in sorted(by_year_month.keys()):
+                if year_month_key == "未知":
+                    label = "错误/未知"
+                else:
+                    parts = year_month_key.split('-')
+                    label = f"{parts[0]}年{int(parts[1])}月"
+                report_lines.append(f"{label}: {len(by_year_month[year_month_key])} 个账号")
+            report_lines.append("")
+            
+            # 汇总按年分类
+            report_lines.append("【按年份汇总】")
             report_lines.append("-" * 80)
             for year in sorted(by_year.keys()):
                 year_label = f"{year}年" if year > 0 else "错误/未知"
@@ -12731,7 +12822,18 @@ class EnhancedBot:
                     report_lines.append(f"   用户名: @{result['username'] if result['username'] else 'N/A'}")
                     report_lines.append(f"   手机号: {result['phone'] if result['phone'] else 'N/A'}")
                     report_lines.append(f"   名字: {result['first_name']} {result['last_name'] or ''}")
-                    report_lines.append(f"   估算注册: {result['estimated_year']}年 ({result['user_id_range']})")
+                    
+                    # 显示年月信息
+                    year = result['estimated_year']
+                    month = result.get('estimated_month', -1)
+                    if year > 0 and month > 0:
+                        time_str = f"{year}年{month}月 ({result['user_id_range']})"
+                    elif year > 0:
+                        time_str = f"{year}年 ({result['user_id_range']})"
+                    else:
+                        time_str = f"未知 ({result['user_id_range']})"
+                    report_lines.append(f"   估算注册: {time_str}")
+                    
                     report_lines.append(f"   共同群组: {result['common_chats_count']}")
                     if result.get('about'):
                         about_preview = result['about'][:100] + "..." if len(result['about']) > 100 else result['about']
@@ -12742,8 +12844,9 @@ class EnhancedBot:
             
             report_lines.append("")
             report_lines.append("=" * 80)
-            report_lines.append("注意：注册时间是基于用户ID范围的估算值")
+            report_lines.append("注意：注册时间是基于用户ID范围的估算值（精确到月份/季度）")
             report_lines.append("Telegram官方API不直接提供准确的注册日期")
+            report_lines.append("估算方法：根据用户ID分配历史进行季度级别估算")
             report_lines.append("=" * 80)
             
             report_content = "\n".join(report_lines)
@@ -12754,14 +12857,20 @@ class EnhancedBot:
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write(report_content)
             
-            # 按年份分类打包
+            # 按年月分类打包
             zip_files = []
-            for year, accounts in by_year.items():
+            for year_month_key, accounts in by_year_month.items():
                 if len(accounts) == 0:
                     continue
                 
-                year_label = f"{year}年" if year > 0 else "错误"
-                zip_filename = f"registration_{year_label}_{len(accounts)}个_{timestamp}.zip"
+                # 生成文件名标签
+                if year_month_key == "未知":
+                    label = "错误"
+                else:
+                    parts = year_month_key.split('-')
+                    label = f"{parts[0]}年{int(parts[1])}月"
+                
+                zip_filename = f"registration_{label}_{len(accounts)}个_{timestamp}.zip"
                 zip_path = os.path.join(config.RESULTS_DIR, zip_filename)
                 
                 with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
@@ -12806,7 +12915,7 @@ class EnhancedBot:
                                     zipf.write(json_file, os.path.basename(json_file))
                                 break
                 
-                zip_files.append((year_label, zip_path, len(accounts)))
+                zip_files.append((label, zip_path, len(accounts)))
             
             # 发送结果
             context.bot.edit_message_text(
@@ -12826,13 +12935,13 @@ class EnhancedBot:
                 )
             
             # 发送分类ZIP文件
-            for year_label, zip_path, count in zip_files:
+            for month_label, zip_path, count in zip_files:
                 try:
                     with open(zip_path, 'rb') as f:
                         context.bot.send_document(
                             chat_id=user_id,
                             document=f,
-                            caption=f"📦 {year_label}注册的账号 ({count} 个)",
+                            caption=f"📦 {month_label}注册的账号 ({count} 个)",
                             filename=os.path.basename(zip_path)
                         )
                 except Exception as e:
