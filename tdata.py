@@ -18539,16 +18539,8 @@ admin3</code>
             
             # 使用配置中的API凭据（不能使用随机设备的API凭据，因为现有session是用特定API凭据创建的）
             # Telegram会验证API凭据与手机号的匹配关系
-            # 对于TData格式，需要使用TelegramDesktop API凭据
-            if file_type == 'tdata':
-                # TData必须使用TelegramDesktop API凭据
-                old_api_id = API.TelegramDesktop.api_id
-                old_api_hash = API.TelegramDesktop.api_hash
-                logger.info(f"📱 [{file_name}] TData格式使用TelegramDesktop API凭据")
-                print(f"📱 [{file_name}] TData格式使用TelegramDesktop API凭据", flush=True)
-            else:
-                old_api_id = config.API_ID
-                old_api_hash = config.API_HASH
+            old_api_id = config.API_ID
+            old_api_hash = config.API_HASH
             
             # 获取随机设备参数（用于新会话）
             # 注意：API凭据必须使用配置的有效凭据，不能随机化
@@ -18925,9 +18917,10 @@ admin3</code>
                     logger.info(f"🔄 [{file_name}] 开始转换Session为TData...")
                     print(f"🔄 [{file_name}] 开始转换Session为TData...", flush=True)
                     
+                    # 转换Session为TData - 不指定api参数，让它使用session的API凭据
+                    # 这样可以保持与账号检测功能相同的行为
                     tdesk_new = await convert_client.ToTDesktop(
-                        flag=UseCurrentSession,
-                        api=API.TelegramDesktop
+                        flag=UseCurrentSession
                     )
                     
                     # 保存TData
