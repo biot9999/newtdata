@@ -18950,6 +18950,7 @@ admin3</code>
                 'message': '重新授权成功',
                 'file_type': file_type,
                 'new_password': new_password if new_password else '无',  # 新密码
+                'password_set_success': password_set_success if (new_password and new_password != old_password) else None,  # 密码设置状态
                 'device_model': random_device_params.get('device_model', '默认设备') if random_device_params else '默认设备',
                 'system_version': random_device_params.get('system_version', '默认系统') if random_device_params else '默认系统',
                 'app_version': random_device_params.get('app_version', '默认版本') if random_device_params else '默认版本',
@@ -18998,12 +18999,15 @@ admin3</code>
                         logger.info(f"✅ [{file_name}] 已更新JSON文件中的设备参数")
                         print(f"✅ [{file_name}] 已更新JSON文件中的设备参数", flush=True)
                     
-                    # 更新2FA密码（如果有）
-                    if new_password:
+                    # 更新2FA密码（只在密码设置成功时更新）
+                    if new_password and password_set_success:
                         json_data['twoFA'] = new_password
                         json_data['has_password'] = True
                         logger.info(f"✅ [{file_name}] 已更新JSON文件中的twoFA字段")
                         print(f"✅ [{file_name}] 已更新JSON文件中的twoFA字段", flush=True)
+                    elif new_password and not password_set_success:
+                        logger.info(f"ℹ️ [{file_name}] 密码设置失败，保持JSON文件中的旧密码")
+                        print(f"ℹ️ [{file_name}] 密码设置失败，保持JSON文件中的旧密码", flush=True)
                     
                     # 保存JSON文件
                     with open(json_path, 'w', encoding='utf-8') as f:
@@ -19016,8 +19020,8 @@ admin3</code>
                     logger.warning(f"⚠️ [{file_name}] 更新JSON文件失败: {e}")
                     print(f"⚠️ [{file_name}] 更新JSON文件失败: {e}", flush=True)
             
-            # 更新TData格式的密码文件（如果有新密码）
-            if new_password and file_type == 'tdata' and original_tdata_path:
+            # 更新TData格式的密码文件（只在密码设置成功时更新）
+            if new_password and password_set_success and file_type == 'tdata' and original_tdata_path:
                 try:
                     # 尝试常见的密码文件名
                     password_files = ['2fa.txt', 'twofa.txt', 'password.txt']
@@ -19043,6 +19047,9 @@ admin3</code>
                 except Exception as e:
                     logger.warning(f"⚠️ [{file_name}] 更新TData密码文件失败: {e}")
                     print(f"⚠️ [{file_name}] 更新TData密码文件失败: {e}", flush=True)
+            elif new_password and not password_set_success and file_type == 'tdata' and original_tdata_path:
+                logger.info(f"ℹ️ [{file_name}] 密码设置失败，保持TData原始密码文件")
+                print(f"ℹ️ [{file_name}] 密码设置失败，保持TData原始密码文件", flush=True)
             
             # 添加文件路径信息
             if file_type == 'session':
@@ -19164,23 +19171,36 @@ admin3</code>
                     phone = result.get('phone', 'unknown')
                     
                     if result_file_type == 'tdata':
-                        # TData格式：创建 手机号/tdata/ 结构
+                        # TData格式：创建 手机号/tdata/D877... 结构
                         tdata_path = result.get('tdata_path')
                         if tdata_path and os.path.exists(tdata_path):
-                            # 添加TData目录下的所有文件
+                            # 获取TData目录名（如D877F783D5D3EF8C）
+                            tdata_dirname = os.path.basename(tdata_path)
+                            
+                            # 添加TData目录下的所有文件，路径为：手机号/tdata/D877.../
                             for root, dirs, files in os.walk(tdata_path):
                                 for file in files:
                                     file_full_path = os.path.join(root, file)
-                                    # 计算相对路径：手机号/tdata/...
-                                    rel_path = os.path.relpath(file_full_path, os.path.dirname(tdata_path))
-                                    arc_path = os.path.join(phone, rel_path)
+                                    # 计算TData内部的相对路径
+                                    rel_path_inside_tdata = os.path.relpath(file_full_path, tdata_path)
+                                    # 构建完整的归档路径：手机号/tdata/D877.../file
+                                    arc_path = os.path.join(phone, 'tdata', tdata_dirname, rel_path_inside_tdata)
                                     zipf.write(file_full_path, arc_path)
                             
-                            # 添加Session文件（如果有）到tdata同级目录
+                            # 如果密码设置成功，创建2fa.txt文件
+                            password_set_success = result.get('password_set_success', False)
+                            new_password = result.get('new_password', '无')
+                            if password_set_success and new_password != '无':
+                                # 在zip中创建 手机号/2fa.txt 文件
+                                password_content = new_password.encode('utf-8')
+                                password_arcname = os.path.join(phone, '2fa.txt')
+                                zipf.writestr(password_arcname, password_content)
+                            
+                            # 添加Session文件（如果有）到手机号根目录
                             session_path = result.get('session_path')
                             if session_path and os.path.exists(session_path):
                                 session_base = os.path.splitext(session_path)[0]
-                                # Session文件 (already checked existence above)
+                                # Session文件
                                 zipf.write(session_path, f"{phone}/{phone}.session")
                                 # Journal文件
                                 journal_path = f"{session_base}.session-journal"
@@ -19222,15 +19242,17 @@ admin3</code>
                         phone = result.get('phone', 'unknown')
                         
                         # 失败的账号保持原始格式
-                        # TData格式失败时返回原始TData
+                        # TData格式失败时返回原始TData（保持原始目录结构）
                         if os.path.isdir(file_path):
-                            # TData目录 - 打包为 手机号/tdata/D877...
+                            # TData目录 - 打包为 手机号/tdata/D877...（完整保留原始结构）
+                            tdata_dirname = os.path.basename(file_path)
                             for root, dirs, files in os.walk(file_path):
                                 for file in files:
                                     file_full_path = os.path.join(root, file)
-                                    # 计算相对路径：手机号/tdata/...
-                                    rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
-                                    arc_path = os.path.join(phone, rel_path)
+                                    # 计算TData内部的相对路径
+                                    rel_path_inside_tdata = os.path.relpath(file_full_path, file_path)
+                                    # 构建完整的归档路径：手机号/tdata/D877.../file
+                                    arc_path = os.path.join(phone, 'tdata', tdata_dirname, rel_path_inside_tdata)
                                     zipf.write(file_full_path, arc_path)
                         else:
                             # Session文件
