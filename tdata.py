@@ -3184,6 +3184,7 @@ class FileProcessor:
                     d877_check_path = None
                     maps_file = None
                     is_valid_tdata = False
+                    tdata_root_path = None  # 用于TDesktop的实际TData根目录路径
                     
                     # 情况0: 检查是否有tdata子目录，然后在tdata里找D877F783D5D3EF8C（最常见的结构）
                     tdata_wrapper_path = os.path.join(dir_path, "tdata")
@@ -3196,6 +3197,7 @@ class FileProcessor:
                                 is_valid_tdata, maps_file = self._validate_tdata_structure(tdata_d877_path, check_parent_for_keys=True)
                             if is_valid_tdata:
                                 d877_check_path = tdata_d877_path
+                                tdata_root_path = tdata_wrapper_path  # TDesktop需要tdata目录路径
                                 print(f"📂 检测到tdata包装结构: {dir_name}/tdata/D877F783D5D3EF8C")
                     
                     # 情况1: 检查是否有标准的D877F783D5D3EF8C子目录
@@ -3205,6 +3207,7 @@ class FileProcessor:
                             is_valid_tdata, maps_file = self._validate_tdata_structure(standard_d877_path)
                             if is_valid_tdata:
                                 d877_check_path = standard_d877_path
+                                tdata_root_path = dir_path  # TDesktop需要包含D877的父目录
                             else:
                                 # 如果标准路径下没有文件，检查嵌套的D877子目录（情况4）
                                 try:
@@ -3214,6 +3217,7 @@ class FileProcessor:
                                             is_valid_nested, maps_file = self._validate_tdata_structure(sub_dir_path)
                                             if is_valid_nested:
                                                 d877_check_path = sub_dir_path
+                                                tdata_root_path = dir_path  # TDesktop需要最外层的D877父目录
                                                 is_valid_tdata = True
                                                 print(f"🔍 检测到嵌套TData结构: {dir_name} -> {sub_dir}")
                                                 break
@@ -3230,6 +3234,7 @@ class FileProcessor:
                                 is_valid_tdata, maps_file = self._validate_tdata_structure(tdata_d877_path, check_parent_for_keys=True)
                             if is_valid_tdata:
                                 d877_check_path = tdata_d877_path
+                                tdata_root_path = dir_path  # TDesktop需要tdata目录本身
                                 print(f"📂 检测到tdata目录结构: tdata/D877F783D5D3EF8C")
                     
                     # 情况3: 当前目录本身就是D877开头的目录（直接包含TData文件）
@@ -3237,6 +3242,8 @@ class FileProcessor:
                         is_valid_tdata, maps_file = self._validate_tdata_structure(dir_path)
                         if is_valid_tdata:
                             d877_check_path = dir_path
+                            # 对于D877目录，TDesktop需要其父目录
+                            tdata_root_path = os.path.dirname(dir_path)
                             print(f"📂 检测到D877目录直接包含TData文件: {dir_name}")
                     
                     # 如果没有找到有效的TData结构，跳过
@@ -3255,9 +3262,10 @@ class FileProcessor:
                     seen_tdata_paths.add(normalized_path)
                     
                     # 使用新的提取方法获取手机号
-                    display_name = self.extract_phone_from_tdata_directory(dir_path)
+                    display_name = self.extract_phone_from_tdata_directory(tdata_root_path)
                     
-                    tdata_folders.append((dir_path, display_name))
+                    # 使用tdata_root_path而不是dir_path，这是TDesktop实际需要的路径
+                    tdata_folders.append((tdata_root_path, display_name))
                     print(f"📂 找到TData目录: {display_name} (路径: {dir_name})")
         
         except Exception as e:
