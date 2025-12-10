@@ -3250,6 +3250,11 @@ class FileProcessor:
                     if not is_valid_tdata:
                         continue
                     
+                    # 防御性检查：确保tdata_root_path已设置
+                    if tdata_root_path is None:
+                        print(f"⚠️ 警告: TData路径未正确设置，跳过: {dir_name}")
+                        continue
+                    
                     # 使用D877目录的规范化路径防止重复计数（而不是父目录）
                     # 这样即使从不同路径访问同一个D877目录，也能正确去重
                     normalized_path = os.path.normpath(os.path.abspath(d877_check_path))
