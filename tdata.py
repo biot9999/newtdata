@@ -156,6 +156,14 @@ try:
     print("✅ phonenumbers 导入成功")
 except Exception:
     print("⚠️ 未安装 phonenumbers（账号国家识别将不可用）")
+
+try:
+    from registration_checker import RegistrationChecker, AccountClassifierByRegistration
+    REGISTRATION_CHECKER_AVAILABLE = True
+    print("✅ 注册时间查询模块导入成功")
+except Exception as e:
+    REGISTRATION_CHECKER_AVAILABLE = False
+    print(f"⚠️ 注册时间查询模块不可用: {e}")
 # Flask相关导入（新增或确认存在）
 try:
     from flask import Flask, jsonify, request, render_template_string
@@ -8198,6 +8206,8 @@ class EnhancedBot:
         self.dp.add_handler(CommandHandler("api", self.api_command))
         # 新增：账号分类命令
         self.dp.add_handler(CommandHandler("classify", self.classify_command))
+        # 新增：注册时间查询命令
+        self.dp.add_handler(CommandHandler("registration", self.registration_command))
         # 新增：返回主菜单（优先于通用回调）
         self.dp.add_handler(CallbackQueryHandler(self.on_back_to_main, pattern=r"^back_to_main$"))
         
@@ -9634,6 +9644,8 @@ class EnhancedBot:
             self.handle_api_conversion(query)
         elif data.startswith("classify_") or data == "classify_menu":
             self.handle_classify_callbacks(update, context, query, data)
+        elif data.startswith("registration_"):
+            self.handle_registration_callbacks(update, context, query, data)
         elif data == "rename_start":
             self.handle_rename_start(query)
         elif data == "merge_start":
@@ -9714,10 +9726,13 @@ class EnhancedBot:
                 ],
                 [
                     InlineKeyboardButton("📝 文件重命名", callback_data="rename_start"),
-                    InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
+                    InlineKeyboardButton("📅 注册时间", callback_data="registration_start")
                 ],
                 [
-                    InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start"),
+                    InlineKeyboardButton("🧩 账户合并", callback_data="merge_start"),
+                    InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start")
+                ],
+                [
                     InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
                 ]
             ]
@@ -10620,6 +10635,7 @@ class EnhancedBot:
                 "waiting_2fa_file",
                 "waiting_api_file",
                 "waiting_classify_file",
+                "waiting_registration_file",
                 "waiting_rename_file",
                 "waiting_merge_files",
                 "waiting_forget_2fa_file",
@@ -10799,6 +10815,19 @@ class EnhancedBot:
                     import traceback
                     traceback.print_exc()
             thread = threading.Thread(target=process_reauthorize, daemon=True)
+            thread.start()
+        elif user_status == "waiting_registration_file":
+            # 注册时间查询处理
+            def process_registration():
+                try:
+                    asyncio.run(self.process_registration_check(update, context, document))
+                except asyncio.CancelledError:
+                    print(f"[process_registration] 任务被取消")
+                except Exception as e:
+                    print(f"[process_registration] 处理异常: {e}")
+                    import traceback
+                    traceback.print_exc()
+            thread = threading.Thread(target=process_registration, daemon=True)
             thread.start()
         # 清空用户状态
         self.db.save_user(
@@ -12371,6 +12400,92 @@ class EnhancedBot:
                 pass
         else:
             self.safe_send_message(update, text, 'HTML', keyboard)
+    
+    def registration_command(self, update: Update, context: CallbackContext):
+        """注册时间查询命令入口"""
+        user_id = update.effective_user.id
+        
+        # 权限检查
+        is_member, _, _ = self.db.check_membership(user_id)
+        if not is_member and not self.db.is_admin(user_id):
+            self.safe_send_message(update, "❌ 需要会员权限才能使用注册时间查询功能")
+            return
+        
+        if not REGISTRATION_CHECKER_AVAILABLE:
+            self.safe_send_message(update, "❌ 注册时间查询功能不可用\n\n请检查 registration_checker.py 模块是否正确安装")
+            return
+        
+        self.handle_registration_menu(update.callback_query if hasattr(update, 'callback_query') else None, update)
+    
+    def handle_registration_menu(self, query, update=None):
+        """显示注册时间查询菜单"""
+        if update is None:
+            update = query.message if query else None
+        
+        user_id = query.from_user.id if query else update.effective_user.id
+        
+        # 权限检查
+        is_member, _, _ = self.db.check_membership(user_id)
+        if not is_member and not self.db.is_admin(user_id):
+            if query:
+                self.safe_edit_message(query, "❌ 需要会员权限")
+            else:
+                self.safe_send_message(update, "❌ 需要会员权限")
+            return
+        
+        if not REGISTRATION_CHECKER_AVAILABLE:
+            msg = "❌ 注册时间查询功能不可用\n\n请检查依赖库是否正确安装"
+            if query:
+                self.safe_edit_message(query, msg)
+            else:
+                self.safe_send_message(update, msg)
+            return
+        
+        text = """
+📅 <b>注册时间查询</b>
+
+🎯 <b>功能说明</b>
+查询Telegram账号的注册时间，并按时间分类整理。
+
+📋 <b>查询信息</b>
+• 用户ID和基本信息
+• 估算注册年份（基于用户ID）
+• 注册时期范围
+• 共同群组数量
+• 个人简介
+
+🗂️ <b>分类方式</b>
+• 按注册年份分类
+• 按注册时期分类
+• 生成详细报告
+
+💡 <b>使用步骤</b>
+1. 点击"开始查询"按钮
+2. 上传包含账号的ZIP文件
+3. 等待查询完成
+4. 接收分类结果和报告
+
+⚠️ <b>注意事项</b>
+• 支持Session和TData格式
+• 需要账号已授权
+• 注册时间为估算值（Telegram不提供准确API）
+• 基于用户ID范围估算
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 开始查询", callback_data="registration_start")],
+            [InlineKeyboardButton("◀️ 返回主菜单", callback_data="back_to_main")]
+        ])
+        
+        if query:
+            query.answer()
+            try:
+                query.edit_message_text(text, parse_mode='HTML', reply_markup=keyboard)
+            except:
+                pass
+        else:
+            self.safe_send_message(update, text, 'HTML', keyboard)
+    
     def on_back_to_main(self, update: Update, context: CallbackContext):
         """处理“返回主菜单”按钮"""
         query = update.callback_query
@@ -15210,6 +15325,256 @@ class EnhancedBot:
             del self.pending_broadcasts[user_id]
         
         self.start_broadcast_wizard(query, update, context)
+    
+    # ================================
+    # 注册时间查询功能
+    # ================================
+    
+    def handle_registration_callbacks(self, update, context, query, data):
+        """处理注册时间查询相关的回调"""
+        user_id = query.from_user.id
+        
+        if data == "registration_start":
+            # 设置状态并提示上传
+            self.db.save_user(
+                user_id,
+                query.from_user.username or "",
+                query.from_user.first_name or "",
+                "waiting_registration_file"
+            )
+            query.answer()
+            try:
+                query.edit_message_text(
+                    "📤 <b>请上传账号文件</b>\n\n"
+                    "支持格式：\n"
+                    "• Session 文件的ZIP包 (.session)\n"
+                    "• Session+JSON 文件的ZIP包 (.session + .json)\n"
+                    "• TData 文件夹的ZIP包\n\n"
+                    "⚠️ 文件大小限制100MB\n"
+                    "⏰ 5分钟超时",
+                    parse_mode='HTML'
+                )
+            except:
+                pass
+    
+    async def process_registration_check(self, update, context, document):
+        """处理注册时间查询"""
+        user_id = update.effective_user.id
+        
+        # 发送处理中消息
+        progress_msg = context.bot.send_message(
+            chat_id=user_id,
+            text="⏳ <b>正在处理文件...</b>",
+            parse_mode='HTML'
+        )
+        
+        temp_dir = None
+        try:
+            # 下载文件
+            file = context.bot.get_file(document.file_id)
+            temp_zip = tempfile.mktemp(suffix=".zip")
+            file.download(temp_zip)
+            
+            # 解压文件
+            temp_dir = tempfile.mkdtemp()
+            with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            os.remove(temp_zip)
+            
+            # 查找session文件
+            session_files = []
+            tdata_dirs = []
+            
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    if file.endswith('.session'):
+                        session_path = os.path.join(root, file)
+                        session_files.append(session_path)
+                
+                # 查找TData目录
+                for dir_name in dirs:
+                    if dir_name.startswith('D877') or dir_name == 'tdata':
+                        tdata_path = os.path.join(root, dir_name)
+                        tdata_dirs.append(tdata_path)
+            
+            if not session_files and not tdata_dirs:
+                context.bot.edit_message_text(
+                    chat_id=user_id,
+                    message_id=progress_msg.message_id,
+                    text="❌ 未找到有效的账号文件\n\n请确保ZIP包含Session或TData文件",
+                    parse_mode='HTML'
+                )
+                return
+            
+            # 转换TData为Session（如果需要）
+            if tdata_dirs and OPENTELE_AVAILABLE:
+                context.bot.edit_message_text(
+                    chat_id=user_id,
+                    message_id=progress_msg.message_id,
+                    text=f"🔄 <b>正在转换TData格式...</b>\n\n找到 {len(tdata_dirs)} 个TData目录",
+                    parse_mode='HTML'
+                )
+                
+                for tdata_path in tdata_dirs:
+                    try:
+                        from opentele.td import TDesktop
+                        from opentele.api import UseCurrentSession
+                        
+                        tdesk = TDesktop(tdata_path)
+                        if tdesk.isLoaded():
+                            temp_session_name = f"temp_reg_{int(time.time())}_{len(session_files)}"
+                            temp_session_path = os.path.join(temp_dir, temp_session_name)
+                            
+                            temp_client = await tdesk.ToTelethon(
+                                session=temp_session_path,
+                                flag=UseCurrentSession
+                            )
+                            
+                            if temp_client:
+                                await temp_client.disconnect()
+                                session_files.append(f"{temp_session_path}.session")
+                    except Exception as e:
+                        logger.warning(f"⚠️ 转换TData失败: {e}")
+            
+            total_sessions = len(session_files)
+            
+            if total_sessions == 0:
+                context.bot.edit_message_text(
+                    chat_id=user_id,
+                    message_id=progress_msg.message_id,
+                    text="❌ 未找到可用的账号\n\n请确保账号已授权",
+                    parse_mode='HTML'
+                )
+                return
+            
+            # 创建检查器
+            checker = RegistrationChecker(
+                api_id=config.API_ID,
+                api_hash=config.API_HASH,
+                proxy=None  # 可以从proxy_manager获取代理
+            )
+            
+            # 进度回调
+            async def progress_callback(current, total, info):
+                try:
+                    progress_text = (
+                        f"🔍 <b>正在查询注册信息...</b>\n\n"
+                        f"进度: {current}/{total} ({int(current/total*100)}%)\n"
+                        f"当前: {info.phone if info.phone else info.first_name}"
+                    )
+                    context.bot.edit_message_text(
+                        chat_id=user_id,
+                        message_id=progress_msg.message_id,
+                        text=progress_text,
+                        parse_mode='HTML'
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ 更新进度失败: {e}")
+            
+            # 批量检查
+            results = await checker.check_multiple_accounts(
+                session_files,
+                progress_callback=progress_callback
+            )
+            
+            # 生成报告
+            from registration_checker import AccountClassifierByRegistration
+            
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            report_content = AccountClassifierByRegistration.generate_report(results)
+            
+            # 保存报告
+            report_filename = f"registration_report_{timestamp}.txt"
+            report_path = os.path.join(config.RESULTS_DIR, report_filename)
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write(report_content)
+            
+            # 按年份分类打包
+            by_year = AccountClassifierByRegistration.classify_by_year(results)
+            zip_files = []
+            
+            for year, accounts in by_year.items():
+                if len(accounts) == 0:
+                    continue
+                
+                year_label = f"{year}年" if year > 0 else "错误"
+                zip_filename = f"registration_{year_label}_{len(accounts)}个_{timestamp}.zip"
+                zip_path = os.path.join(config.RESULTS_DIR, zip_filename)
+                
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    for account in accounts:
+                        # 查找对应的session文件
+                        for session_file in session_files:
+                            session_base = os.path.basename(session_file).replace('.session', '')
+                            if str(account.user_id) in session_base or (account.phone and account.phone in session_base):
+                                # 添加session文件
+                                zipf.write(session_file, os.path.basename(session_file))
+                                
+                                # 添加journal文件
+                                journal_file = session_file + '-journal'
+                                if os.path.exists(journal_file):
+                                    zipf.write(journal_file, os.path.basename(journal_file))
+                                
+                                # 添加JSON文件
+                                json_file = session_file.replace('.session', '.json')
+                                if os.path.exists(json_file):
+                                    zipf.write(json_file, os.path.basename(json_file))
+                                break
+                
+                zip_files.append((year_label, zip_path, len(accounts)))
+            
+            # 发送结果
+            context.bot.edit_message_text(
+                chat_id=user_id,
+                message_id=progress_msg.message_id,
+                text=f"✅ <b>查询完成</b>\n\n总账号数: {total_sessions}\n正在发送报告...",
+                parse_mode='HTML'
+            )
+            
+            # 发送报告文件
+            with open(report_path, 'rb') as f:
+                context.bot.send_document(
+                    chat_id=user_id,
+                    document=f,
+                    filename=report_filename,
+                    caption="📊 注册时间查询详细报告"
+                )
+            
+            # 发送分类ZIP文件
+            for year_label, zip_path, count in zip_files:
+                try:
+                    with open(zip_path, 'rb') as f:
+                        context.bot.send_document(
+                            chat_id=user_id,
+                            document=f,
+                            caption=f"📦 {year_label}注册的账号 ({count} 个)",
+                            filename=os.path.basename(zip_path)
+                        )
+                except Exception as e:
+                    logger.error(f"❌ 发送ZIP文件失败: {e}")
+            
+        except Exception as e:
+            logger.error(f"❌ 注册时间查询失败: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            try:
+                context.bot.edit_message_text(
+                    chat_id=user_id,
+                    message_id=progress_msg.message_id,
+                    text=f"❌ <b>查询失败</b>\n\n错误信息: {str(e)[:200]}",
+                    parse_mode='HTML'
+                )
+            except:
+                pass
+        
+        finally:
+            # 清理临时文件
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            
+            # 清理状态
+            self.db.save_user(user_id, "", "", "")
     
     # ================================
     # 文件重命名功能
