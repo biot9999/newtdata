@@ -18951,7 +18951,7 @@ admin3</code>
                 'message': '重新授权成功',
                 'file_type': file_type,
                 'new_password': new_password if new_password else '无',  # 新密码
-                'password_set_success': password_set_success if (new_password and new_password != old_password) else None,  # 密码设置状态
+                'password_set_success': password_set_success,  # 密码设置状态：True=成功，False=失败/未尝试
                 'device_model': random_device_params.get('device_model', '默认设备') if random_device_params else '默认设备',
                 'system_version': random_device_params.get('system_version', '默认系统') if random_device_params else '默认系统',
                 'app_version': random_device_params.get('app_version', '默认版本') if random_device_params else '默认版本',
