@@ -3179,32 +3179,32 @@ class FileProcessor:
                     # 如果没有找到有效的TData结构，跳过
                     if not is_valid_tdata:
                         continue
-                        
-                        # 检查maps文件大小（有效的TData maps文件通常大于30字节）
-                        try:
-                            maps_size = os.path.getsize(maps_file)
-                            if maps_size < 30:
-                                print(f"⚠️ 跳过无效TData目录（maps文件过小: {maps_size}字节）: {dir_name}")
-                                continue
-                        except:
-                            print(f"⚠️ 跳过无效TData目录（无法读取maps文件）: {dir_name}")
+                    
+                    # 检查maps文件大小（有效的TData maps文件通常大于30字节）
+                    try:
+                        maps_size = os.path.getsize(maps_file)
+                        if maps_size < 30:
+                            print(f"⚠️ 跳过无效TData目录（maps文件过小: {maps_size}字节）: {dir_name}")
                             continue
-                        
-                        # 使用规范化路径防止重复计数（处理符号链接和相对路径）
-                        normalized_path = os.path.normpath(os.path.abspath(dir_path))
-                        
-                        # 检查是否已经添加过此TData目录
-                        if normalized_path in seen_tdata_paths:
-                            print(f"⚠️ 跳过重复TData目录: {dir_name}")
-                            continue
-                        
-                        seen_tdata_paths.add(normalized_path)
-                        
-                        # 使用新的提取方法获取手机号
-                        display_name = self.extract_phone_from_tdata_directory(dir_path)
-                        
-                        tdata_folders.append((dir_path, display_name))
-                        print(f"📂 找到TData目录: {display_name} (路径: {dir_name})")
+                    except:
+                        print(f"⚠️ 跳过无效TData目录（无法读取maps文件）: {dir_name}")
+                        continue
+                    
+                    # 使用规范化路径防止重复计数（处理符号链接和相对路径）
+                    normalized_path = os.path.normpath(os.path.abspath(dir_path))
+                    
+                    # 检查是否已经添加过此TData目录
+                    if normalized_path in seen_tdata_paths:
+                        print(f"⚠️ 跳过重复TData目录: {dir_name}")
+                        continue
+                    
+                    seen_tdata_paths.add(normalized_path)
+                    
+                    # 使用新的提取方法获取手机号
+                    display_name = self.extract_phone_from_tdata_directory(dir_path)
+                    
+                    tdata_folders.append((dir_path, display_name))
+                    print(f"📂 找到TData目录: {display_name} (路径: {dir_name})")
         
         except Exception as e:
             print(f"❌ 文件扫描失败: {e}")
