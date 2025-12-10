@@ -19293,34 +19293,21 @@ admin3</code>
                 failed_zip = os.path.join(config.RESULTS_DIR, f"reauthorize_{category_key}_{timestamp}.zip")
                 with zipfile.ZipFile(failed_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
                     for file_path, file_name, result in items:
-                        # 获取手机号（用于创建目录结构）
-                        phone = result.get('phone', 'unknown')
-                        
-                        # 失败的账号保持原始格式
-                        # TData格式失败时返回原始TData（保持原始目录结构）
+                        # 失败的账号直接返回原始文件，不做任何修改
+                        # 保持用户上传时的原始结构和文件名
                         if os.path.isdir(file_path):
-                            # TData目录 - 打包为 手机号/tdata/D877...
-                            # 检查是否有tdata子目录
-                            actual_tdata_dir = os.path.join(file_path, 'tdata')
-                            
-                            if os.path.exists(actual_tdata_dir) and os.path.isdir(actual_tdata_dir):
-                                # 有tdata子目录，使用它
-                                source_dir = actual_tdata_dir
-                            else:
-                                # 没有tdata子目录，file_path本身就是tdata目录
-                                source_dir = file_path
-                            
-                            # 打包source_dir的内容
-                            for root, dirs, files in os.walk(source_dir):
+                            # TData目录 - 直接打包原始目录结构
+                            for root, dirs, files in os.walk(file_path):
                                 for file in files:
                                     file_full_path = os.path.join(root, file)
-                                    rel_path = os.path.relpath(file_full_path, source_dir)
-                                    arc_path = os.path.join(phone, 'tdata', rel_path)
-                                    zipf.write(file_full_path, arc_path)
+                                    # 保持原始的相对路径结构
+                                    rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
+                                    zipf.write(file_full_path, rel_path)
                         else:
-                            # Session文件
+                            # Session文件 - 直接使用原始文件名
                             if os.path.exists(file_path):
                                 zipf.write(file_path, file_name)
+                            # 添加相关文件
                             journal_path = file_path + '-journal'
                             if os.path.exists(journal_path):
                                 zipf.write(journal_path, file_name + '-journal')
