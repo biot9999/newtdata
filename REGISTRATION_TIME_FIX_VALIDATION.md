@@ -51,8 +51,10 @@ messages = await client.get_messages(
 File: `tdata.py`
 Method: `check_account_registration_time()`
 Lines affected: 
-- Line 20113-20118: Telegram chat message retrieval
-- Line 20140-20145: Saved Messages retrieval
+- Line 20101-20170: All-chat scan (Method 0) - NEW!
+- Line 20172-20207: Telegram chat message retrieval (Method 1)
+- Line 20209-20225: Saved Messages retrieval (Method 2)
+- Line 20227-20235: User ID estimation (Method 3)
 
 ## Impact
 This fix ensures that the registration time query feature returns accurate historical dates instead of current dates, making the feature useful for account age verification and classification.

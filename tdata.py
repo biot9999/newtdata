@@ -20107,22 +20107,34 @@ admin3</code>
             try:
                 logger.info(f"[{file_name}] 开始扫描所有对话以查找最早消息...")
                 
-                # 获取所有对话（限制数量以提高速度）
-                dialogs = await client.get_dialogs(limit=100)
+                # 获取所有对话（限制数量以提高速度，设置超时）
+                dialogs = await asyncio.wait_for(
+                    client.get_dialogs(limit=100),
+                    timeout=30  # 30秒超时
+                )
                 
                 oldest_date = None
                 oldest_dialog_name = None
                 
-                # 遍历每个对话，找到最早的消息
+                # 遍历每个对话，找到最早的消息（最多检查100个对话）
                 for dialog in dialogs:
                     try:
-                        # 只检查用户、群组和频道，跳过机器人对话（除了777000）
-                        # 获取该对话的第一条消息
-                        messages = await client.get_messages(
-                            dialog.entity,
-                            limit=1,
-                            offset_id=0,  # 从最开始获取
-                            reverse=True   # 按时间正序
+                        # 跳过机器人对话（777000除外，因为它是官方账号）
+                        # Skip bot dialogs except 777000 (Telegram official)
+                        from telethon.tl.types import User
+                        entity = dialog.entity
+                        if isinstance(entity, User) and entity.bot and entity.id != 777000:
+                            continue
+                        
+                        # 获取该对话的第一条消息（设置超时避免阻塞）
+                        messages = await asyncio.wait_for(
+                            client.get_messages(
+                                dialog.entity,
+                                limit=1,
+                                offset_id=0,  # 从最开始获取
+                                reverse=True   # 按时间正序
+                            ),
+                            timeout=5  # 每个对话5秒超时
                         )
                         
                         if messages and len(messages) > 0 and messages[0].date:
@@ -20130,8 +20142,18 @@ admin3</code>
                             # 如果这是目前找到的最早日期，记录下来
                             if not oldest_date or msg_date < oldest_date:
                                 oldest_date = msg_date
-                                oldest_dialog_name = getattr(dialog, 'name', 'Unknown')
+                                # 尝试获取对话名称，优先使用title，再尝试name
+                                if hasattr(dialog, 'title'):
+                                    oldest_dialog_name = dialog.title
+                                elif hasattr(dialog, 'name'):
+                                    oldest_dialog_name = dialog.name
+                                else:
+                                    oldest_dialog_name = 'Unknown'
                                 
+                    except asyncio.TimeoutError:
+                        # 单个对话超时，继续下一个
+                        logger.warning(f"[{file_name}] 对话查询超时，跳过")
+                        continue
                     except Exception as e:
                         # 某些对话可能无法访问，跳过即可
                         continue
@@ -20143,6 +20165,8 @@ admin3</code>
                 else:
                     logger.info(f"[{file_name}] 扫描所有对话未找到消息，尝试其他方法")
                     
+            except asyncio.TimeoutError:
+                logger.warning(f"[{file_name}] 获取对话列表超时，跳过全对话扫描")
             except Exception as e:
                 logger.warning(f"[{file_name}] 扫描所有对话失败: {e}")
             
