@@ -20051,11 +20051,19 @@ admin3</code>
             first_name = me.first_name if me.first_name else ""
             last_name = me.last_name if me.last_name else ""
             
-            # 获取完整用户信息
-            full = await client(GetFullUserRequest(user_id_val))
-            full_user = full.full_user
+            # 获取完整用户信息 - 添加错误处理以应对受限账号
+            full_user = None
+            try:
+                full = await client(GetFullUserRequest(user_id_val))
+                full_user = full.full_user
+            except Exception as e:
+                # 如果账号受限制（无法发送消息等），GetFullUserRequest可能失败
+                # 这不影响我们获取注册时间，继续使用其他方法
+                logger.warning(f"[{file_name}] 无法获取完整用户信息（账号可能受限）: {e}")
+                full_user = None
             
             # 方法1：从与 @Telegram (777000) 的对话中获取第一条消息时间（最准确）
+            # 即使账号被限制发送消息，仍然可以读取历史消息
             registration_date = None
             registration_source = "estimated"  # estimated, telegram_chat, saved_messages
             
@@ -20064,6 +20072,7 @@ admin3</code>
                 telegram_entity = await client.get_entity(777000)
                 
                 # 获取最早的消息（从最旧的开始）
+                # 注意：即使账号被限制发送消息，读取消息通常仍然可用
                 messages = await client.get_messages(
                     telegram_entity,
                     limit=1,
@@ -20077,9 +20086,15 @@ admin3</code>
                         registration_source = "telegram_chat"
                         logger.info(f"[{file_name}] 从Telegram对话获取到注册时间: {registration_date}")
             except Exception as e:
-                logger.warning(f"[{file_name}] 无法从Telegram对话获取注册时间: {e}")
+                # 记录详细错误信息，帮助调试
+                error_msg = str(e)
+                if "CHAT_RESTRICTED" in error_msg or "USER_RESTRICTED" in error_msg:
+                    logger.warning(f"[{file_name}] 账号受限，无法从Telegram对话获取注册时间: {error_msg}")
+                else:
+                    logger.warning(f"[{file_name}] 无法从Telegram对话获取注册时间: {error_msg}")
             
             # 方法2：如果方法1失败，尝试从 Saved Messages 获取
+            # 收藏夹通常不受消息限制影响
             if not registration_date:
                 try:
                     # 获取自己（Saved Messages）
@@ -20096,13 +20111,18 @@ admin3</code>
                             registration_source = "saved_messages"
                             logger.info(f"[{file_name}] 从Saved Messages获取到注册时间: {registration_date}")
                 except Exception as e:
-                    logger.warning(f"[{file_name}] 无法从Saved Messages获取注册时间: {e}")
+                    error_msg = str(e)
+                    if "CHAT_RESTRICTED" in error_msg or "USER_RESTRICTED" in error_msg:
+                        logger.warning(f"[{file_name}] 账号受限，无法从Saved Messages获取注册时间: {error_msg}")
+                    else:
+                        logger.warning(f"[{file_name}] 无法从Saved Messages获取注册时间: {error_msg}")
             
             # 方法3：如果以上方法都失败，使用用户ID估算
+            # 这个方法永远不会失败，确保总是能返回一个注册时间
             if not registration_date:
                 registration_date = self._estimate_registration_date_from_user_id(user_id_val)
                 registration_source = "estimated"
-                logger.info(f"[{file_name}] 使用用户ID估算注册时间: {registration_date}")
+                logger.info(f"[{file_name}] 使用用户ID估算注册时间（可能因账号受限导致前面方法失败）: {registration_date}")
             
             result = {
                 'status': 'success',
@@ -20113,8 +20133,8 @@ admin3</code>
                 'last_name': last_name,
                 'registration_date': registration_date,  # 格式：YYYY-MM-DD
                 'registration_source': registration_source,  # 数据来源
-                'common_chats': full_user.common_chats_count if hasattr(full_user, 'common_chats_count') else 0,
-                'about': full_user.about if hasattr(full_user, 'about') else None,
+                'common_chats': full_user.common_chats_count if full_user and hasattr(full_user, 'common_chats_count') else 0,
+                'about': full_user.about if full_user and hasattr(full_user, 'about') else None,
                 'file_name': file_name,
                 'file_type': file_type,
                 'original_file_path': original_file_path  # 保存原始文件路径用于打包
@@ -20313,13 +20333,57 @@ admin3</code>
                                     # TData格式：使用原始上传的文件，保持原始文件结构
                                     # 结构: ZIP/日期文件夹/手机号/tdata/D877.../文件
                                     if os.path.isdir(original_path):
-                                        # 我们需要保持原始结构
+                                        # 我们需要找到包含tdata结构的正确父目录
+                                        # original_path 可能是以下几种情况：
+                                        # 1. /path/to/phone/tdata/D877... (最常见)
+                                        # 2. /path/to/phone/D877... (无tdata包装)
+                                        # 3. /path/to/tdata/D877... (tdata在根)
+                                        # 4. /path/to/D877... (直接D877)
+                                        
+                                        # 向上查找以确定结构
+                                        tdata_parent = None
+                                        current = original_path
+                                        
+                                        # 最多向上查找3层
+                                        for _ in range(3):
+                                            parent = os.path.dirname(current)
+                                            parent_name = os.path.basename(parent)
+                                            current_name = os.path.basename(current)
+                                            
+                                            # 检查是否找到tdata目录
+                                            if current_name.lower() == 'tdata':
+                                                # 找到tdata目录，使用其父目录作为基准
+                                                tdata_parent = parent
+                                                break
+                                            
+                                            # 检查当前目录的父目录是否是tdata
+                                            if parent_name.lower() == 'tdata':
+                                                # 当前是D877，父目录是tdata
+                                                # 使用tdata的父目录作为基准
+                                                tdata_parent = os.path.dirname(parent)
+                                                break
+                                            
+                                            current = parent
+                                        
+                                        # 如果没有找到tdata结构，使用original_path的父目录
+                                        if not tdata_parent:
+                                            # 没有tdata包装，从D877的父目录开始
+                                            # 结构变成: ZIP/日期文件夹/手机号/D877.../文件
+                                            tdata_parent = os.path.dirname(original_path)
+                                        
+                                        # 遍历所有文件并保持相对结构
                                         for root, dirs, files in os.walk(original_path):
                                             for file in files:
                                                 file_full_path = os.path.join(root, file)
-                                                # 计算相对于原始目录的路径
-                                                rel_path = os.path.relpath(file_full_path, os.path.dirname(original_path))
-                                                # 构建压缩包内的路径：日期文件夹/手机号/原始结构
+                                                # 计算相对于tdata_parent的路径
+                                                try:
+                                                    rel_path = os.path.relpath(file_full_path, tdata_parent)
+                                                except ValueError:
+                                                    # 如果路径在不同驱动器，使用从original_path开始的相对路径
+                                                    rel_path = os.path.relpath(file_full_path, os.path.dirname(original_path))
+                                                
+                                                # 构建压缩包内的路径：日期文件夹/手机号/rel_path
+                                                # rel_path 现在应该包含 tdata/D877... 或 D877... 结构
                                                 arc_path = os.path.join(date_folder, phone, rel_path)
                                                 zipf.write(file_full_path, arc_path)
                                 else:
@@ -20385,12 +20449,38 @@ admin3</code>
                                 # 打包原始文件
                                 try:
                                     if result_file_type == 'tdata':
-                                        # TData格式：打包整个目录
+                                        # TData格式：打包整个目录，保持tdata结构
                                         if os.path.isdir(file_path):
+                                            # 查找tdata结构的父目录（与成功账号相同的逻辑）
+                                            tdata_parent = None
+                                            current = file_path
+                                            
+                                            for _ in range(3):
+                                                parent = os.path.dirname(current)
+                                                parent_name = os.path.basename(parent)
+                                                current_name = os.path.basename(current)
+                                                
+                                                if current_name.lower() == 'tdata':
+                                                    tdata_parent = parent
+                                                    break
+                                                
+                                                if parent_name.lower() == 'tdata':
+                                                    tdata_parent = os.path.dirname(parent)
+                                                    break
+                                                
+                                                current = parent
+                                            
+                                            if not tdata_parent:
+                                                tdata_parent = os.path.dirname(file_path)
+                                            
                                             for root, dirs, files in os.walk(file_path):
                                                 for file in files:
                                                     file_full_path = os.path.join(root, file)
-                                                    rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
+                                                    try:
+                                                        rel_path = os.path.relpath(file_full_path, tdata_parent)
+                                                    except ValueError:
+                                                        rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
+                                                    
                                                     arc_path = os.path.join(file_name, rel_path)
                                                     zipf.write(file_full_path, arc_path)
                                     else:
