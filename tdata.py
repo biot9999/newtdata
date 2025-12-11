@@ -115,6 +115,7 @@ try:
     from telethon.tl.functions.messages import SendMessageRequest, GetHistoryRequest
     from telethon.tl.functions.account import GetPasswordRequest, GetAuthorizationsRequest
     from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
+    from telethon.tl.functions.users import GetFullUserRequest
     TELETHON_AVAILABLE = True
     print("✅ telethon库导入成功")
 except ImportError:
@@ -8183,6 +8184,9 @@ class EnhancedBot:
         # 重新授权待处理任务
         self.pending_reauthorize: Dict[int, Dict[str, Any]] = {}
         
+        # 查询注册时间任务跟踪
+        self.pending_registration_check: Dict[int, Dict[str, Any]] = {}
+        
         # 初始化设备参数加载器
         self.device_loader = DeviceParamsLoader()
         
@@ -8618,6 +8622,7 @@ class EnhancedBot:
                 InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start")
             ],
             [
+                InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start"),
                 InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
             ]
         ]
@@ -9682,6 +9687,10 @@ class EnhancedBot:
             self.handle_reauthorize_start(query)
         elif data.startswith("reauthorize_") or data.startswith("reauth_"):
             self.handle_reauthorize_callbacks(update, context, query, data)
+        elif data == "check_registration_start":
+            self.handle_check_registration_start(query)
+        elif data.startswith("check_reg_"):
+            self.handle_check_registration_callbacks(update, context, query, data)
         elif query.data == "back_to_main":
             self.show_main_menu(update, user_id)
             # 返回主菜单 - 横排2x2布局
@@ -10632,7 +10641,7 @@ class EnhancedBot:
             row = c.fetchone()
             conn.close()
 
-            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files, waiting_cleanup_file, batch_create_upload, reauthorize_upload
+            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files, waiting_cleanup_file, batch_create_upload, reauthorize_upload, registration_check_upload
             if not row or row[0] not in [
                 "waiting_file",
                 "waiting_convert_tdata",
@@ -10649,6 +10658,7 @@ class EnhancedBot:
                 "batch_create_names",
                 "batch_create_usernames",
                 "reauthorize_upload",
+                "registration_check_upload",
             ]:
                 self.safe_send_message(update, "❌ 请先点击相应的功能按钮")
                 return
@@ -10819,6 +10829,19 @@ class EnhancedBot:
                     import traceback
                     traceback.print_exc()
             thread = threading.Thread(target=process_reauthorize, daemon=True)
+            thread.start()
+        elif user_status == "registration_check_upload":
+            # 查询注册时间文件处理
+            def process_registration_check():
+                try:
+                    asyncio.run(self.process_registration_check_upload(update, context, document))
+                except asyncio.CancelledError:
+                    print(f"[process_registration_check] 任务被取消")
+                except Exception as e:
+                    print(f"[process_registration_check] 处理异常: {e}")
+                    import traceback
+                    traceback.print_exc()
+            thread = threading.Thread(target=process_registration_check, daemon=True)
             thread.start()
         # 清空用户状态
         self.db.save_user(
@@ -19641,6 +19664,903 @@ admin3</code>
                 )
             except:
                 pass
+    
+    # ================================
+    # 查询注册时间功能
+    # ================================
+    
+    def handle_check_registration_start(self, query):
+        """处理查询注册时间开始"""
+        query.answer()
+        user_id = query.from_user.id
+        
+        # 检查会员权限
+        if not self.db.is_admin(user_id):
+            is_member, level, expiry = self.db.check_membership(user_id)
+            if not is_member:
+                query.edit_message_text(
+                    text="❌ 查询注册时间功能需要会员权限\n\n请先开通会员",
+                    reply_markup=InlineKeyboardMarkup([[
+                        InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
+                        InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")
+                    ]]),
+                    parse_mode='HTML'
+                )
+                return
+        
+        text = """
+<b>🕰️ 查询注册时间</b>
+
+该功能将查询账号的准确注册时间，并按日期分类：
+• 📅 按完整日期（年-月-日）分类
+• 🎯 多种方法获取最准确的注册时间
+
+<b>📊 数据获取方法（按优先级）：</b>
+1. ✅ 从与@Telegram官方对话获取第一条消息时间（最准确）
+2. ✅ 从收藏夹(Saved Messages)获取第一条消息时间（较准确）
+3. 📊 基于用户ID估算（仅作为后备方案）
+
+<b>⚠️ 注意事项：</b>
+1. 支持 Session 和 TData 格式
+2. 需要使用官方 Telegram API
+3. 查询速度取决于账号数量和网络状况
+4. 建议批量处理不超过100个账号
+5. 会自动使用最准确的方法获取注册时间
+
+<b>📤 请上传账号文件：</b>
+• Session格式：上传.session文件（可打包成zip）
+• TData格式：上传包含tdata目录的zip文件
+        """
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+        ])
+        
+        query.edit_message_text(
+            text=text,
+            reply_markup=keyboard,
+            parse_mode='HTML'
+        )
+        
+        # 设置数据库状态
+        self.db.save_user(user_id, "", "", "registration_check_upload")
+        
+        # 设置pending状态
+        self.pending_registration_check[user_id] = {
+            'status': 'waiting_file',
+            'files': [],
+            'file_type': None
+        }
+    
+    def handle_check_registration_callbacks(self, update: Update, context: CallbackContext, query, data: str):
+        """处理查询注册时间相关回调"""
+        user_id = query.from_user.id
+        
+        if data == "check_reg_cancel":
+            query.answer()
+            if user_id in self.pending_registration_check:
+                self.cleanup_registration_check_task(user_id)
+            self.show_main_menu(update, user_id)
+        elif data == "check_reg_execute":
+            query.answer()
+            self.handle_registration_check_execute(update, context, query, user_id)
+    
+    def cleanup_registration_check_task(self, user_id: int):
+        """清理查询注册时间任务"""
+        if user_id in self.pending_registration_check:
+            task = self.pending_registration_check[user_id]
+            if task.get('temp_dir') and os.path.exists(task['temp_dir']):
+                shutil.rmtree(task['temp_dir'], ignore_errors=True)
+            del self.pending_registration_check[user_id]
+        
+        # 清除用户状态
+        self.db.save_user(user_id, "", "", "")
+    
+    async def process_registration_check_upload(self, update: Update, context: CallbackContext, document):
+        """处理查询注册时间文件上传"""
+        user_id = update.effective_user.id
+        
+        progress_msg = self.safe_send_message(update, "📥 <b>正在处理文件...</b>", 'HTML')
+        if not progress_msg:
+            return
+        
+        temp_zip = None
+        try:
+            # 清理旧的临时文件
+            self._cleanup_user_temp_sessions(user_id)
+            
+            # 创建唯一任务ID
+            unique_task_id = f"{user_id}_regcheck_{int(time.time() * 1000)}"
+            
+            # 下载文件
+            temp_dir = tempfile.mkdtemp(prefix="registration_check_")
+            temp_zip = os.path.join(temp_dir, document.file_name)
+            document.get_file().download(temp_zip)
+            
+            # 扫描文件
+            files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, unique_task_id)
+            
+            if not files:
+                self.safe_edit_message_text(progress_msg, "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
+                return
+            
+            # 保存任务信息
+            self.pending_registration_check[user_id] = {
+                'files': files,
+                'file_type': file_type,
+                'temp_dir': temp_dir,
+                'extract_dir': extract_dir,
+                'total_files': len(files),
+                'progress_msg': progress_msg
+            }
+            
+            # 显示确认按钮
+            text = f"""✅ <b>找到 {len(files)} 个账号文件</b>
+
+<b>文件类型：</b>{file_type.upper()}
+
+<b>处理说明：</b>
+• 优先从@Telegram官方对话获取准确注册时间
+• 备用方案：收藏夹消息或用户ID估算
+• 按相同日期（年-月-日）分类账号
+• 生成分类报告和打包文件
+
+<b>🎯 数据准确性：</b>
+我们会使用多种方法确保获取最准确的注册时间：
+1. Telegram官方对话第一条消息（最准确）
+2. 收藏夹第一条消息（较准确）
+3. 用户ID估算（仅作后备）
+
+准备开始查询吗？
+"""
+            
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("✅ 开始查询", callback_data="check_reg_execute"),
+                    InlineKeyboardButton("❌ 取消", callback_data="check_reg_cancel")
+                ]
+            ])
+            
+            self.safe_edit_message_text(
+                progress_msg,
+                text,
+                parse_mode='HTML',
+                reply_markup=keyboard
+            )
+            
+        except Exception as e:
+            logger.error(f"Registration check upload failed: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            self.safe_edit_message_text(
+                progress_msg,
+                f"❌ <b>处理失败</b>\n\n错误: {str(e)}",
+                parse_mode='HTML'
+            )
+            
+            # 清理
+            if temp_zip and os.path.exists(os.path.dirname(temp_zip)):
+                shutil.rmtree(os.path.dirname(temp_zip), ignore_errors=True)
+    
+    def handle_registration_check_execute(self, update: Update, context: CallbackContext, query, user_id: int):
+        """执行注册时间查询"""
+        query.answer()
+        
+        if user_id not in self.pending_registration_check:
+            self.safe_edit_message(query, "❌ 会话已过期，请重新上传文件")
+            return
+        
+        task = self.pending_registration_check[user_id]
+        files = task['files']
+        file_type = task['file_type']
+        progress_msg = task.get('progress_msg')
+        
+        # 启动异步任务
+        def run_registration_check():
+            try:
+                asyncio.run(self._execute_registration_check(user_id, files, file_type, context, progress_msg))
+            except Exception as e:
+                logger.error(f"Registration check execution failed: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        thread = threading.Thread(target=run_registration_check, daemon=True)
+        thread.start()
+        
+        # 更新消息
+        self.safe_edit_message(
+            query,
+            f"🔄 <b>正在查询 {len(files)} 个账号...</b>\n\n请稍候，这可能需要几分钟",
+            parse_mode='HTML'
+        )
+    
+    async def _execute_registration_check(self, user_id: int, files: List, file_type: str, context: CallbackContext, progress_msg):
+        """执行注册时间查询的核心逻辑"""
+        results = {
+            'success': [],
+            'error': [],
+            'frozen': [],
+            'banned': []
+        }
+        
+        total = len(files)
+        processed = 0
+        
+        # 并发查询（使用信号量控制并发数）
+        semaphore = asyncio.Semaphore(10)  # 最多10个并发
+        
+        async def check_single_account(file_path, file_name):
+            nonlocal processed
+            async with semaphore:
+                try:
+                    result = await self.check_account_registration_time(file_path, file_name, file_type)
+                    
+                    if result['status'] == 'success':
+                        results['success'].append((file_path, file_name, result))
+                    elif result['status'] == 'frozen':
+                        results['frozen'].append((file_path, file_name, result))
+                    elif result['status'] == 'banned':
+                        results['banned'].append((file_path, file_name, result))
+                    else:
+                        results['error'].append((file_path, file_name, result))
+                    
+                    processed += 1
+                    
+                    # 每处理10个更新一次进度
+                    if processed % 10 == 0 or processed == total:
+                        try:
+                            progress_text = f"""🔄 <b>查询进度</b>
+
+• 总数：{total}
+• 已处理：{processed}
+• 成功：{len(results['success'])}
+• 失败：{len(results['error']) + len(results['frozen']) + len(results['banned'])}
+
+⏳ 请稍候...
+"""
+                            context.bot.edit_message_text(
+                                chat_id=user_id,
+                                message_id=progress_msg.message_id,
+                                text=progress_text,
+                                parse_mode='HTML'
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to update progress: {e}")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to check {file_name}: {e}")
+                    results['error'].append((file_path, file_name, {'status': 'error', 'error': str(e)}))
+                    processed += 1
+        
+        # 执行所有查询
+        tasks = [check_single_account(file_path, file_name) for file_path, file_name in files]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 生成报告
+        self._generate_registration_report(context, user_id, results, progress_msg)
+        
+        # 清理
+        self.cleanup_registration_check_task(user_id)
+    
+    async def check_account_registration_time(self, file_path: str, file_name: str, file_type: str) -> Dict:
+        """
+        查询单个账号的注册时间
+        
+        使用多种方法获取最准确的注册时间：
+        1. 查询与 @Telegram (777000) 的第一条消息时间（最准确）
+        2. 查询 Saved Messages 的第一条消息时间
+        3. 基于用户ID估算
+        
+        Args:
+            file_path: 文件路径（session文件或tdata目录）
+            file_name: 文件名
+            file_type: 文件类型 ('session' 或 'tdata')
+        
+        Returns:
+            包含查询结果的字典
+        """
+        client = None
+        temp_session_path = None
+        original_file_path = file_path  # 保存原始文件路径用于打包
+        
+        try:
+            # 如果是TData格式，先转换为Session
+            if file_type == 'tdata':
+                if not OPENTELE_AVAILABLE:
+                    return {'status': 'error', 'error': 'opentele未安装，无法处理TData格式'}
+                
+                try:
+                    # 加载TData - 使用正确的API
+                    tdesk = await asyncio.wait_for(
+                        asyncio.to_thread(TDesktop, file_path),
+                        timeout=30
+                    )
+                    
+                    # 检查是否加载成功
+                    if not tdesk.isLoaded():
+                        return {'status': 'error', 'error': 'TData未授权或加载失败'}
+                except asyncio.TimeoutError:
+                    return {'status': 'error', 'error': 'TData加载超时'}
+                
+                # 创建临时Session文件
+                os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
+                temp_session_name = f"check_reg_{time.time_ns()}"
+                temp_session_path = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
+                
+                # 转换TData为Session
+                try:
+                    temp_client = await asyncio.wait_for(
+                        tdesk.ToTelethon(
+                            session=temp_session_path,
+                            flag=UseCurrentSession,
+                            api=API.TelegramDesktop
+                        ),
+                        timeout=60
+                    )
+                except asyncio.TimeoutError:
+                    return {'status': 'error', 'error': 'TData转Session超时'}
+                
+                # 断开临时客户端
+                if temp_client:
+                    try:
+                        await asyncio.wait_for(temp_client.disconnect(), timeout=10)
+                    except Exception:
+                        pass
+                
+                file_path = temp_session_path
+            
+            # 使用配置中的API凭据
+            api_id = config.API_ID
+            api_hash = config.API_HASH
+            
+            # 获取代理（如果配置）
+            proxy_dict = None
+            if self.proxy_manager.is_proxy_mode_active(self.db) and self.proxy_manager.proxies:
+                proxy_info = self.proxy_manager.get_next_proxy()
+                if proxy_info:
+                    proxy_dict = self.checker.create_proxy_dict(proxy_info)
+            
+            # 创建客户端
+            session_base = file_path.replace('.session', '') if file_path.endswith('.session') else file_path
+            client = TelegramClient(
+                session_base,
+                int(api_id),
+                str(api_hash),
+                timeout=30,
+                connection_retries=2,
+                retry_delay=1,
+                proxy=proxy_dict
+            )
+            
+            # 连接
+            try:
+                await asyncio.wait_for(client.connect(), timeout=30)
+            except asyncio.TimeoutError:
+                return {'status': 'error', 'error': '连接超时'}
+            
+            # 检查授权状态
+            if not await client.is_user_authorized():
+                return {'status': 'error', 'error': '账号未授权或已失效'}
+            
+            # 获取账号信息
+            me = await client.get_me()
+            phone = me.phone if me.phone else "unknown"
+            user_id_val = me.id
+            username = me.username if me.username else None
+            first_name = me.first_name if me.first_name else ""
+            last_name = me.last_name if me.last_name else ""
+            
+            # 获取完整用户信息
+            full = await client(GetFullUserRequest(user_id_val))
+            full_user = full.full_user
+            
+            # 方法1：从与 @Telegram (777000) 的对话中获取第一条消息时间（最准确）
+            registration_date = None
+            registration_source = "estimated"  # estimated, telegram_chat, saved_messages
+            
+            try:
+                # 获取 Telegram 官方账号 (777000) 的对话
+                telegram_entity = await client.get_entity(777000)
+                
+                # 获取最早的消息（从最旧的开始）
+                messages = await client.get_messages(
+                    telegram_entity,
+                    limit=1,
+                    reverse=True  # 从最早的消息开始
+                )
+                
+                if messages and len(messages) > 0:
+                    first_msg = messages[0]
+                    if first_msg.date:
+                        registration_date = first_msg.date.strftime("%Y-%m-%d")
+                        registration_source = "telegram_chat"
+                        logger.info(f"[{file_name}] 从Telegram对话获取到注册时间: {registration_date}")
+            except Exception as e:
+                logger.warning(f"[{file_name}] 无法从Telegram对话获取注册时间: {e}")
+            
+            # 方法2：如果方法1失败，尝试从 Saved Messages 获取
+            if not registration_date:
+                try:
+                    # 获取自己（Saved Messages）
+                    saved_messages = await client.get_messages(
+                        'me',
+                        limit=1,
+                        reverse=True
+                    )
+                    
+                    if saved_messages and len(saved_messages) > 0:
+                        first_saved = saved_messages[0]
+                        if first_saved.date:
+                            registration_date = first_saved.date.strftime("%Y-%m-%d")
+                            registration_source = "saved_messages"
+                            logger.info(f"[{file_name}] 从Saved Messages获取到注册时间: {registration_date}")
+                except Exception as e:
+                    logger.warning(f"[{file_name}] 无法从Saved Messages获取注册时间: {e}")
+            
+            # 方法3：如果以上方法都失败，使用用户ID估算
+            if not registration_date:
+                registration_date = self._estimate_registration_date_from_user_id(user_id_val)
+                registration_source = "estimated"
+                logger.info(f"[{file_name}] 使用用户ID估算注册时间: {registration_date}")
+            
+            result = {
+                'status': 'success',
+                'phone': phone,
+                'user_id': user_id_val,
+                'username': username,
+                'first_name': first_name,
+                'last_name': last_name,
+                'registration_date': registration_date,  # 格式：YYYY-MM-DD
+                'registration_source': registration_source,  # 数据来源
+                'common_chats': full_user.common_chats_count if hasattr(full_user, 'common_chats_count') else 0,
+                'about': full_user.about if hasattr(full_user, 'about') else None,
+                'file_name': file_name,
+                'file_type': file_type,
+                'original_file_path': original_file_path  # 保存原始文件路径用于打包
+            }
+            
+            return result
+            
+        except UserDeactivatedError:
+            return {'status': 'frozen', 'error': '账号已被冻结', 'file_name': file_name}
+        except PhoneNumberBannedError:
+            return {'status': 'banned', 'error': '账号已被封禁', 'file_name': file_name}
+        except asyncio.TimeoutError:
+            return {'status': 'error', 'error': '连接超时', 'file_name': file_name}
+        except Exception as e:
+            logger.error(f"❌ [{file_name}] 查询注册时间失败: {e}")
+            return {'status': 'error', 'error': str(e), 'file_name': file_name}
+        
+        finally:
+            # 清理客户端
+            if client:
+                try:
+                    await client.disconnect()
+                except:
+                    pass
+            
+            # 清理临时Session文件
+            if temp_session_path and os.path.exists(f"{temp_session_path}.session"):
+                try:
+                    os.remove(f"{temp_session_path}.session")
+                    journal_file = f"{temp_session_path}.session-journal"
+                    if os.path.exists(journal_file):
+                        os.remove(journal_file)
+                except Exception as e:
+                    logger.warning(f"⚠️ [{file_name}] 清理临时Session失败: {e}")
+    
+    def _estimate_registration_date_from_user_id(self, user_id: int) -> str:
+        """
+        基于用户ID估算注册日期（年-月-日格式）
+        
+        Telegram用户ID是递增的，我们可以根据ID范围估算大致注册时间
+        这只是估算，不是精确值
+        
+        返回格式: YYYY-MM-DD
+        """
+        # 基于历史数据的ID范围映射（大致估算）
+        # 这些数据基于公开的Telegram增长统计
+        
+        if user_id < 1000000:  # 2013年8月之前
+            return "2013-08-01"
+        elif user_id < 10000000:  # 2013-2014
+            # 平均分配
+            days_offset = int((user_id - 1000000) / 9000000 * 365)
+            base_date = datetime(2013, 8, 1)
+            estimated_date = base_date + timedelta(days=days_offset)
+            return estimated_date.strftime("%Y-%m-%d")
+        elif user_id < 100000000:  # 2014-2016
+            days_offset = int((user_id - 10000000) / 90000000 * 730)
+            base_date = datetime(2014, 8, 1)
+            estimated_date = base_date + timedelta(days=days_offset)
+            return estimated_date.strftime("%Y-%m-%d")
+        elif user_id < 500000000:  # 2016-2019
+            days_offset = int((user_id - 100000000) / 400000000 * 1095)
+            base_date = datetime(2016, 8, 1)
+            estimated_date = base_date + timedelta(days=days_offset)
+            return estimated_date.strftime("%Y-%m-%d")
+        elif user_id < 1000000000:  # 2019-2021
+            days_offset = int((user_id - 500000000) / 500000000 * 730)
+            base_date = datetime(2019, 8, 1)
+            estimated_date = base_date + timedelta(days=days_offset)
+            return estimated_date.strftime("%Y-%m-%d")
+        elif user_id < 2000000000:  # 2021-2023
+            days_offset = int((user_id - 1000000000) / 1000000000 * 730)
+            base_date = datetime(2021, 8, 1)
+            estimated_date = base_date + timedelta(days=days_offset)
+            return estimated_date.strftime("%Y-%m-%d")
+        elif user_id < 5000000000:  # 2023-2024
+            days_offset = int((user_id - 2000000000) / 3000000000 * 365)
+            base_date = datetime(2023, 8, 1)
+            estimated_date = base_date + timedelta(days=days_offset)
+            return estimated_date.strftime("%Y-%m-%d")
+        else:  # 2024+
+            days_offset = int((user_id - 5000000000) / 1000000000 * 180)
+            base_date = datetime(2024, 8, 1)
+            estimated_date = base_date + timedelta(days=days_offset)
+            return estimated_date.strftime("%Y-%m-%d")
+    
+    def _generate_registration_report(self, context: CallbackContext, user_id: int, results: Dict, progress_msg):
+        """生成注册时间查询报告和打包结果（按年-月-日分类）"""
+        logger.info("📊 开始生成报告和打包结果...")
+        print("📊 开始生成报告和打包结果...", flush=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # 统计
+        total = sum(len(v) for v in results.values())
+        success_count = len(results['success'])
+        error_count = len(results['error']) + len(results['frozen']) + len(results['banned'])
+        
+        # 按年-月-日（完整日期）分类
+        by_date = {}
+        for file_path, file_name, result in results['success']:
+            reg_date = result.get('registration_date', '未知')
+            if reg_date not in by_date:
+                by_date[reg_date] = []
+            by_date[reg_date].append((file_path, file_name, result))
+        
+        # 生成文本报告
+        report_filename = f"registration_report_{timestamp}.txt"
+        report_path = os.path.join(config.RESULTS_DIR, report_filename)
+        
+        try:
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write("=" * 80 + "\n")
+                f.write("注册时间查询报告\n")
+                f.write("=" * 80 + "\n")
+                f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"总账号数: {total}\n")
+                f.write(f"成功: {success_count}\n")
+                f.write(f"失败: {error_count}\n")
+                f.write("=" * 80 + "\n\n")
+                
+                # 按日期统计（排序）
+                f.write("按注册日期分类:\n")
+                f.write("-" * 80 + "\n")
+                f.write("💡 数据来源说明:\n")
+                f.write("  • telegram_chat: 从与@Telegram官方对话获取（最准确）\n")
+                f.write("  • saved_messages: 从收藏夹消息获取（较准确）\n")
+                f.write("  • estimated: 基于用户ID估算（参考值）\n")
+                f.write("-" * 80 + "\n\n")
+                
+                for reg_date in sorted(by_date.keys()):
+                    f.write(f"\n📅 {reg_date} ({len(by_date[reg_date])} 个账号)\n")
+                    f.write("-" * 40 + "\n")
+                    for file_path, file_name, result in by_date[reg_date]:
+                        f.write(f"文件: {file_name}\n")
+                        f.write(f"手机号: {result['phone']}\n")
+                        f.write(f"用户ID: {result['user_id']}\n")
+                        if result.get('username'):
+                            f.write(f"用户名: @{result['username']}\n")
+                        f.write(f"名字: {result['first_name']} {result['last_name']}\n")
+                        f.write(f"共同群组: {result['common_chats']}\n")
+                        
+                        # 显示数据来源
+                        source = result.get('registration_source', 'estimated')
+                        source_text = {
+                            'telegram_chat': '来源: Telegram官方对话（准确）',
+                            'saved_messages': '来源: 收藏夹消息（较准确）',
+                            'estimated': '来源: 用户ID估算（参考）'
+                        }.get(source, f'来源: {source}')
+                        f.write(f"{source_text}\n")
+                        f.write("\n")
+                
+                # 失败的账号
+                if error_count > 0:
+                    f.write("\n失败的账号:\n")
+                    f.write("-" * 80 + "\n")
+                    for category in ['error', 'frozen', 'banned']:
+                        if results[category]:
+                            f.write(f"\n{category.upper()}:\n")
+                            for file_path, file_name, result in results[category]:
+                                f.write(f"文件: {file_name}\n")
+                                f.write(f"错误: {result.get('error', '未知错误')}\n\n")
+            
+            logger.info(f"✅ 报告文件已生成: {report_path}")
+            print(f"✅ 报告文件已生成: {report_path}", flush=True)
+        except Exception as e:
+            logger.error(f"❌ 生成报告文件失败: {e}")
+            print(f"❌ 生成报告文件失败: {e}", flush=True)
+        
+        # 按日期打包成功的账号 - 统一打包到一个ZIP文件中
+        logger.info(f"📦 开始打包所有账号到单个ZIP文件...")
+        print(f"📦 开始打包所有账号到单个ZIP文件...", flush=True)
+        
+        # 创建一个统一的ZIP文件
+        all_accounts_zip = os.path.join(config.RESULTS_DIR, f"registration_all_{timestamp}.zip")
+        
+        try:
+            with zipfile.ZipFile(all_accounts_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # 遍历每个日期
+                for reg_date, items in sorted(by_date.items()):
+                    if items:
+                        logger.info(f"📦 打包 {reg_date} 的 {len(items)} 个账号...")
+                        print(f"📦 打包 {reg_date} 的 {len(items)} 个账号...", flush=True)
+                        
+                        # 创建日期文件夹名称：如 "2025-09-26 注册的账号 (16 个)"
+                        date_folder = f"{reg_date} 注册的账号 ({len(items)} 个)"
+                        
+                        for file_path, file_name, result in items:
+                            phone = result.get('phone', 'unknown')
+                            result_file_type = result.get('file_type', 'session')
+                            # 使用原始文件路径进行打包
+                            original_path = result.get('original_file_path', file_path)
+                            
+                            try:
+                                if result_file_type == 'tdata':
+                                    # TData格式：使用原始上传的文件，保持原始文件结构
+                                    # 结构: ZIP/日期文件夹/手机号/tdata/D877.../文件
+                                    if os.path.isdir(original_path):
+                                        # 我们需要保持原始结构
+                                        for root, dirs, files in os.walk(original_path):
+                                            for file in files:
+                                                file_full_path = os.path.join(root, file)
+                                                # 计算相对于原始目录的路径
+                                                rel_path = os.path.relpath(file_full_path, os.path.dirname(original_path))
+                                                # 构建压缩包内的路径：日期文件夹/手机号/原始结构
+                                                arc_path = os.path.join(date_folder, phone, rel_path)
+                                                zipf.write(file_full_path, arc_path)
+                                else:
+                                    # Session格式：使用原始上传的文件
+                                    # 结构: ZIP/日期文件夹/session文件和json文件（不用手机号子文件夹）
+                                    if os.path.exists(original_path):
+                                        # 直接将session文件放在日期文件夹下
+                                        arc_path = os.path.join(date_folder, file_name)
+                                        zipf.write(original_path, arc_path)
+                                    
+                                    # Journal文件
+                                    journal_path = original_path + '-journal'
+                                    if os.path.exists(journal_path):
+                                        arc_path = os.path.join(date_folder, file_name + '-journal')
+                                        zipf.write(journal_path, arc_path)
+                                    
+                                    # JSON文件
+                                    json_path = os.path.splitext(original_path)[0] + '.json'
+                                    if os.path.exists(json_path):
+                                        json_name = os.path.splitext(file_name)[0] + '.json'
+                                        arc_path = os.path.join(date_folder, json_name)
+                                        zipf.write(json_path, arc_path)
+                            except Exception as e:
+                                logger.error(f"❌ 打包文件失败 {file_name}: {e}")
+                                print(f"❌ 打包文件失败 {file_name}: {e}", flush=True)
+            
+            logger.info(f"✅ 所有账号已打包到: {all_accounts_zip}")
+            print(f"✅ 所有账号已打包到: {all_accounts_zip}", flush=True)
+            
+            # 准备发送的ZIP文件信息
+            zip_files = [("all", all_accounts_zip, success_count)]
+            
+        except Exception as e:
+            logger.error(f"❌ 打包失败: {e}")
+            print(f"❌ 打包失败: {e}", flush=True)
+            zip_files = []
+        
+        # 打包失败的账号到单独的ZIP文件
+        if error_count > 0:
+            logger.info(f"📦 开始打包失败的账号...")
+            print(f"📦 开始打包失败的账号...", flush=True)
+            
+            failed_zip = os.path.join(config.RESULTS_DIR, f"查询失败_{timestamp}.zip")
+            failed_details = []
+            
+            try:
+                with zipfile.ZipFile(failed_zip, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    # 创建详细失败原因文件
+                    for category in ['frozen', 'banned', 'error']:
+                        if results[category]:
+                            for file_path, file_name, result in results[category]:
+                                error_msg = result.get('error', '未知错误')
+                                result_file_type = result.get('file_type', 'session')
+                                
+                                # 记录失败信息
+                                failed_details.append({
+                                    'file_name': file_name,
+                                    'category': category,
+                                    'error': error_msg,
+                                    'file_type': result_file_type
+                                })
+                                
+                                # 打包原始文件
+                                try:
+                                    if result_file_type == 'tdata':
+                                        # TData格式：打包整个目录
+                                        if os.path.isdir(file_path):
+                                            for root, dirs, files in os.walk(file_path):
+                                                for file in files:
+                                                    file_full_path = os.path.join(root, file)
+                                                    rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
+                                                    arc_path = os.path.join(file_name, rel_path)
+                                                    zipf.write(file_full_path, arc_path)
+                                    else:
+                                        # Session格式：打包session及相关文件
+                                        if os.path.exists(file_path):
+                                            zipf.write(file_path, file_name)
+                                        
+                                        # Journal文件
+                                        journal_path = file_path + '-journal'
+                                        if os.path.exists(journal_path):
+                                            zipf.write(journal_path, file_name + '-journal')
+                                        
+                                        # JSON文件
+                                        json_path = os.path.splitext(file_path)[0] + '.json'
+                                        if os.path.exists(json_path):
+                                            json_name = os.path.splitext(file_name)[0] + '.json'
+                                            zipf.write(json_path, json_name)
+                                except Exception as e:
+                                    logger.warning(f"⚠️ 打包失败文件失败 {file_name}: {e}")
+                    
+                    # 创建失败原因详细说明文件
+                    failed_report = "查询失败账号详细信息\n"
+                    failed_report += "=" * 80 + "\n"
+                    failed_report += f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    failed_report += f"失败总数: {error_count}\n"
+                    failed_report += "=" * 80 + "\n\n"
+                    
+                    # 按类别分组
+                    category_names = {
+                        'frozen': '冻结账号',
+                        'banned': '封禁账号',
+                        'error': '其他错误'
+                    }
+                    
+                    for category in ['frozen', 'banned', 'error']:
+                        category_items = [d for d in failed_details if d['category'] == category]
+                        if category_items:
+                            failed_report += f"\n【{category_names[category]}】({len(category_items)} 个)\n"
+                            failed_report += "-" * 80 + "\n"
+                            for item in category_items:
+                                failed_report += f"文件: {item['file_name']}\n"
+                                failed_report += f"类型: {item['file_type']}\n"
+                                failed_report += f"失败原因: {item['error']}\n"
+                                failed_report += "\n"
+                    
+                    # 将失败原因文件添加到ZIP
+                    zipf.writestr("失败原因详细说明.txt", failed_report.encode('utf-8'))
+                
+                logger.info(f"✅ 失败账号已打包到: {failed_zip}")
+                print(f"✅ 失败账号已打包到: {failed_zip}", flush=True)
+                
+                # 添加到发送列表
+                zip_files.append(("failed", failed_zip, error_count))
+                
+            except Exception as e:
+                logger.error(f"❌ 打包失败账号失败: {e}")
+                print(f"❌ 打包失败账号失败: {e}", flush=True)
+        
+        # 发送统计信息
+        summary = f"""
+✅ <b>注册时间查询完成</b>
+
+<b>统计信息：</b>
+• 总数：{total}
+• ✅ 成功：{success_count}
+• ❌ 失败：{error_count}
+
+<b>按注册日期分类：</b>
+"""
+        # 显示前10个日期的统计
+        sorted_dates = sorted(by_date.keys())
+        for i, reg_date in enumerate(sorted_dates[:10]):
+            summary += f"• {reg_date}: {len(by_date[reg_date])} 个\n"
+        
+        if len(sorted_dates) > 10:
+            summary += f"• ... 还有 {len(sorted_dates) - 10} 个日期\n"
+        
+        summary += "\n📄 详细报告见下方文件"
+        
+        try:
+            context.bot.edit_message_text(
+                chat_id=user_id,
+                message_id=progress_msg.message_id,
+                text=summary,
+                parse_mode='HTML'
+            )
+            logger.info("✅ 统计信息已更新")
+            print("✅ 统计信息已更新", flush=True)
+        except Exception as e:
+            logger.error(f"❌ 更新统计信息失败: {e}")
+            print(f"❌ 更新统计信息失败: {e}", flush=True)
+        
+        # 发送报告文件
+        if os.path.exists(report_path):
+            logger.info("📤 开始发送报告文件...")
+            print("📤 开始发送报告文件...", flush=True)
+            try:
+                with open(report_path, 'rb') as f:
+                    context.bot.send_document(
+                        chat_id=user_id,
+                        document=f,
+                        filename=report_filename,
+                        caption="📊 注册时间查询详细报告",
+                        timeout=60
+                    )
+                logger.info("✅ 报告文件已发送")
+                print("✅ 报告文件已发送", flush=True)
+            except Exception as e:
+                logger.error(f"❌ 发送报告文件失败: {e}")
+                print(f"❌ 发送报告文件失败: {e}", flush=True)
+        
+        # 发送ZIP文件
+        logger.info(f"📤 准备发送ZIP文件...")
+        print(f"📤 准备发送ZIP文件...", flush=True)
+        
+        sent_count = 0
+        for zip_type, zip_path, count in zip_files:
+            if not os.path.exists(zip_path):
+                logger.warning(f"⚠️ ZIP文件不存在: {zip_path}")
+                print(f"⚠️ ZIP文件不存在: {zip_path}", flush=True)
+                continue
+            
+            logger.info(f"📤 发送ZIP文件: {os.path.basename(zip_path)}")
+            print(f"📤 发送ZIP文件: {os.path.basename(zip_path)}", flush=True)
+            
+            try:
+                # 根据ZIP类型设置不同的标题
+                if zip_type == "failed":
+                    caption = f"❌ 查询失败的账号 (共 {count} 个，含详细失败原因说明)"
+                else:
+                    caption = f"📦 注册时间分类账号 (共 {count} 个账号，按日期分类到不同文件夹)"
+                
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        with open(zip_path, 'rb') as f:
+                            context.bot.send_document(
+                                chat_id=user_id,
+                                document=f,
+                                caption=caption,
+                                filename=os.path.basename(zip_path),
+                                timeout=120
+                            )
+                        sent_count += 1
+                        logger.info(f"✅ ZIP文件已发送: {os.path.basename(zip_path)}")
+                        print(f"✅ ZIP文件已发送: {os.path.basename(zip_path)}", flush=True)
+                        break
+                    except RetryAfter as e:
+                        wait_time = e.retry_after + 1
+                        logger.warning(f"⚠️ 被限流，等待 {wait_time} 秒后重试...")
+                        print(f"⚠️ 被限流，等待 {wait_time} 秒后重试...", flush=True)
+                        time.sleep(wait_time)
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            logger.warning(f"⚠️ 发送失败，重试 {attempt + 1}/{max_retries}: {e}")
+                            print(f"⚠️ 发送失败，重试 {attempt + 1}/{max_retries}: {e}", flush=True)
+                            time.sleep(2)
+                        else:
+                            logger.error(f"❌ 发送ZIP失败（已重试{max_retries}次）: {e}")
+                            print(f"❌ 发送ZIP失败（已重试{max_retries}次）: {e}", flush=True)
+                
+                if sent_count < len(zip_files):
+                    time.sleep(1)
+                    
+            except Exception as e:
+                logger.error(f"❌ 处理ZIP文件失败: {e}")
+                print(f"❌ 处理ZIP文件失败: {e}", flush=True)
+        
+        logger.info(f"✅ 报告生成完成！成功发送 {sent_count}/{len(zip_files)} 个ZIP文件")
+        print(f"✅ 报告生成完成！成功发送 {sent_count}/{len(zip_files)} 个ZIP文件", flush=True)
     
     def run(self):
         print("🚀 启动增强版机器人（速度优化版）...")
