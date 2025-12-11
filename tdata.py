@@ -19968,7 +19968,13 @@ admin3</code>
             # 如果是TData格式，先转换为Session
             if file_type == 'tdata':
                 if not OPENTELE_AVAILABLE:
-                    return {'status': 'error', 'error': 'opentele未安装，无法处理TData格式'}
+                    return {
+                        'status': 'error',
+                        'error': 'opentele未安装，无法处理TData格式',
+                        'file_name': file_name,
+                        'file_type': file_type,
+                        'original_file_path': original_file_path
+                    }
                 
                 try:
                     # 加载TData - 使用正确的API
@@ -19979,9 +19985,21 @@ admin3</code>
                     
                     # 检查是否加载成功
                     if not tdesk.isLoaded():
-                        return {'status': 'error', 'error': 'TData未授权或加载失败'}
+                        return {
+                            'status': 'error',
+                            'error': 'TData未授权或加载失败',
+                            'file_name': file_name,
+                            'file_type': file_type,
+                            'original_file_path': original_file_path
+                        }
                 except asyncio.TimeoutError:
-                    return {'status': 'error', 'error': 'TData加载超时'}
+                    return {
+                        'status': 'error',
+                        'error': 'TData加载超时',
+                        'file_name': file_name,
+                        'file_type': file_type,
+                        'original_file_path': original_file_path
+                    }
                 
                 # 创建临时Session文件
                 os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
@@ -19999,7 +20017,13 @@ admin3</code>
                         timeout=60
                     )
                 except asyncio.TimeoutError:
-                    return {'status': 'error', 'error': 'TData转Session超时'}
+                    return {
+                        'status': 'error',
+                        'error': 'TData转Session超时',
+                        'file_name': file_name,
+                        'file_type': file_type,
+                        'original_file_path': original_file_path
+                    }
                 
                 # 断开临时客户端
                 if temp_client:
@@ -20037,11 +20061,23 @@ admin3</code>
             try:
                 await asyncio.wait_for(client.connect(), timeout=30)
             except asyncio.TimeoutError:
-                return {'status': 'error', 'error': '连接超时'}
+                return {
+                    'status': 'error',
+                    'error': '连接超时',
+                    'file_name': file_name,
+                    'file_type': file_type,
+                    'original_file_path': original_file_path
+                }
             
             # 检查授权状态
             if not await client.is_user_authorized():
-                return {'status': 'error', 'error': '账号未授权或已失效'}
+                return {
+                    'status': 'error',
+                    'error': '账号未授权或已失效',
+                    'file_name': file_name,
+                    'file_type': file_type,
+                    'original_file_path': original_file_path
+                }
             
             # 获取账号信息
             me = await client.get_me()
