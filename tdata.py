@@ -20098,40 +20098,88 @@ admin3</code>
                 logger.warning(f"[{file_name}] 无法获取完整用户信息（账号可能受限）: {e}")
                 full_user = None
             
-            # 方法1：从与 @Telegram (777000) 的对话中获取第一条消息时间（最准确）
-            # 即使账号被限制发送消息，仍然可以读取历史消息
+            # 方法0：扫描所有对话，查找最早的消息（最全面的方法）
+            # 这个方法可以找到任何对话中的最早消息，即使Telegram官方对话被删除也能工作
+            # Scan all dialogs to find the earliest message (most comprehensive method)
             registration_date = None
-            registration_source = "estimated"  # estimated, telegram_chat, saved_messages
+            registration_source = "estimated"  # estimated, all_chats, telegram_chat, saved_messages
             
             try:
-                # 获取 Telegram 官方账号 (777000) 的对话
-                telegram_entity = await client.get_entity(777000)
+                logger.info(f"[{file_name}] 开始扫描所有对话以查找最早消息...")
                 
-                # 获取最早的消息（从最旧的开始）
-                # 注意：即使账号被限制发送消息，读取消息通常仍然可用
-                # offset_id=0 确保从聊天历史的最开始获取消息
-                messages = await client.get_messages(
-                    telegram_entity,
-                    limit=1,
-                    offset_id=0,  # 从聊天历史的最开始获取
-                    reverse=True  # 从最早的消息开始
-                )
+                # 获取所有对话（限制数量以提高速度）
+                dialogs = await client.get_dialogs(limit=100)
                 
-                if messages and len(messages) > 0:
-                    first_msg = messages[0]
-                    if first_msg.date:
-                        registration_date = first_msg.date.strftime("%Y-%m-%d")
-                        registration_source = "telegram_chat"
-                        logger.info(f"[{file_name}] 从Telegram对话获取到注册时间: {registration_date}")
-            except Exception as e:
-                # 记录详细错误信息，帮助调试
-                error_msg = str(e)
-                if "CHAT_RESTRICTED" in error_msg or "USER_RESTRICTED" in error_msg:
-                    logger.warning(f"[{file_name}] 账号受限，无法从Telegram对话获取注册时间: {error_msg}")
+                oldest_date = None
+                oldest_dialog_name = None
+                
+                # 遍历每个对话，找到最早的消息
+                for dialog in dialogs:
+                    try:
+                        # 只检查用户、群组和频道，跳过机器人对话（除了777000）
+                        # 获取该对话的第一条消息
+                        messages = await client.get_messages(
+                            dialog.entity,
+                            limit=1,
+                            offset_id=0,  # 从最开始获取
+                            reverse=True   # 按时间正序
+                        )
+                        
+                        if messages and len(messages) > 0 and messages[0].date:
+                            msg_date = messages[0].date
+                            # 如果这是目前找到的最早日期，记录下来
+                            if not oldest_date or msg_date < oldest_date:
+                                oldest_date = msg_date
+                                oldest_dialog_name = getattr(dialog, 'name', 'Unknown')
+                                
+                    except Exception as e:
+                        # 某些对话可能无法访问，跳过即可
+                        continue
+                
+                if oldest_date:
+                    registration_date = oldest_date.strftime("%Y-%m-%d")
+                    registration_source = "all_chats"
+                    logger.info(f"[{file_name}] 从所有对话中找到最早消息: {registration_date} (对话: {oldest_dialog_name})")
                 else:
-                    logger.warning(f"[{file_name}] 无法从Telegram对话获取注册时间: {error_msg}")
+                    logger.info(f"[{file_name}] 扫描所有对话未找到消息，尝试其他方法")
+                    
+            except Exception as e:
+                logger.warning(f"[{file_name}] 扫描所有对话失败: {e}")
             
-            # 方法2：如果方法1失败，尝试从 Saved Messages 获取
+            # 方法1：从与 @Telegram (777000) 的对话中获取第一条消息时间
+            # 只有在方法0失败时才使用此方法作为备份
+            if not registration_date:
+                try:
+                    # 获取 Telegram 官方账号 (777000) 的对话
+                    telegram_entity = await client.get_entity(777000)
+                
+                    # 获取最早的消息（从最旧的开始）
+                    # 注意：即使账号被限制发送消息，读取消息通常仍然可用
+                    # offset_id=0 确保从聊天历史的最开始获取消息
+                    messages = await client.get_messages(
+                        telegram_entity,
+                        limit=1,
+                        offset_id=0,  # 从聊天历史的最开始获取
+                        reverse=True  # 从最早的消息开始
+                    )
+                    
+                    if messages and len(messages) > 0:
+                        first_msg = messages[0]
+                        if first_msg.date:
+                            registration_date = first_msg.date.strftime("%Y-%m-%d")
+                            registration_source = "telegram_chat"
+                            logger.info(f"[{file_name}] 从Telegram对话获取到注册时间: {registration_date}")
+                    else:
+                        logger.info(f"[{file_name}] Telegram对话无消息记录（可能已被删除），尝试其他方法")
+                except Exception as e:
+                    # 记录详细错误信息，帮助调试
+                    error_msg = str(e)
+                    if "CHAT_RESTRICTED" in error_msg or "USER_RESTRICTED" in error_msg:
+                        logger.warning(f"[{file_name}] 账号受限，无法从Telegram对话获取注册时间: {error_msg}")
+                    else:
+                        logger.warning(f"[{file_name}] 无法从Telegram对话获取注册时间: {error_msg}")
+            
+            # 方法2：如果方法0和1都失败，尝试从 Saved Messages 获取
             # 收藏夹通常不受消息限制影响
             if not registration_date:
                 try:
@@ -20150,6 +20198,8 @@ admin3</code>
                             registration_date = first_saved.date.strftime("%Y-%m-%d")
                             registration_source = "saved_messages"
                             logger.info(f"[{file_name}] 从Saved Messages获取到注册时间: {registration_date}")
+                    else:
+                        logger.info(f"[{file_name}] 收藏夹无消息记录（可能已被删除），将使用用户ID估算")
                 except Exception as e:
                     error_msg = str(e)
                     if "CHAT_RESTRICTED" in error_msg or "USER_RESTRICTED" in error_msg:
@@ -20157,12 +20207,13 @@ admin3</code>
                     else:
                         logger.warning(f"[{file_name}] 无法从Saved Messages获取注册时间: {error_msg}")
             
-            # 方法3：如果以上方法都失败，使用用户ID估算
+            # 方法3：如果以上所有方法都失败，使用用户ID估算
             # 这个方法永远不会失败，确保总是能返回一个注册时间
+            # 即使用户删除了所有聊天记录，用户ID也不会改变，因此仍可进行估算
             if not registration_date:
                 registration_date = self._estimate_registration_date_from_user_id(user_id_val)
                 registration_source = "estimated"
-                logger.info(f"[{file_name}] 使用用户ID估算注册时间（可能因账号受限导致前面方法失败）: {registration_date}")
+                logger.info(f"[{file_name}] 使用用户ID估算注册时间（聊天记录可能已被删除或账号受限）: {registration_date}")
             
             result = {
                 'status': 'success',
