@@ -20109,9 +20109,11 @@ admin3</code>
                 
                 # 获取最早的消息（从最旧的开始）
                 # 注意：即使账号被限制发送消息，读取消息通常仍然可用
+                # offset_id=0 确保从聊天历史的最开始获取消息
                 messages = await client.get_messages(
                     telegram_entity,
                     limit=1,
+                    offset_id=0,  # 从聊天历史的最开始获取
                     reverse=True  # 从最早的消息开始
                 )
                 
@@ -20134,9 +20136,11 @@ admin3</code>
             if not registration_date:
                 try:
                     # 获取自己（Saved Messages）
+                    # offset_id=0 确保从聊天历史的最开始获取消息
                     saved_messages = await client.get_messages(
                         'me',
                         limit=1,
+                        offset_id=0,  # 从聊天历史的最开始获取
                         reverse=True
                     )
                     
