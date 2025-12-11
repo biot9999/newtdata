@@ -20040,12 +20040,14 @@ admin3</code>
             
             # 获取代理（如果配置）
             proxy_dict = None
+            use_proxy = False
             if self.proxy_manager.is_proxy_mode_active(self.db) and self.proxy_manager.proxies:
                 proxy_info = self.proxy_manager.get_next_proxy()
                 if proxy_info:
                     proxy_dict = self.checker.create_proxy_dict(proxy_info)
+                    use_proxy = True
             
-            # 创建客户端
+            # 创建客户端（先尝试代理连接）
             session_base = file_path.replace('.session', '') if file_path.endswith('.session') else file_path
             client = TelegramClient(
                 session_base,
@@ -20057,17 +20059,55 @@ admin3</code>
                 proxy=proxy_dict
             )
             
-            # 连接
+            # 连接 - 先尝试代理，超时后回退到本地连接
+            connection_method = "proxy" if use_proxy else "local"
             try:
+                if use_proxy:
+                    logger.info(f"[{file_name}] 尝试使用代理连接...")
                 await asyncio.wait_for(client.connect(), timeout=30)
+                logger.info(f"[{file_name}] 连接成功（{connection_method}）")
             except asyncio.TimeoutError:
-                return {
-                    'status': 'error',
-                    'error': '连接超时',
-                    'file_name': file_name,
-                    'file_type': file_type,
-                    'original_file_path': original_file_path
-                }
+                if use_proxy:
+                    # 代理超时，尝试回退到本地连接
+                    logger.warning(f"[{file_name}] 代理连接超时，回退到本地连接...")
+                    try:
+                        # 断开之前的连接
+                        await client.disconnect()
+                    except:
+                        pass
+                    
+                    # 重新创建客户端（不使用代理）
+                    client = TelegramClient(
+                        session_base,
+                        int(api_id),
+                        str(api_hash),
+                        timeout=30,
+                        connection_retries=2,
+                        retry_delay=1,
+                        proxy=None  # 不使用代理
+                    )
+                    
+                    try:
+                        await asyncio.wait_for(client.connect(), timeout=30)
+                        connection_method = "local"
+                        logger.info(f"[{file_name}] 本地连接成功")
+                    except asyncio.TimeoutError:
+                        return {
+                            'status': 'error',
+                            'error': '连接超时（代理和本地均失败）',
+                            'file_name': file_name,
+                            'file_type': file_type,
+                            'original_file_path': original_file_path
+                        }
+                else:
+                    # 本地连接超时
+                    return {
+                        'status': 'error',
+                        'error': '连接超时',
+                        'file_name': file_name,
+                        'file_type': file_type,
+                        'original_file_path': original_file_path
+                    }
             
             # 检查授权状态
             if not await client.is_user_authorized():
@@ -20248,6 +20288,7 @@ admin3</code>
                 'last_name': last_name,
                 'registration_date': registration_date,  # 格式：YYYY-MM-DD
                 'registration_source': registration_source,  # 数据来源
+                'connection_method': connection_method,  # 连接方式：proxy 或 local
                 'common_chats': full_user.common_chats_count if full_user and hasattr(full_user, 'common_chats_count') else 0,
                 'about': full_user.about if full_user and hasattr(full_user, 'about') else None,
                 'file_name': file_name,
