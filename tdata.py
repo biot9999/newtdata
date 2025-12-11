@@ -20143,14 +20143,38 @@ admin3</code>
             return result
             
         except UserDeactivatedError:
-            return {'status': 'frozen', 'error': '账号已被冻结', 'file_name': file_name}
+            return {
+                'status': 'frozen',
+                'error': '账号已被冻结',
+                'file_name': file_name,
+                'file_type': file_type,
+                'original_file_path': original_file_path
+            }
         except PhoneNumberBannedError:
-            return {'status': 'banned', 'error': '账号已被封禁', 'file_name': file_name}
+            return {
+                'status': 'banned',
+                'error': '账号已被封禁',
+                'file_name': file_name,
+                'file_type': file_type,
+                'original_file_path': original_file_path
+            }
         except asyncio.TimeoutError:
-            return {'status': 'error', 'error': '连接超时', 'file_name': file_name}
+            return {
+                'status': 'error',
+                'error': '连接超时',
+                'file_name': file_name,
+                'file_type': file_type,
+                'original_file_path': original_file_path
+            }
         except Exception as e:
             logger.error(f"❌ [{file_name}] 查询注册时间失败: {e}")
-            return {'status': 'error', 'error': str(e), 'file_name': file_name}
+            return {
+                'status': 'error',
+                'error': str(e),
+                'file_name': file_name,
+                'file_type': file_type,
+                'original_file_path': original_file_path
+            }
         
         finally:
             # 清理客户端
@@ -20437,6 +20461,8 @@ admin3</code>
                             for file_path, file_name, result in results[category]:
                                 error_msg = result.get('error', '未知错误')
                                 result_file_type = result.get('file_type', 'session')
+                                # 使用原始文件路径（与成功账号相同）
+                                original_path = result.get('original_file_path', file_path)
                                 
                                 # 记录失败信息
                                 failed_details.append({
@@ -20450,10 +20476,10 @@ admin3</code>
                                 try:
                                     if result_file_type == 'tdata':
                                         # TData格式：打包整个目录，保持tdata结构
-                                        if os.path.isdir(file_path):
+                                        if os.path.isdir(original_path):
                                             # 查找tdata结构的父目录（与成功账号相同的逻辑）
                                             tdata_parent = None
-                                            current = file_path
+                                            current = original_path
                                             
                                             for _ in range(3):
                                                 parent = os.path.dirname(current)
@@ -20471,30 +20497,30 @@ admin3</code>
                                                 current = parent
                                             
                                             if not tdata_parent:
-                                                tdata_parent = os.path.dirname(file_path)
+                                                tdata_parent = os.path.dirname(original_path)
                                             
-                                            for root, dirs, files in os.walk(file_path):
+                                            for root, dirs, files in os.walk(original_path):
                                                 for file in files:
                                                     file_full_path = os.path.join(root, file)
                                                     try:
                                                         rel_path = os.path.relpath(file_full_path, tdata_parent)
                                                     except ValueError:
-                                                        rel_path = os.path.relpath(file_full_path, os.path.dirname(file_path))
+                                                        rel_path = os.path.relpath(file_full_path, os.path.dirname(original_path))
                                                     
                                                     arc_path = os.path.join(file_name, rel_path)
                                                     zipf.write(file_full_path, arc_path)
                                     else:
                                         # Session格式：打包session及相关文件
-                                        if os.path.exists(file_path):
-                                            zipf.write(file_path, file_name)
+                                        if os.path.exists(original_path):
+                                            zipf.write(original_path, file_name)
                                         
                                         # Journal文件
-                                        journal_path = file_path + '-journal'
+                                        journal_path = original_path + '-journal'
                                         if os.path.exists(journal_path):
                                             zipf.write(journal_path, file_name + '-journal')
                                         
                                         # JSON文件
-                                        json_path = os.path.splitext(file_path)[0] + '.json'
+                                        json_path = os.path.splitext(original_path)[0] + '.json'
                                         if os.path.exists(json_path):
                                             json_name = os.path.splitext(file_name)[0] + '.json'
                                             zipf.write(json_path, json_name)
