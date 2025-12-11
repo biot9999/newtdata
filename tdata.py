@@ -19964,10 +19964,20 @@ admin3</code>
         temp_session_path = None
         original_file_path = file_path  # 保存原始文件路径用于打包
         
+        # 开始详细日志
+        logger.info(f"")
+        logger.info(f"{'='*80}")
+        logger.info(f"[{file_name}] 🚀 开始查询注册时间")
+        logger.info(f"[{file_name}] 文件路径: {file_path}")
+        logger.info(f"[{file_name}] 文件类型: {file_type}")
+        logger.info(f"{'='*80}")
+        
         try:
             # 如果是TData格式，先转换为Session
             if file_type == 'tdata':
+                logger.info(f"[{file_name}] ━━━ 步骤1: TData格式转换 ━━━")
                 if not OPENTELE_AVAILABLE:
+                    logger.error(f"[{file_name}] ❌ opentele未安装，无法处理TData格式")
                     return {
                         'status': 'error',
                         'error': 'opentele未安装，无法处理TData格式',
@@ -19978,13 +19988,16 @@ admin3</code>
                 
                 try:
                     # 加载TData - 使用正确的API
+                    logger.info(f"[{file_name}]   → 加载TData文件...")
                     tdesk = await asyncio.wait_for(
                         asyncio.to_thread(TDesktop, file_path),
                         timeout=30
                     )
+                    logger.info(f"[{file_name}]   ✅ TData加载成功")
                     
                     # 检查是否加载成功
                     if not tdesk.isLoaded():
+                        logger.error(f"[{file_name}]   ❌ TData未授权或加载失败")
                         return {
                             'status': 'error',
                             'error': 'TData未授权或加载失败',
@@ -19993,6 +20006,7 @@ admin3</code>
                             'original_file_path': original_file_path
                         }
                 except asyncio.TimeoutError:
+                    logger.error(f"[{file_name}]   ⏱️ TData加载超时(30秒)")
                     return {
                         'status': 'error',
                         'error': 'TData加载超时',
@@ -20002,11 +20016,14 @@ admin3</code>
                     }
                 
                 # 创建临时Session文件
+                logger.info(f"[{file_name}]   → 创建临时Session文件...")
                 os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
                 temp_session_name = f"check_reg_{time.time_ns()}"
                 temp_session_path = os.path.join(config.SESSIONS_BAK_DIR, temp_session_name)
+                logger.info(f"[{file_name}]   临时Session: {temp_session_path}")
                 
                 # 转换TData为Session
+                logger.info(f"[{file_name}]   → 转换TData为Session(60秒超时)...")
                 try:
                     temp_client = await asyncio.wait_for(
                         tdesk.ToTelethon(
@@ -20016,7 +20033,9 @@ admin3</code>
                         ),
                         timeout=60
                     )
+                    logger.info(f"[{file_name}]   ✅ TData转Session成功")
                 except asyncio.TimeoutError:
+                    logger.error(f"[{file_name}]   ⏱️ TData转Session超时(60秒)")
                     return {
                         'status': 'error',
                         'error': 'TData转Session超时',
@@ -20028,24 +20047,46 @@ admin3</code>
                 # 断开临时客户端
                 if temp_client:
                     try:
+                        logger.info(f"[{file_name}]   → 断开临时客户端...")
                         await asyncio.wait_for(temp_client.disconnect(), timeout=10)
-                    except Exception:
+                        logger.info(f"[{file_name}]   ✅ 临时客户端已断开")
+                    except Exception as e:
+                        logger.warning(f"[{file_name}]   ⚠️ 断开临时客户端失败: {e}")
                         pass
                 
                 file_path = temp_session_path
+                logger.info(f"[{file_name}]   ✅ 步骤1完成: TData已转换为Session")
+            else:
+                logger.info(f"[{file_name}] ━━━ 步骤1: Session格式检查 ━━━")
+                logger.info(f"[{file_name}]   ✅ 直接使用Session文件，无需转换")
             
             # 使用配置中的API凭据
             api_id = config.API_ID
             api_hash = config.API_HASH
+            logger.info(f"[{file_name}]   API ID: {api_id}")
+            logger.info(f"[{file_name}]   API Hash: {'*' * 8}...{api_hash[-4:] if api_hash else 'None'}")
             
             # 获取代理（如果配置）
+            logger.info(f"[{file_name}] ━━━ 步骤1.5: 配置代理连接 ━━━")
             proxy_dict = None
+            use_proxy = False
             if self.proxy_manager.is_proxy_mode_active(self.db) and self.proxy_manager.proxies:
                 proxy_info = self.proxy_manager.get_next_proxy()
                 if proxy_info:
                     proxy_dict = self.checker.create_proxy_dict(proxy_info)
+                    use_proxy = True
+                    logger.info(f"[{file_name}]   ✅ 代理已配置")
+                    logger.info(f"[{file_name}]   代理类型: {proxy_info.get('type', 'unknown')}")
+                    logger.info(f"[{file_name}]   代理地址: {proxy_info.get('host', 'unknown')}:{proxy_info.get('port', 'unknown')}")
+                    if proxy_info.get('is_residential'):
+                        logger.info(f"[{file_name}]   代理类别: 住宅代理 (超时30秒)")
+                else:
+                    logger.info(f"[{file_name}]   ⚠️ 代理模式启用但未获取到可用代理")
+            else:
+                logger.info(f"[{file_name}]   💡 代理未启用，将使用本地连接")
             
-            # 创建客户端
+            # 创建客户端（先尝试代理连接）
+            logger.info(f"[{file_name}] ━━━ 步骤1.8: 创建Telegram客户端 ━━━")
             session_base = file_path.replace('.session', '') if file_path.endswith('.session') else file_path
             client = TelegramClient(
                 session_base,
@@ -20056,21 +20097,81 @@ admin3</code>
                 retry_delay=1,
                 proxy=proxy_dict
             )
+            logger.info(f"[{file_name}]   ✅ 客户端已创建")
+            logger.info(f"[{file_name}]   Session: {session_base}")
+            logger.info(f"[{file_name}]   超时设置: 30秒")
+            logger.info(f"[{file_name}]   重试次数: 2次")
             
-            # 连接
+            # 连接 - 先尝试代理，超时后回退到本地连接
+            logger.info(f"[{file_name}] ━━━ 步骤1.9: 建立Telegram连接 ━━━")
+            connection_method = "proxy" if use_proxy else "local"
             try:
+                if use_proxy:
+                    logger.info(f"[{file_name}]   🔄 尝试使用代理连接(30秒超时)...")
+                else:
+                    logger.info(f"[{file_name}]   🔄 尝试本地连接(30秒超时)...")
+                
+                connection_start = time.time()
                 await asyncio.wait_for(client.connect(), timeout=30)
+                connection_elapsed = time.time() - connection_start
+                logger.info(f"[{file_name}]   ✅ 连接成功（{connection_method}，耗时{connection_elapsed:.2f}秒）")
             except asyncio.TimeoutError:
-                return {
-                    'status': 'error',
-                    'error': '连接超时',
-                    'file_name': file_name,
-                    'file_type': file_type,
-                    'original_file_path': original_file_path
-                }
+                if use_proxy:
+                    # 代理超时，尝试回退到本地连接
+                    logger.warning(f"[{file_name}]   ⏱️ 代理连接超时(30秒)")
+                    logger.info(f"[{file_name}]   🔄 回退到本地连接...")
+                    try:
+                        # 断开之前的连接
+                        await client.disconnect()
+                        logger.info(f"[{file_name}]      已断开代理连接")
+                    except:
+                        pass
+                    
+                    # 重新创建客户端（不使用代理）
+                    logger.info(f"[{file_name}]   → 重新创建客户端（无代理）...")
+                    client = TelegramClient(
+                        session_base,
+                        int(api_id),
+                        str(api_hash),
+                        timeout=30,
+                        connection_retries=2,
+                        retry_delay=1,
+                        proxy=None  # 不使用代理
+                    )
+                    logger.info(f"[{file_name}]   ✅ 客户端已重建")
+                    
+                    try:
+                        logger.info(f"[{file_name}]   🔄 尝试本地连接(30秒超时)...")
+                        connection_start = time.time()
+                        await asyncio.wait_for(client.connect(), timeout=30)
+                        connection_elapsed = time.time() - connection_start
+                        connection_method = "local"
+                        logger.info(f"[{file_name}]   ✅ 本地连接成功（耗时{connection_elapsed:.2f}秒）")
+                    except asyncio.TimeoutError:
+                        logger.error(f"[{file_name}]   ❌ 本地连接也超时(30秒)")
+                        logger.error(f"[{file_name}]   💡 代理和本地连接均失败")
+                        return {
+                            'status': 'error',
+                            'error': '连接超时（代理和本地均失败）',
+                            'file_name': file_name,
+                            'file_type': file_type,
+                            'original_file_path': original_file_path
+                        }
+                else:
+                    # 本地连接超时
+                    logger.error(f"[{file_name}]   ❌ 本地连接超时(30秒)")
+                    return {
+                        'status': 'error',
+                        'error': '连接超时',
+                        'file_name': file_name,
+                        'file_type': file_type,
+                        'original_file_path': original_file_path
+                    }
             
             # 检查授权状态
+            logger.info(f"[{file_name}] ━━━ 步骤2: 检查账号授权状态 ━━━")
             if not await client.is_user_authorized():
+                logger.error(f"[{file_name}] ❌ 账号未授权或已失效")
                 return {
                     'status': 'error',
                     'error': '账号未授权或已失效',
@@ -20078,65 +20179,177 @@ admin3</code>
                     'file_type': file_type,
                     'original_file_path': original_file_path
                 }
+            logger.info(f"[{file_name}] ✅ 账号授权状态正常")
             
             # 获取账号信息
+            logger.info(f"[{file_name}] ━━━ 步骤3: 获取账号基本信息 ━━━")
             me = await client.get_me()
             phone = me.phone if me.phone else "unknown"
             user_id_val = me.id
             username = me.username if me.username else None
             first_name = me.first_name if me.first_name else ""
             last_name = me.last_name if me.last_name else ""
+            logger.info(f"[{file_name}] ✅ 账号信息: 手机={phone}, ID={user_id_val}, 用户名=@{username or 'None'}")
             
             # 获取完整用户信息 - 添加错误处理以应对受限账号
+            logger.info(f"[{file_name}] ━━━ 步骤4: 获取完整用户信息 ━━━")
             full_user = None
             try:
                 full = await client(GetFullUserRequest(user_id_val))
                 full_user = full.full_user
+                logger.info(f"[{file_name}] ✅ 完整用户信息获取成功")
             except Exception as e:
                 # 如果账号受限制（无法发送消息等），GetFullUserRequest可能失败
                 # 这不影响我们获取注册时间，继续使用其他方法
-                logger.warning(f"[{file_name}] 无法获取完整用户信息（账号可能受限）: {e}")
+                logger.warning(f"[{file_name}] ⚠️ 无法获取完整用户信息（账号可能受限）: {e}")
                 full_user = None
             
-            # 方法1：从与 @Telegram (777000) 的对话中获取第一条消息时间（最准确）
-            # 即使账号被限制发送消息，仍然可以读取历史消息
+            # 方法0：扫描所有对话，查找最早的消息（最全面的方法）
+            # 这个方法可以找到任何对话中的最早消息，即使Telegram官方对话被删除也能工作
+            # Scan all dialogs to find the earliest message (most comprehensive method)
+            logger.info(f"[{file_name}] ━━━ 步骤5: 开始查询注册时间 ━━━")
             registration_date = None
-            registration_source = "estimated"  # estimated, telegram_chat, saved_messages
+            registration_source = "estimated"  # estimated, all_chats, telegram_chat, saved_messages
             
             try:
-                # 获取 Telegram 官方账号 (777000) 的对话
-                telegram_entity = await client.get_entity(777000)
+                logger.info(f"[{file_name}] 📊 方法0: 扫描所有对话以查找最早消息...")
                 
-                # 获取最早的消息（从最旧的开始）
-                # 注意：即使账号被限制发送消息，读取消息通常仍然可用
-                messages = await client.get_messages(
-                    telegram_entity,
-                    limit=1,
-                    reverse=True  # 从最早的消息开始
+                # 获取所有对话（限制数量以提高速度，设置超时）
+                logger.info(f"[{file_name}]   → 获取对话列表（最多100个，30秒超时）...")
+                dialogs = await asyncio.wait_for(
+                    client.get_dialogs(limit=100),
+                    timeout=30  # 30秒超时
                 )
+                logger.info(f"[{file_name}]   ✅ 获取到 {len(dialogs)} 个对话")
                 
-                if messages and len(messages) > 0:
-                    first_msg = messages[0]
-                    if first_msg.date:
-                        registration_date = first_msg.date.strftime("%Y-%m-%d")
-                        registration_source = "telegram_chat"
-                        logger.info(f"[{file_name}] 从Telegram对话获取到注册时间: {registration_date}")
-            except Exception as e:
-                # 记录详细错误信息，帮助调试
-                error_msg = str(e)
-                if "CHAT_RESTRICTED" in error_msg or "USER_RESTRICTED" in error_msg:
-                    logger.warning(f"[{file_name}] 账号受限，无法从Telegram对话获取注册时间: {error_msg}")
+                oldest_date = None
+                oldest_dialog_name = None
+                scanned_count = 0
+                skipped_bots = 0
+                
+                # 遍历每个对话，找到最早的消息（最多检查100个对话）
+                for idx, dialog in enumerate(dialogs, 1):
+                    try:
+                        # 跳过机器人对话（777000除外，因为它是官方账号）
+                        # Skip bot dialogs except 777000 (Telegram official)
+                        from telethon.tl.types import User
+                        entity = dialog.entity
+                        if isinstance(entity, User) and entity.bot and entity.id != 777000:
+                            skipped_bots += 1
+                            continue
+                        
+                        # 获取对话名称用于日志
+                        dialog_name = "Unknown"
+                        if hasattr(dialog, 'title'):
+                            dialog_name = dialog.title
+                        elif hasattr(dialog, 'name'):
+                            dialog_name = dialog.name
+                        
+                        # 每10个对话输出一次进度
+                        if idx % 10 == 0:
+                            logger.info(f"[{file_name}]   进度: {idx}/{len(dialogs)} 对话已扫描...")
+                        
+                        # 获取该对话的第一条消息（设置超时避免阻塞）
+                        messages = await asyncio.wait_for(
+                            client.get_messages(
+                                dialog.entity,
+                                limit=1,
+                                offset_id=0,  # 从最开始获取
+                                reverse=True   # 按时间正序
+                            ),
+                            timeout=5  # 每个对话5秒超时
+                        )
+                        
+                        scanned_count += 1
+                        
+                        if messages and len(messages) > 0 and messages[0].date:
+                            msg_date = messages[0].date
+                            # 如果这是目前找到的最早日期，记录下来
+                            if not oldest_date or msg_date < oldest_date:
+                                oldest_date = msg_date
+                                # 尝试获取对话名称，优先使用title，再尝试name
+                                if hasattr(dialog, 'title'):
+                                    oldest_dialog_name = dialog.title
+                                elif hasattr(dialog, 'name'):
+                                    oldest_dialog_name = dialog.name
+                                else:
+                                    oldest_dialog_name = 'Unknown'
+                                logger.info(f"[{file_name}]   🔍 发现更早消息: {msg_date.strftime('%Y-%m-%d %H:%M:%S')} (对话: {oldest_dialog_name[:30]})")
+                                
+                    except asyncio.TimeoutError:
+                        # 单个对话超时，继续下一个
+                        logger.warning(f"[{file_name}]   ⏱️ 对话查询超时，跳过")
+                        continue
+                    except Exception as e:
+                        # 某些对话可能无法访问，跳过即可
+                        continue
+                
+                logger.info(f"[{file_name}]   📊 扫描统计: 总对话={len(dialogs)}, 已扫描={scanned_count}, 跳过机器人={skipped_bots}")
+                
+                if oldest_date:
+                    registration_date = oldest_date.strftime("%Y-%m-%d")
+                    registration_source = "all_chats"
+                    logger.info(f"[{file_name}]   ✅ 方法0成功: 从所有对话中找到最早消息")
+                    logger.info(f"[{file_name}]   📅 注册时间: {registration_date} (来源对话: {oldest_dialog_name[:50]})")
                 else:
-                    logger.warning(f"[{file_name}] 无法从Telegram对话获取注册时间: {error_msg}")
+                    logger.info(f"[{file_name}]   ⚠️ 方法0未找到消息，尝试方法1...")
+                    
+            except asyncio.TimeoutError:
+                logger.warning(f"[{file_name}]   ⏱️ 方法0: 获取对话列表超时，跳过全对话扫描")
+            except Exception as e:
+                logger.warning(f"[{file_name}]   ❌ 方法0失败: {e}")
             
-            # 方法2：如果方法1失败，尝试从 Saved Messages 获取
+            # 方法1：从与 @Telegram (777000) 的对话中获取第一条消息时间
+            # 只有在方法0失败时才使用此方法作为备份
+            if not registration_date:
+                logger.info(f"[{file_name}] 📊 方法1: 检查Telegram官方对话(777000)...")
+                try:
+                    # 获取 Telegram 官方账号 (777000) 的对话
+                    logger.info(f"[{file_name}]   → 获取Telegram官方实体...")
+                    telegram_entity = await client.get_entity(777000)
+                    logger.info(f"[{file_name}]   ✅ Telegram官方实体获取成功")
+                
+                    # 获取最早的消息（从最旧的开始）
+                    # 注意：即使账号被限制发送消息，读取消息通常仍然可用
+                    # offset_id=0 确保从聊天历史的最开始获取消息
+                    logger.info(f"[{file_name}]   → 查询第一条消息（offset_id=0, reverse=True）...")
+                    messages = await client.get_messages(
+                        telegram_entity,
+                        limit=1,
+                        offset_id=0,  # 从聊天历史的最开始获取
+                        reverse=True  # 从最早的消息开始
+                    )
+                    
+                    if messages and len(messages) > 0:
+                        first_msg = messages[0]
+                        if first_msg.date:
+                            registration_date = first_msg.date.strftime("%Y-%m-%d")
+                            registration_source = "telegram_chat"
+                            logger.info(f"[{file_name}]   ✅ 方法1成功: 从Telegram对话获取到注册时间")
+                            logger.info(f"[{file_name}]   📅 注册时间: {registration_date} (消息时间: {first_msg.date.strftime('%Y-%m-%d %H:%M:%S')})")
+                    else:
+                        logger.info(f"[{file_name}]   ⚠️ Telegram对话无消息记录（可能已被删除），尝试方法2...")
+                except Exception as e:
+                    # 记录详细错误信息，帮助调试
+                    error_msg = str(e)
+                    if "CHAT_RESTRICTED" in error_msg or "USER_RESTRICTED" in error_msg:
+                        logger.warning(f"[{file_name}]   ❌ 方法1失败: 账号受限，无法从Telegram对话获取注册时间")
+                        logger.warning(f"[{file_name}]      错误详情: {error_msg}")
+                    else:
+                        logger.warning(f"[{file_name}]   ❌ 方法1失败: {error_msg}")
+            
+            # 方法2：如果方法0和1都失败，尝试从 Saved Messages 获取
             # 收藏夹通常不受消息限制影响
             if not registration_date:
+                logger.info(f"[{file_name}] 📊 方法2: 检查收藏夹(Saved Messages)...")
                 try:
                     # 获取自己（Saved Messages）
+                    # offset_id=0 确保从聊天历史的最开始获取消息
+                    logger.info(f"[{file_name}]   → 查询收藏夹第一条消息...")
                     saved_messages = await client.get_messages(
                         'me',
                         limit=1,
+                        offset_id=0,  # 从聊天历史的最开始获取
                         reverse=True
                     )
                     
@@ -20145,20 +20358,39 @@ admin3</code>
                         if first_saved.date:
                             registration_date = first_saved.date.strftime("%Y-%m-%d")
                             registration_source = "saved_messages"
-                            logger.info(f"[{file_name}] 从Saved Messages获取到注册时间: {registration_date}")
+                            logger.info(f"[{file_name}]   ✅ 方法2成功: 从Saved Messages获取到注册时间")
+                            logger.info(f"[{file_name}]   📅 注册时间: {registration_date} (消息时间: {first_saved.date.strftime('%Y-%m-%d %H:%M:%S')})")
+                    else:
+                        logger.info(f"[{file_name}]   ⚠️ 收藏夹无消息记录（可能已被删除），将使用方法3...")
                 except Exception as e:
                     error_msg = str(e)
                     if "CHAT_RESTRICTED" in error_msg or "USER_RESTRICTED" in error_msg:
-                        logger.warning(f"[{file_name}] 账号受限，无法从Saved Messages获取注册时间: {error_msg}")
+                        logger.warning(f"[{file_name}]   ❌ 方法2失败: 账号受限，无法从Saved Messages获取注册时间")
+                        logger.warning(f"[{file_name}]      错误详情: {error_msg}")
                     else:
-                        logger.warning(f"[{file_name}] 无法从Saved Messages获取注册时间: {error_msg}")
+                        logger.warning(f"[{file_name}]   ❌ 方法2失败: {error_msg}")
             
-            # 方法3：如果以上方法都失败，使用用户ID估算
+            # 方法3：如果以上所有方法都失败，使用用户ID估算
             # 这个方法永远不会失败，确保总是能返回一个注册时间
+            # 即使用户删除了所有聊天记录，用户ID也不会改变，因此仍可进行估算
             if not registration_date:
+                logger.info(f"[{file_name}] 📊 方法3: 使用用户ID估算...")
+                logger.info(f"[{file_name}]   → 用户ID: {user_id_val}")
                 registration_date = self._estimate_registration_date_from_user_id(user_id_val)
                 registration_source = "estimated"
-                logger.info(f"[{file_name}] 使用用户ID估算注册时间（可能因账号受限导致前面方法失败）: {registration_date}")
+                logger.info(f"[{file_name}]   ✅ 方法3成功: 基于用户ID估算注册时间")
+                logger.info(f"[{file_name}]   📅 估算时间: {registration_date} (误差: ±1-3个月)")
+                logger.info(f"[{file_name}]   💡 说明: 所有聊天记录可能已被删除，使用ID估算作为后备方案")
+            
+            logger.info(f"[{file_name}] ━━━ 步骤6: 生成查询结果 ━━━")
+            logger.info(f"[{file_name}] 📊 查询摘要:")
+            logger.info(f"[{file_name}]   手机号: {phone}")
+            logger.info(f"[{file_name}]   用户ID: {user_id_val}")
+            logger.info(f"[{file_name}]   用户名: @{username or 'None'}")
+            logger.info(f"[{file_name}]   注册时间: {registration_date}")
+            logger.info(f"[{file_name}]   数据来源: {registration_source}")
+            logger.info(f"[{file_name}]   连接方式: {connection_method}")
+            logger.info(f"[{file_name}] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             
             result = {
                 'status': 'success',
@@ -20169,6 +20401,7 @@ admin3</code>
                 'last_name': last_name,
                 'registration_date': registration_date,  # 格式：YYYY-MM-DD
                 'registration_source': registration_source,  # 数据来源
+                'connection_method': connection_method,  # 连接方式：proxy 或 local
                 'common_chats': full_user.common_chats_count if full_user and hasattr(full_user, 'common_chats_count') else 0,
                 'about': full_user.about if full_user and hasattr(full_user, 'about') else None,
                 'file_name': file_name,
