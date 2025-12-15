@@ -3677,7 +3677,7 @@ class FormatConverter:
             "app_version": "6.1.4 x64",
             "lang_pack": "en",
             "system_lang_pack": "en-US",
-            "twoFA": "",
+            "twofa": "",
             "role": None,
             "id": 0,
             "phone": phone,
@@ -3756,7 +3756,7 @@ class FormatConverter:
             "app_version": "6.1.4 x64",
             "lang_pack": "en",
             "system_lang_pack": "en-US",
-            "twoFA": "",
+            "twofa": "",
             "role": None,
             "id": user_id,
             "phone": phone,
@@ -10366,7 +10366,7 @@ class EnhancedBot:
 <b>✨ 核心功能</b>
 • 🔍 <b>密码自动识别</b>
   - TData格式：自动识别 2fa.txt、twofa.txt、password.txt
-  - Session格式：自动识别 JSON 中的 twoFA、2fa、password 字段
+  - Session格式：自动识别 JSON 中的密码字段（支持 twofa、twoFA、2fa、password 等）
   - 智能备选：识别失败时使用手动输入的备选密码
 
 • ✏️ <b>交互式密码输入</b>
@@ -10376,7 +10376,7 @@ class EnhancedBot:
   - 5分钟输入超时保护
 
 • 🔄 <b>自动更新密码文件</b>
-  - Session格式：自动更新JSON文件中所有密码字段
+  - Session格式：统一使用 twofa 字段，删除其他密码字段
   - TData格式：自动更新2fa.txt等密码文件
   - 修改成功后文件立即同步更新
   - 无需手动编辑配置文件
@@ -10479,7 +10479,7 @@ class EnhancedBot:
 • 自动识别文件类型并添加对应的2FA配置
 
 <b>⚙️ 处理规则：</b>
-• Session 文件 → 创建同名 JSON 文件（包含 twoFA 字段）
+• Session 文件 → 创建同名 JSON 文件（包含 twofa 字段）
 • TData 目录 → 创建 2fa.txt 文件（与 tdata 同级）
 
 <b>📤 请上传您的账号文件</b>
@@ -10516,7 +10516,7 @@ class EnhancedBot:
 <b>✨ 核心功能</b>
 • 🔍 <b>密码自动识别</b>
   - TData格式：自动识别 2fa.txt、twofa.txt、password.txt
-  - Session格式：自动识别 JSON 中的 twoFA、2fa、password 字段
+  - Session格式：自动识别 JSON 中的密码字段（支持 twofa、twoFA、2fa、password 等）
   - 智能备选：识别失败时使用手动输入的备选密码
 
 • ✏️ <b>交互式密码输入</b>
@@ -10526,7 +10526,7 @@ class EnhancedBot:
   - 5分钟输入超时保护
 
 • 🔄 <b>自动更新密码文件</b>
-  - Session格式：自动清空JSON文件中所有密码字段
+  - Session格式：统一使用 twofa 字段并清空，删除其他密码字段
   - TData格式：自动删除或清空2fa.txt等密码文件
   - 删除成功后文件立即同步更新
   - 无需手动编辑配置文件
@@ -13324,17 +13324,24 @@ class EnhancedBot:
             
             # 检查JSON文件是否已存在
             if os.path.exists(json_path):
-                # 读取现有JSON并更新twoFA字段
+                # 读取现有JSON并更新，删除旧密码字段，只保留twofa
                 with open(json_path, 'r', encoding='utf-8') as f:
                     json_data = json.load(f)
                 
-                json_data['twoFA'] = two_fa_password
+                # 删除所有旧的密码字段
+                old_fields_to_remove = ['twoFA', '2fa', 'password', 'two_fa']
+                for field in old_fields_to_remove:
+                    if field in json_data:
+                        del json_data[field]
+                
+                # 设置标准的 twofa 字段
+                json_data['twofa'] = two_fa_password
                 json_data['has_password'] = True
                 
                 with open(json_path, 'w', encoding='utf-8') as f:
                     json.dump(json_data, f, indent=2, ensure_ascii=False)
                 
-                return {'success': True, 'message': 'JSON文件已更新twoFA'}
+                return {'success': True, 'message': 'JSON文件已更新twofa字段'}
             
             # 创建新的JSON文件
             # 从session文件名提取手机号（如果可能）
@@ -13366,7 +13373,7 @@ class EnhancedBot:
                 "app_version": device_config.get('app_version', '6.3.4 x64'),
                 "lang_pack": device_config.get('lang_code', 'en'),
                 "system_lang_pack": device_config.get('system_lang_code', 'en-US'),
-                "twoFA": two_fa_password,
+                "twofa": two_fa_password,
                 "role": None,
                 "id": 0,
                 "phone": phone,
@@ -19951,10 +19958,17 @@ admin3</code>
                     
                     # 更新2FA密码（只在密码设置成功时更新）
                     if new_password and password_set_success:
-                        json_data['twoFA'] = new_password
+                        # 删除所有旧的密码字段
+                        old_fields_to_remove = ['twoFA', '2fa', 'password', 'two_fa']
+                        for field in old_fields_to_remove:
+                            if field in json_data:
+                                del json_data[field]
+                        
+                        # 设置标准的 twofa 字段
+                        json_data['twofa'] = new_password
                         json_data['has_password'] = True
-                        logger.info(f"✅ [{file_name}] 已更新JSON文件中的twoFA字段")
-                        print(f"✅ [{file_name}] 已更新JSON文件中的twoFA字段", flush=True)
+                        logger.info(f"✅ [{file_name}] 已更新JSON文件中的twofa字段")
+                        print(f"✅ [{file_name}] 已更新JSON文件中的twofa字段", flush=True)
                     elif new_password and not password_set_success:
                         logger.info(f"ℹ️ [{file_name}] 密码设置失败，保持JSON文件中的旧密码")
                         print(f"ℹ️ [{file_name}] 密码设置失败，保持JSON文件中的旧密码", flush=True)
