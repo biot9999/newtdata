@@ -8917,18 +8917,21 @@ class EnhancedBot:
             ],
             [
                 InlineKeyboardButton("➕ 添加2FA", callback_data="add_2fa"),
-                InlineKeyboardButton("🔗 API转换", callback_data="api_conversion")
+                InlineKeyboardButton("📦 账号拆分", callback_data="classify_menu")
             ],
             [
-                InlineKeyboardButton("📝 文件重命名", callback_data="rename_start"),
-                InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
+                InlineKeyboardButton("🔗 API转换", callback_data="api_conversion"),
+                InlineKeyboardButton("📝 文件重命名", callback_data="rename_start")
             ],
             [
-                InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start"),
-                InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start")
+                InlineKeyboardButton("🧩 账户合并", callback_data="merge_start"),
+                InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start")
             ],
             [
-                InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start"),
+                InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start"),
+                InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start")
+            ],
+            [
                 InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
             ]
         ]
