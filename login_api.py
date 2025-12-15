@@ -9,10 +9,13 @@ import os
 import asyncio
 import secrets
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
 from threading import Thread
+
+# 定义北京时区常量
+BEIJING_TZ = timezone(timedelta(hours=8))
 
 try:
     from aiohttp import web
@@ -191,7 +194,7 @@ class LoginApiService:
                 code = self._extract_code(event.message.message)
                 if code:
                     account.last_code = code
-                    account.last_code_at = datetime.now()
+                    account.last_code_at = datetime.now(BEIJING_TZ)
                     account.new_code_event.set()
                     account.new_code_event.clear()
                     print(f"📥 收到验证码 {account.phone}: {code}")
@@ -295,7 +298,7 @@ class LoginApiService:
         has_recent_code = False
         code_age_minutes = 999
         if account.last_code_at:
-            age = datetime.now() - account.last_code_at
+            age = datetime.now(BEIJING_TZ) - account.last_code_at
             code_age_minutes = age.total_seconds() / 60
             has_recent_code = code_age_minutes <= 30
         

@@ -39,8 +39,12 @@ import base64
 from pathlib import Path
 from dataclasses import dataclass
 from collections import deque, namedtuple
+
+# 定义北京时区常量
+BEIJING_TZ = timezone(timedelta(hours=8))
+
 print("🔍 Telegram账号检测机器人 V8.0")
-print(f"📅 当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"📅 当前时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}")
 
 # ================================
 # Python版本兼容性 - asyncio.to_thread
@@ -199,7 +203,7 @@ class CleanupAction:
     actions_done: List[str] = field(default_factory=list)
     status: str = 'pending'  # 'pending', 'success', 'partial', 'failed', 'skipped'
     error: Optional[str] = None
-    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
+    timestamp: str = field(default_factory=lambda: datetime.now(BEIJING_TZ).isoformat())
 
 # ================================
 # 代理管理器
@@ -407,7 +411,7 @@ class ProxyManager:
             working_file = self.proxy_file.replace('.txt', '_working.txt')
             with open(working_file, 'w', encoding='utf-8') as f:
                 f.write("# 可用代理文件 - 自动生成\n")
-                f.write(f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# 生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
                 f.write(f"# 总数: {len(working_proxies)}个\n\n")
                 
                 for proxy in working_proxies:
@@ -435,7 +439,7 @@ class ProxyManager:
             failed_file = self.proxy_file.replace('.txt', '_failed.txt')
             with open(failed_file, 'w', encoding='utf-8') as f:
                 f.write("# 失效代理文件 - 自动生成\n")
-                f.write(f"# 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# 生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
                 f.write(f"# 总数: {len(failed_proxies)}个\n\n")
                 
                 for proxy in failed_proxies:
@@ -775,7 +779,7 @@ class ProxyTester:
         try:
             with open(self.proxy_manager.proxy_file, 'w', encoding='utf-8') as f:
                 f.write("# 自动清理后的可用代理文件\n")
-                f.write(f"# 清理时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"# 清理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
                 f.write(f"# 原始数量: {stats['total']}, 可用数量: {stats['working']}\n\n")
                 
                 for proxy in working_proxies:
@@ -2111,7 +2115,7 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
             
             # Check if user exists (optimized query)
             c.execute("SELECT 1 FROM users WHERE user_id = ? LIMIT 1", (user_id,))
@@ -2145,7 +2149,7 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            now = datetime.now()
+            now = datetime.now(BEIJING_TZ)
             
             if level == "体验会员":
                 expiry = now + timedelta(seconds=config.TRIAL_DURATION_SECONDS)
@@ -2183,7 +2187,7 @@ class Database:
             if expiry_time:
                 try:
                     expiry_dt = datetime.strptime(expiry_time, "%Y-%m-%d %H:%M:%S")
-                    if expiry_dt > datetime.now():
+                    if expiry_dt > datetime.now(BEIJING_TZ).replace(tzinfo=None):
                         return True, level, expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
                 except:
                     pass
@@ -2191,7 +2195,7 @@ class Database:
             # 兼容旧的trial_expiry_time字段
             if level == "体验会员" and trial_expiry_time:
                 expiry_dt = datetime.strptime(trial_expiry_time, "%Y-%m-%d %H:%M:%S")
-                if expiry_dt > datetime.now():
+                if expiry_dt > datetime.now(BEIJING_TZ).replace(tzinfo=None):
                     return True, level, expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
             
             return False, "无会员", "已过期"
@@ -2220,7 +2224,7 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
             
             c.execute("""
                 INSERT OR REPLACE INTO admins 
@@ -2314,7 +2318,7 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
             
             c.execute("""
                 INSERT OR REPLACE INTO proxy_settings 
@@ -2334,7 +2338,7 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            now = datetime.now()
+            now = datetime.now(BEIJING_TZ)
             
             # 检查是否已有会员记录
             c.execute("SELECT expiry_time FROM memberships WHERE user_id = ?", (user_id,))
@@ -2345,7 +2349,7 @@ class Database:
                 try:
                     current_expiry = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
                     # 如果到期时间在未来，从到期时间累加
-                    if current_expiry > now:
+                    if current_expiry > now.replace(tzinfo=None):
                         new_expiry = current_expiry + timedelta(days=days)
                     else:
                         # 已过期，从当前时间累加
@@ -2416,7 +2420,7 @@ class Database:
                 return False, "卡密状态无效", 0
             
             # 标记为已使用
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
             c.execute("""
                 UPDATE redeem_codes 
                 SET status = 'used', redeemed_by = ?, redeemed_at = ?
@@ -2460,7 +2464,7 @@ class Database:
                     return False, code, "卡密已存在"
             
             # 插入卡密
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
             c.execute("""
                 INSERT INTO redeem_codes 
                 (code, level, days, status, created_by, created_at)
@@ -2493,12 +2497,12 @@ class Database:
             total_users = c.fetchone()[0]
             
             # 今日活跃用户
-            today = datetime.now().strftime('%Y-%m-%d')
+            today = datetime.now(BEIJING_TZ).strftime('%Y-%m-%d')
             c.execute("SELECT COUNT(*) FROM users WHERE last_active LIKE ?", (f"{today}%",))
             today_active = c.fetchone()[0]
             
             # 本周活跃用户
-            week_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            week_ago = (datetime.now(BEIJING_TZ) - timedelta(days=7)).strftime('%Y-%m-%d')
             c.execute("SELECT COUNT(*) FROM users WHERE last_active >= ?", (week_ago,))
             week_active = c.fetchone()[0]
             
@@ -2507,7 +2511,7 @@ class Database:
             trial_members = c.fetchone()[0]
             
             # 有效会员（未过期）
-            now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            now = datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S')
             c.execute("SELECT COUNT(*) FROM memberships WHERE trial_expiry_time > ?", (now,))
             active_members = c.fetchone()[0]
             
@@ -2552,7 +2556,7 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            cutoff_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
+            cutoff_date = (datetime.now(BEIJING_TZ) - timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
             c.execute("""
                 SELECT user_id, username, first_name, register_time, last_active, status
                 FROM users 
@@ -2679,21 +2683,21 @@ class Database:
                 c.execute("SELECT user_id FROM users")
             elif target == "members":
                 # 仅会员（有效会员）
-                now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                now = datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S')
                 c.execute("""
                     SELECT user_id FROM memberships 
                     WHERE trial_expiry_time > ?
                 """, (now,))
             elif target == "active_7d":
                 # 活跃用户（7天内）
-                cutoff = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+                cutoff = (datetime.now(BEIJING_TZ) - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
                 c.execute("""
                     SELECT user_id FROM users 
                     WHERE last_active >= ?
                 """, (cutoff,))
             elif target == "new_7d":
                 # 新用户（7天内）
-                cutoff = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+                cutoff = (datetime.now(BEIJING_TZ) - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
                 c.execute("""
                     SELECT user_id FROM users 
                     WHERE register_time >= ?
@@ -2715,7 +2719,7 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
             
             c.execute("""
                 INSERT INTO broadcasts 
@@ -2757,7 +2761,7 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
             
             c.execute("""
                 INSERT INTO broadcast_logs 
@@ -2839,7 +2843,7 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now = datetime.now(BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
             
             c.execute("""
                 INSERT INTO forget_2fa_logs 
@@ -2870,11 +2874,11 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            today = datetime.now().strftime("%Y-%m-%d")
+            today = datetime.now(BEIJING_TZ).date()
             c.execute("""
                 SELECT COUNT(*) FROM batch_creations 
                 WHERE phone = ? AND date = ?
-            """, (phone, today))
+            """, (phone, today.strftime("%Y-%m-%d")))
             count = c.fetchone()[0]
             conn.close()
             return count
@@ -2888,7 +2892,7 @@ class Database:
         try:
             conn = sqlite3.connect(self.db_name)
             c = conn.cursor()
-            now = datetime.now()
+            now = datetime.now(BEIJING_TZ)
             c.execute("""
                 INSERT INTO batch_creations 
                 (phone, creation_type, name, username, invite_link, creator_id, created_at, date)
@@ -3650,7 +3654,7 @@ class FormatConverter:
         try:
             with open(error_marker, 'w', encoding='utf-8') as f:
                 f.write(f"转换失败: {error_message}\n")
-                f.write(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
         except:
             pass
     
@@ -3659,7 +3663,7 @@ class FormatConverter:
         生成包含错误信息的JSON文件
         用于转换失败的情况
         """
-        current_time = datetime.now()
+        current_time = datetime.now(BEIJING_TZ)
         
         json_data = {
             "app_id": 2040,
@@ -3729,7 +3733,7 @@ class FormatConverter:
         生成完整的Session JSON数据
         基于提供的JSON模板格式
         """
-        current_time = datetime.now()
+        current_time = datetime.now(BEIJING_TZ)
         
         # 从用户对象提取信息
         user_id = me.id if hasattr(me, 'id') else 0
@@ -4235,7 +4239,7 @@ class FormatConverter:
                             f.write(f"文件: {file_name}\n")
                             f.write(f"转换类型: {conversion_type}\n")
                             f.write(f"失败原因: {masked_info}\n")
-                            f.write(f"失败时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                            f.write(f"失败时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
                             f.write(f"\n建议:\n")
                             if "授权" in info:
                                 f.write("- 检查账号是否已登录\n")
@@ -4271,7 +4275,7 @@ class FormatConverter:
                 with open(txt_path, 'w', encoding='utf-8') as f:
                     f.write(f"格式转换报告 - {status}\n")
                     f.write("=" * 50 + "\n\n")
-                    f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
                     f.write(f"转换类型: {conversion_type}\n")
                     f.write(f"总数: {len(files)}个\n\n")
                     
@@ -4283,7 +4287,7 @@ class FormatConverter:
                         masked_info = Forget2FAManager.mask_proxy_in_string(info)
                         f.write(f"{idx}. 文件: {file_name}\n")
                         f.write(f"   信息: {masked_info}\n")
-                        f.write(f"   时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                        f.write(f"   时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n\n")
                 
                 print(f"✅ 创建TXT报告: {txt_filename}")
                 
@@ -4496,7 +4500,7 @@ class TwoFactorManager:
                     result = await client.edit_2fa(
                         current_password=old_password if old_password else None,
                         new_password=new_password,
-                        hint=f"Modified {datetime.now().strftime('%Y-%m-%d')}"
+                        hint=f"Modified {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d')}"
                     )
                     
                     # 修改成功后，更新文件中的密码
@@ -4571,7 +4575,7 @@ class TwoFactorManager:
             # 创建密码设置
             new_settings = PasswordInputSettings(
                 new_password_hash=new_password_bytes,
-                hint=f"Modified {datetime.now().strftime('%Y-%m-%d')}"
+                hint=f"Modified {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d')}"
             )
             
             # 尝试更新
@@ -4953,7 +4957,7 @@ class TwoFactorManager:
                     f.write(f"2FA密码修改报告 - {status}\n")
                     f.write("=" * 50 + "\n\n")
                     f.write(f"总数: {len(items)}个\n\n")
-                    f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
                     
                     f.write("详细列表:\n")
                     f.write("-" * 50 + "\n\n")
@@ -4963,7 +4967,7 @@ class TwoFactorManager:
                         masked_info = Forget2FAManager.mask_proxy_in_string(info)
                         f.write(f"{idx}. 账号: {file_name}\n")
                         f.write(f"   详细信息: {masked_info}\n")
-                        f.write(f"   处理时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                        f.write(f"   处理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n\n")
                     
                     # 如果是失败列表，添加解决方案
                     if status == "失败":
@@ -5164,7 +5168,7 @@ class APIFormatConverter:
             VALUES(?, ?, ?, ?, ?, ?, 'active', ?, ?)
         """, (
             phone, api_key, verification_url, two_fa_password or "", session_data or "", tdata_path or "",
-            datetime.now().isoformat(), datetime.now().isoformat()
+            datetime.now(BEIJING_TZ).isoformat(), datetime.now(BEIJING_TZ).isoformat()
         ))
         conn.commit()
         conn.close()
@@ -5194,11 +5198,11 @@ class APIFormatConverter:
         import sqlite3
         conn = sqlite3.connect(self.db.db_name)
         c = conn.cursor()
-        expires_at = (datetime.now() + timedelta(minutes=10)).isoformat()
+        expires_at = (datetime.now(BEIJING_TZ) + timedelta(minutes=10)).isoformat()
         c.execute("""
             INSERT INTO verification_codes (phone, code, code_type, received_at, expires_at)
             VALUES (?, ?, ?, ?, ?)
-        """, (phone, code, code_type, datetime.now().isoformat(), expires_at))
+        """, (phone, code, code_type, datetime.now(BEIJING_TZ).isoformat(), expires_at))
         conn.commit()
         conn.close()
         print("📱 收到验证码: %s - %s" % (phone, code))
@@ -5213,7 +5217,7 @@ class APIFormatConverter:
             WHERE phone=? AND used=0 AND expires_at > ?
             ORDER BY received_at DESC
             LIMIT 1
-        """, (phone, datetime.now().isoformat()))
+        """, (phone, datetime.now(BEIJING_TZ).isoformat()))
         row = c.fetchone()
         conn.close()
         if not row:
@@ -5361,7 +5365,7 @@ class APIFormatConverter:
                     "verification_url": vurl,
                     "two_fa_password": two_fa,
                     "account_info": info,
-                    "created_at": datetime.now().isoformat(),
+                    "created_at": datetime.now(BEIJING_TZ).isoformat(),
                     "format_version": "1.0"
                 })
                 print("✅ 转换成功: %s -> %s" % (phone, vurl))
@@ -7108,7 +7112,7 @@ class Forget2FAManager:
                     f.write(f"忘记2FA处理报告 - {status_name}\n")
                     f.write("=" * 50 + "\n\n")
                     f.write(f"总数: {len(items)}个\n")
-                    f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                    f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n\n")
                     
                     f.write("详细列表:\n")
                     f.write("-" * 50 + "\n\n")
@@ -7367,7 +7371,7 @@ class BatchCreationResult:
     admin_username: Optional[str] = None  # 向后兼容，保留单个
     admin_usernames: List[str] = field(default_factory=list)  # 成功添加的管理员列表
     admin_failures: List[str] = field(default_factory=list)  # 添加失败的管理员及原因
-    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(BEIJING_TZ).isoformat())
 
 
 @dataclass
@@ -8025,7 +8029,7 @@ class BatchCreatorService:
     def generate_report(self, results: List[BatchCreationResult]) -> str:
         """生成创建报告"""
         lines = ["=" * 60, "批量创建群组/频道 - 结果报告", "=" * 60]
-        lines.append(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        lines.append(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
         
         total = len(results)
         success = len([r for r in results if r.status == 'success'])
@@ -8591,7 +8595,7 @@ class EnhancedBot:
 📡 <b>代理状态</b>
 • 代理模式: {'🟢启用' if self.proxy_manager.is_proxy_mode_active(self.db) else '🔴本地连接'}
 • 代理数量: {len(self.proxy_manager.proxies)}个
-• 当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+• 当前时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}
         """
         
 
@@ -8878,7 +8882,7 @@ class EnhancedBot:
                 f"👤 用户ID: {target_user_id}\n"
                 f"📝 用户名: @{target_username}\n"
                 f"🏷️ 昵称: {target_first_name}\n"
-                f"⏰ 添加时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                f"⏰ 添加时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
             )
         else:
             self.safe_send_message(update, "❌ 添加管理员失败")
@@ -9720,7 +9724,7 @@ class EnhancedBot:
 • 代理模式: {'🟢启用' if self.proxy_manager.is_proxy_mode_active(self.db) else '🔴本地连接'}
 • 代理数量: {len(self.proxy_manager.proxies)}个
 • 快速模式: {'🟢开启' if config.PROXY_FAST_MODE else '🔴关闭'}
-• 当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+• 当前时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}
             """
             
             # 创建横排2x2布局的主菜单按钮
@@ -10163,7 +10167,7 @@ class EnhancedBot:
 <b>🤖 机器人信息</b>
 • 版本: 8.0 (完整版)
 • 状态: ✅正常运行
-• 当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+• 当前时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}
 
 """
         
@@ -10195,7 +10199,7 @@ class EnhancedBot:
 <b>👑 管理员信息</b>
 • 管理员数量: {admin_count}个
 • 您的权限: {'👑 超级管理员' if user_id in config.ADMIN_IDS else '🔧 普通管理员'}
-• 系统时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+• 系统时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}
 
 <b>🔧 快速操作</b>
 点击下方按钮进行管理操作
@@ -10260,7 +10264,7 @@ class EnhancedBot:
                 if last_active:
                     try:
                         last_time = datetime.strptime(last_active, '%Y-%m-%d %H:%M:%S')
-                        time_diff = datetime.now() - last_time
+                        time_diff = datetime.now(BEIJING_TZ).replace(tzinfo=None) - last_time
                         if time_diff.days == 0:
                             time_str = f"{time_diff.seconds//3600}小时前"
                         else:
@@ -10325,7 +10329,7 @@ class EnhancedBot:
 • 日活跃率: {(stats.get('today_active', 0) / total * 100) if total > 0 else 0:.1f}%
 
 <b>⏰ 统计时间</b>
-{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+{datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}
         """
         
         buttons = [
@@ -10452,7 +10456,7 @@ class EnhancedBot:
                 if register_time:
                     try:
                         reg_time = datetime.strptime(register_time, '%Y-%m-%d %H:%M:%S')
-                        time_diff = datetime.now() - reg_time
+                        time_diff = datetime.now(BEIJING_TZ).replace(tzinfo=None) - reg_time
                         if time_diff.days == 0:
                             time_str = f"{time_diff.seconds//3600}小时前注册"
                         else:
@@ -10507,7 +10511,7 @@ class EnhancedBot:
         if last_active:
             try:
                 last_time = datetime.strptime(last_active, '%Y-%m-%d %H:%M:%S')
-                time_diff = datetime.now() - last_time
+                time_diff = datetime.now(BEIJING_TZ).replace(tzinfo=None) - last_time
                 if time_diff.days == 0:
                     activity_status = f"🟢 {time_diff.seconds//3600}小时前活跃"
                 elif time_diff.days <= 7:
@@ -10523,7 +10527,7 @@ class EnhancedBot:
             if expiry_time:
                 try:
                     expiry_dt = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S')
-                    if expiry_dt > datetime.now():
+                    if expiry_dt > datetime.now(BEIJING_TZ).replace(tzinfo=None):
                         member_status = f"🎁 {membership_level}（有效至 {expiry_time}）"
                     else:
                         member_status = f"⏰ {membership_level}（已过期）"
@@ -11345,7 +11349,7 @@ class EnhancedBot:
                                 document=f,
                                 filename=f"{status}_{count}个.zip",
                                 caption=f"📋 <b>{status}</b> - {count}个账号\n\n"
-                                       f"⏰ 检测时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                                       f"⏰ 检测时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n"
                                        f"🔧 检测模式: {'代理模式' if actual_proxy_mode else '本地模式'}",
                                 parse_mode='HTML'
                             )
@@ -11564,7 +11568,7 @@ class EnhancedBot:
                     # 1. 发送 ZIP 文件
                     if os.path.exists(zip_path):
                         with open(zip_path, 'rb') as f:
-                            caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                            caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
                             update.message.reply_document(
                                 document=f,
                                 filename=os.path.basename(zip_path),
@@ -11855,7 +11859,7 @@ class EnhancedBot:
                     if os.path.exists(zip_path):
                         try:
                             with open(zip_path, 'rb') as f:
-                                caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                                caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
                                 context.bot.send_document(
                                     chat_id=update.effective_chat.id,
                                     document=f,
@@ -12290,7 +12294,7 @@ class EnhancedBot:
                 if last_active:
                     try:
                         last_time = datetime.strptime(last_active, '%Y-%m-%d %H:%M:%S')
-                        time_diff = datetime.now() - last_time
+                        time_diff = datetime.now(BEIJING_TZ).replace(tzinfo=None) - last_time
                         if time_diff.days == 0:
                             result_text += f"   🕒 {time_diff.seconds//3600}小时前活跃\n"
                         else:
@@ -12892,7 +12896,7 @@ class EnhancedBot:
             cleaned_phone = ''.join(c for c in base_name if c.isdigit())
             phone = cleaned_phone if cleaned_phone and len(cleaned_phone) >= 10 else ""
             
-            current_time = datetime.now()
+            current_time = datetime.now(BEIJING_TZ)
             
             # 使用默认设备配置
             device_config = {
@@ -16754,7 +16758,7 @@ class EnhancedBot:
                     logger.info(f"❌ 清理失败: {result['file_name']}")
             
             # 生成详细的TXT报告
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y%m%d_%H%M%S")
             summary_report_path = os.path.join(config.CLEANUP_REPORTS_DIR, f"cleanup_summary_{timestamp}.txt")
             
             with open(summary_report_path, 'w', encoding='utf-8') as f:
@@ -17858,7 +17862,7 @@ admin3</code>
             report = self.batch_creator.generate_report(results)
             
             # 保存报告文件
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(BEIJING_TZ).strftime("%Y%m%d_%H%M%S")
             report_filename = f"batch_create_report_{timestamp}.txt"
             report_path = os.path.join(config.RESULTS_DIR, report_filename)
             
@@ -17911,7 +17915,7 @@ admin3</code>
                     f.write("=" * 80 + "\n")
                     f.write("批量创建 - 成功列表\n")
                     f.write("=" * 80 + "\n")
-                    f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
                     f.write(f"成功数量: {len(success_results)}\n\n")
                     
                     for r in success_results:
@@ -17944,7 +17948,7 @@ admin3</code>
                     f.write("=" * 80 + "\n")
                     f.write("批量创建 - 失败列表（详细原因）\n")
                     f.write("=" * 80 + "\n")
-                    f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
                     f.write(f"失败数量: {len(failed_results)}\n\n")
                     
                     for r in failed_results:
@@ -19169,7 +19173,7 @@ admin3</code>
             if file_type == 'session':
                 json_path = os.path.splitext(f"{session_base}.session")[0] + '.json'
                 try:
-                    current_time = datetime.now()
+                    current_time = datetime.now(BEIJING_TZ)
                     
                     # 读取或创建JSON数据
                     if os.path.exists(json_path):
@@ -19312,7 +19316,7 @@ admin3</code>
         logger.info("📊 开始生成报告和打包结果...")
         print("📊 开始生成报告和打包结果...", flush=True)
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(BEIJING_TZ).strftime("%Y%m%d_%H%M%S")
         
         # 统计
         total = sum(len(v) for v in results.values())
@@ -19332,7 +19336,7 @@ admin3</code>
                 f.write("=" * 80 + "\n")
                 f.write("重新授权报告\n")
                 f.write("=" * 80 + "\n")
-                f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
                 f.write(f"总账号数: {total}\n")
                 f.write(f"成功: {success_count}\n")
                 f.write(f"冻结: {frozen_count}\n")
@@ -20519,7 +20523,7 @@ admin3</code>
         logger.info("📊 开始生成报告和打包结果...")
         print("📊 开始生成报告和打包结果...", flush=True)
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(BEIJING_TZ).strftime("%Y%m%d_%H%M%S")
         
         # 统计
         total = sum(len(v) for v in results.values())
@@ -20543,7 +20547,7 @@ admin3</code>
                 f.write("=" * 80 + "\n")
                 f.write("注册时间查询报告\n")
                 f.write("=" * 80 + "\n")
-                f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
                 f.write(f"总账号数: {total}\n")
                 f.write(f"成功: {success_count}\n")
                 f.write(f"失败: {error_count}\n")
@@ -20799,7 +20803,7 @@ admin3</code>
                     # 创建失败原因详细说明文件
                     failed_report = "查询失败账号详细信息\n"
                     failed_report += "=" * 80 + "\n"
-                    failed_report += f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    failed_report += f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n"
                     failed_report += f"失败总数: {error_count}\n"
                     failed_report += "=" * 80 + "\n\n"
                     
