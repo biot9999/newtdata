@@ -4831,22 +4831,28 @@ class TwoFactorManager:
                         with open(json_path, 'r', encoding='utf-8') as f:
                             data = json.load(f)
                         
-                        # 更新密码字段
-                        updated = False
-                        for field in ['twoFA', '2fa', 'password', 'two_fa', 'twofa']:
+                        # 更新密码字段 - 统一使用 twofa 字段，删除其他密码字段
+                        # 1. 删除所有旧的密码字段（除了 twofa）
+                        old_fields_to_remove = ['twoFA', '2fa', 'password', 'two_fa']
+                        removed_fields = []
+                        for field in old_fields_to_remove:
                             if field in data:
-                                data[field] = new_password
-                                updated = True
-                                print(f"✅ 文件已更新: {os.path.basename(json_path)} - {field}字段已更新为新密码")
-                                break
+                                del data[field]
+                                removed_fields.append(field)
                         
-                        if updated:
-                            with open(json_path, 'w', encoding='utf-8') as f:
-                                json.dump(data, f, ensure_ascii=False, indent=2)
-                            return True
+                        # 2. 设置标准的 twofa 字段
+                        data['twofa'] = new_password
+                        
+                        # 3. 保存更新后的文件
+                        with open(json_path, 'w', encoding='utf-8') as f:
+                            json.dump(data, f, ensure_ascii=False, indent=2)
+                        
+                        if removed_fields:
+                            print(f"✅ 文件已更新: {os.path.basename(json_path)} - 已删除字段 {removed_fields}，统一使用 twofa 字段")
                         else:
-                            print(f"⚠️ JSON文件中未找到密码字段: {os.path.basename(json_path)}")
-                            return False
+                            print(f"✅ 文件已更新: {os.path.basename(json_path)} - twofa 字段已设置")
+                        
+                        return True
                             
                     except Exception as e:
                         print(f"❌ 更新JSON文件失败 {os.path.basename(json_path)}: {e}")
