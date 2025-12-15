@@ -4427,11 +4427,14 @@ class PasswordDetector:
 class TwoFactorManager:
     """二级密码管理器 - 批量修改2FA密码"""
     
+    # 配置常量 - 并发处理数量
+    DEFAULT_CONCURRENT_LIMIT = 50  # 默认并发数限制，提升批量处理速度
+    
     def __init__(self, proxy_manager: ProxyManager, db: Database):
         self.proxy_manager = proxy_manager
         self.db = db
         self.password_detector = PasswordDetector()
-        self.semaphore = asyncio.Semaphore(50)  # 限制并发数为50，提升批量处理速度
+        self.semaphore = asyncio.Semaphore(self.DEFAULT_CONCURRENT_LIMIT)  # 使用配置的并发数
         # 用于存储待处理的2FA任务
         self.pending_2fa_tasks = {}  # {user_id: {'files': [...], 'file_type': '...', 'extract_dir': '...', 'task_id': '...'}}
     
@@ -5007,8 +5010,8 @@ class TwoFactorManager:
                 processed += 1
                 print(f"❌ 处理失败 {processed}/{total}: {file_name} - {str(e)}")
         
-        # 批量并发处理（使用semaphore限制并发数为50）
-        semaphore = asyncio.Semaphore(50)
+        # 批量并发处理（使用配置的并发数）
+        semaphore = asyncio.Semaphore(self.DEFAULT_CONCURRENT_LIMIT)
         
         async def process_with_semaphore(file_path, file_name):
             async with semaphore:
@@ -5125,8 +5128,8 @@ class TwoFactorManager:
                 processed += 1
                 print(f"❌ 处理失败 {processed}/{total}: {file_name} - {str(e)}")
         
-        # 批量并发处理（使用semaphore限制并发数为50）
-        semaphore = asyncio.Semaphore(50)
+        # 批量并发处理（使用配置的并发数）
+        semaphore = asyncio.Semaphore(self.DEFAULT_CONCURRENT_LIMIT)
         
         async def process_with_semaphore(file_path, file_name):
             async with semaphore:
@@ -10090,7 +10093,14 @@ class EnhancedBot:
                     InlineKeyboardButton("📝 文件重命名", callback_data="rename_start")
                 ],
                 [
-                    InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start"),
+                    InlineKeyboardButton("🧩 账户合并", callback_data="merge_start"),
+                    InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start")
+                ],
+                [
+                    InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start"),
+                    InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start")
+                ],
+                [
                     InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
                 ]
             ]
