@@ -6479,7 +6479,7 @@ class Forget2FAManager:
                 
                 # 判断是新请求还是已在冷却期
                 # 如果until_date距离现在小于6天23小时，说明是已存在的冷却期（不是刚刚请求的）
-                now = datetime.now(timezone.utc) if until_date.tzinfo else datetime.now()
+                now = datetime.now(timezone.utc) if until_date.tzinfo else datetime.now(BEIJING_TZ).replace(tzinfo=None)
                 time_remaining = until_date - now
                 
                 # 7天 = 604800秒，如果剩余时间少于6天23小时(约604000秒)，说明是已在冷却期
