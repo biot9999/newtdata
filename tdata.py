@@ -2186,6 +2186,8 @@ class Database:
             # 优先检查新的expiry_time字段
             if expiry_time:
                 try:
+                    # Database stores naive datetime strings, parse them and compare with naive Beijing time
+                    # .replace(tzinfo=None) converts timezone-aware Beijing time to naive for comparison
                     expiry_dt = datetime.strptime(expiry_time, "%Y-%m-%d %H:%M:%S")
                     if expiry_dt > datetime.now(BEIJING_TZ).replace(tzinfo=None):
                         return True, level, expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -2194,6 +2196,7 @@ class Database:
             
             # 兼容旧的trial_expiry_time字段
             if level == "体验会员" and trial_expiry_time:
+                # Database stores naive datetime strings, compare with naive Beijing time
                 expiry_dt = datetime.strptime(trial_expiry_time, "%Y-%m-%d %H:%M:%S")
                 if expiry_dt > datetime.now(BEIJING_TZ).replace(tzinfo=None):
                     return True, level, expiry_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -2347,6 +2350,7 @@ class Database:
             if row and row[0]:
                 # 已有到期时间，从到期时间继续累加
                 try:
+                    # Database stores naive datetime strings, compare with naive Beijing time
                     current_expiry = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
                     # 如果到期时间在未来，从到期时间累加
                     if current_expiry > now.replace(tzinfo=None):
@@ -6479,6 +6483,8 @@ class Forget2FAManager:
                 
                 # 判断是新请求还是已在冷却期
                 # 如果until_date距离现在小于6天23小时，说明是已存在的冷却期（不是刚刚请求的）
+                # Note: Telegram API returns UTC times, so we use UTC for comparison if timezone-aware
+                # Otherwise use naive Beijing time for comparison with naive datetime
                 now = datetime.now(timezone.utc) if until_date.tzinfo else datetime.now(BEIJING_TZ).replace(tzinfo=None)
                 time_remaining = until_date - now
                 
@@ -10263,6 +10269,7 @@ class EnhancedBot:
                 text += f"{i}. {admin_icon}{member_icon} <code>{uid}</code> - {display_name}\n"
                 if last_active:
                     try:
+                        # Database stores naive datetime strings, compare with naive Beijing time
                         last_time = datetime.strptime(last_active, '%Y-%m-%d %H:%M:%S')
                         time_diff = datetime.now(BEIJING_TZ).replace(tzinfo=None) - last_time
                         if time_diff.days == 0:
@@ -10455,6 +10462,7 @@ class EnhancedBot:
                 
                 if register_time:
                     try:
+                        # Database stores naive datetime strings, compare with naive Beijing time
                         reg_time = datetime.strptime(register_time, '%Y-%m-%d %H:%M:%S')
                         time_diff = datetime.now(BEIJING_TZ).replace(tzinfo=None) - reg_time
                         if time_diff.days == 0:
@@ -10510,6 +10518,7 @@ class EnhancedBot:
         activity_status = "🔴 从未活跃"
         if last_active:
             try:
+                # Database stores naive datetime strings, compare with naive Beijing time
                 last_time = datetime.strptime(last_active, '%Y-%m-%d %H:%M:%S')
                 time_diff = datetime.now(BEIJING_TZ).replace(tzinfo=None) - last_time
                 if time_diff.days == 0:
@@ -10526,6 +10535,7 @@ class EnhancedBot:
         if membership_level and membership_level != "无会员":
             if expiry_time:
                 try:
+                    # Database stores naive datetime strings, compare with naive Beijing time
                     expiry_dt = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S')
                     if expiry_dt > datetime.now(BEIJING_TZ).replace(tzinfo=None):
                         member_status = f"🎁 {membership_level}（有效至 {expiry_time}）"
@@ -12293,6 +12303,7 @@ class EnhancedBot:
                 # 活跃状态
                 if last_active:
                     try:
+                        # Database stores naive datetime strings, compare with naive Beijing time
                         last_time = datetime.strptime(last_active, '%Y-%m-%d %H:%M:%S')
                         time_diff = datetime.now(BEIJING_TZ).replace(tzinfo=None) - last_time
                         if time_diff.days == 0:
