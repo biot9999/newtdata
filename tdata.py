@@ -4431,7 +4431,7 @@ class TwoFactorManager:
         self.proxy_manager = proxy_manager
         self.db = db
         self.password_detector = PasswordDetector()
-        self.semaphore = asyncio.Semaphore(5)  # 限制并发数为5，避免过快
+        self.semaphore = asyncio.Semaphore(50)  # 限制并发数为50，提升批量处理速度
         # 用于存储待处理的2FA任务
         self.pending_2fa_tasks = {}  # {user_id: {'files': [...], 'file_type': '...', 'extract_dir': '...', 'task_id': '...'}}
     
@@ -4605,6 +4605,175 @@ class TwoFactorManager:
         except Exception as e:
             return False, f"{user_info} | {proxy_used} | 手动修改失败: {str(e)[:50]}"
     
+    async def remove_2fa_password(self, session_path: str, old_password: str, 
+                                  account_name: str = "", file_type: str = 'session',
+                                  proxy_dict: Optional[Dict] = None) -> Tuple[bool, str]:
+        """
+        删除2FA密码
+        
+        Args:
+            session_path: Session文件路径
+            old_password: 当前的2FA密码
+            account_name: 账号名称（用于日志）
+            file_type: 文件类型（'session' 或 'tdata'）
+            proxy_dict: 代理配置（可选）
+            
+        Returns:
+            Tuple[bool, str]: (是否成功, 消息说明)
+        """
+        if not TELETHON_AVAILABLE:
+            return False, "Telethon未安装"
+        
+        async with self.semaphore:
+            client = None
+            proxy_used = "本地连接"
+            
+            try:
+                # 尝试使用代理
+                if not proxy_dict:
+                    proxy_enabled = self.db.get_proxy_enabled() if self.db else True
+                    if config.USE_PROXY and proxy_enabled and self.proxy_manager.proxies:
+                        proxy_info = self.proxy_manager.get_next_proxy()
+                        if proxy_info:
+                            proxy_dict = self.create_proxy_dict(proxy_info)
+                            if proxy_dict:
+                                proxy_used = "使用代理"
+                
+                # 创建客户端
+                session_base = session_path.replace('.session', '') if session_path.endswith('.session') else session_path
+                client = TelegramClient(
+                    session_base,
+                    int(config.API_ID),
+                    str(config.API_HASH),
+                    timeout=30,
+                    connection_retries=2,
+                    retry_delay=1,
+                    proxy=proxy_dict
+                )
+                
+                # 连接
+                await asyncio.wait_for(client.connect(), timeout=15)
+                
+                # 检查授权
+                is_authorized = await asyncio.wait_for(client.is_user_authorized(), timeout=5)
+                if not is_authorized:
+                    return False, f"{proxy_used} | 账号未授权"
+                
+                # 获取用户信息
+                try:
+                    me = await asyncio.wait_for(client.get_me(), timeout=5)
+                    user_info = f"ID:{me.id}"
+                    if me.username:
+                        user_info += f" @{me.username}"
+                except Exception as e:
+                    user_info = "账号"
+                
+                # 删除2FA密码 - 使用 Telethon 的 edit_2fa 方法
+                try:
+                    # 使用 edit_2fa 删除密码（new_password=None表示删除）
+                    result = await client.edit_2fa(
+                        current_password=old_password if old_password else None,
+                        new_password=None,  # None表示删除密码
+                        hint=''
+                    )
+                    
+                    # 删除成功后，更新文件中的密码为空
+                    json_path = session_path.replace('.session', '.json')
+                    has_json = os.path.exists(json_path)
+                    
+                    update_success = await self._update_password_files(
+                        session_path, 
+                        '', 
+                        'session'
+                    )
+                    
+                    if update_success:
+                        if has_json:
+                            return True, f"{user_info} | {proxy_used} | 2FA密码已删除，文件已更新"
+                        else:
+                            return True, f"{user_info} | {proxy_used} | 2FA密码已删除"
+                    else:
+                        return True, f"{user_info} | {proxy_used} | 2FA密码已删除，但文件更新失败"
+                    
+                except AttributeError:
+                    # 如果 edit_2fa 不存在，使用手动方法
+                    return await self._remove_2fa_manual(
+                        client, session_path, old_password, 
+                        user_info, proxy_used
+                    )
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    if "password" in error_msg and ("invalid" in error_msg or "incorrect" in error_msg):
+                        return False, f"{user_info} | {proxy_used} | 密码错误"
+                    elif "no password" in error_msg or "not set" in error_msg:
+                        return False, f"{user_info} | {proxy_used} | 未设置2FA"
+                    elif "flood" in error_msg:
+                        return False, f"{user_info} | {proxy_used} | 操作过于频繁，请稍后重试"
+                    elif any(word in error_msg for word in ["frozen", "deactivated", "banned"]):
+                        return False, f"{user_info} | {proxy_used} | 账号已冻结/封禁"
+                    else:
+                        return False, f"{user_info} | {proxy_used} | 删除失败: {str(e)[:50]}"
+                
+            except Exception as e:
+                error_msg = str(e).lower()
+                if any(word in error_msg for word in ["timeout", "network", "connection"]):
+                    return False, f"{proxy_used} | 网络连接失败"
+                else:
+                    return False, f"{proxy_used} | 错误: {str(e)[:50]}"
+            finally:
+                if client:
+                    try:
+                        await client.disconnect()
+                    except:
+                        pass
+    
+    async def _remove_2fa_manual(self, client, session_path: str, old_password: str, 
+                                 user_info: str, proxy_used: str) -> Tuple[bool, str]:
+        """
+        手动删除2FA密码（备用方法）
+        """
+        try:
+            from telethon.tl.functions.account import GetPasswordRequest, UpdatePasswordSettingsRequest
+            from telethon.tl.types import PasswordInputSettings
+            
+            # 获取密码配置
+            pwd_info = await client(GetPasswordRequest())
+            
+            # 使用旧密码验证
+            if old_password:
+                password_bytes = old_password.encode('utf-8')
+            else:
+                password_bytes = b''
+            
+            # 创建密码设置（删除密码）
+            new_settings = PasswordInputSettings(
+                new_algo=None,  # 删除密码
+                new_password_hash=b'',
+                hint=''
+            )
+            
+            # 尝试更新
+            await client(UpdatePasswordSettingsRequest(
+                password=password_bytes,
+                new_settings=new_settings
+            ))
+            
+            # 更新文件
+            json_path = session_path.replace('.session', '.json')
+            has_json = os.path.exists(json_path)
+            
+            update_success = await self._update_password_files(session_path, '', 'session')
+            
+            if update_success:
+                if has_json:
+                    return True, f"{user_info} | {proxy_used} | 2FA密码已删除，文件已更新"
+                else:
+                    return True, f"{user_info} | {proxy_used} | 2FA密码已删除"
+            else:
+                return True, f"{user_info} | {proxy_used} | 2FA密码已删除，但文件更新失败"
+            
+        except Exception as e:
+            return False, f"{user_info} | {proxy_used} | 手动删除失败: {str(e)[:50]}"
 
     def create_proxy_dict(self, proxy_info: Dict) -> Optional[Dict]:
         """创建代理字典（复用SpamBotChecker的实现）"""
@@ -4838,15 +5007,133 @@ class TwoFactorManager:
                 processed += 1
                 print(f"❌ 处理失败 {processed}/{total}: {file_name} - {str(e)}")
         
-        # 批量并发处理（限制并发数）
-        batch_size = 5
-        for i in range(0, len(files), batch_size):
-            batch = files[i:i + batch_size]
-            tasks = [process_single_file(file_path, file_name) for file_path, file_name in batch]
-            await asyncio.gather(*tasks, return_exceptions=True)
+        # 批量并发处理（使用semaphore限制并发数为50）
+        semaphore = asyncio.Semaphore(50)
+        
+        async def process_with_semaphore(file_path, file_name):
+            async with semaphore:
+                await process_single_file(file_path, file_name)
+        
+        tasks = [process_with_semaphore(file_path, file_name) for file_path, file_name in files]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        
+        return results
+    
+    async def batch_remove_passwords(self, files: List[Tuple[str, str]], file_type: str, 
+                                    old_password: Optional[str],
+                                    progress_callback=None) -> Dict[str, List[Tuple[str, str, str]]]:
+        """
+        批量删除2FA密码
+        
+        Args:
+            files: 文件列表 [(路径, 名称), ...]
+            file_type: 文件类型（'tdata' 或 'session'）
+            old_password: 手动输入的旧密码（备选）
+            progress_callback: 进度回调函数
             
-            # 批次间短暂休息
-            await asyncio.sleep(0.5)
+        Returns:
+            结果字典 {'成功': [...], '失败': [...]}
+        """
+        results = {
+            "成功": [],
+            "失败": []
+        }
+        
+        total = len(files)
+        processed = 0
+        start_time = time.time()
+        
+        async def process_single_file(file_path, file_name):
+            nonlocal processed
+            try:
+                # 1. 如果是 TData 格式，需要先转换为 Session
+                if file_type == 'tdata':
+                    print(f"🔄 TData格式需要先转换为Session: {file_name}")
+                    
+                    # 使用 FormatConverter 转换
+                    converter = FormatConverter(self.db)
+                    status, info, name = await converter.convert_tdata_to_session(
+                        file_path, 
+                        file_name,
+                        int(config.API_ID),
+                        str(config.API_HASH)
+                    )
+                    
+                    if status != "转换成功":
+                        results["失败"].append((file_path, file_name, f"转换失败: {info}"))
+                        processed += 1
+                        return
+                    
+                    # 转换成功，使用生成的 session 文件
+                    sessions_dir = config.SESSIONS_DIR
+                    phone = file_name  # TData 的名称通常是手机号
+                    session_path = os.path.join(sessions_dir, f"{phone}.session")
+                    
+                    if not os.path.exists(session_path):
+                        results["失败"].append((file_path, file_name, "转换后的Session文件未找到"))
+                        processed += 1
+                        return
+                    
+                    print(f"✅ TData已转换为Session: {phone}.session")
+                    actual_file_path = session_path
+                    actual_file_type = 'session'
+                else:
+                    actual_file_path = file_path
+                    actual_file_type = file_type
+                
+                # 2. 尝试自动检测密码
+                detected_password = self.password_detector.detect_password(file_path, file_type)
+                
+                # 3. 如果检测失败，使用手动输入的备选密码
+                current_old_password = detected_password if detected_password else old_password
+                
+                if not current_old_password:
+                    results["失败"].append((file_path, file_name, "未找到旧密码"))
+                    processed += 1
+                    return
+                
+                # 4. 删除密码（使用 Session 格式）
+                success, info = await self.remove_2fa_password(
+                    actual_file_path, current_old_password, file_name
+                )
+                
+                if success:
+                    # 如果原始是 TData，需要更新原始 TData 文件
+                    if file_type == 'tdata':
+                        tdata_update = await self._update_password_files(
+                            file_path, '', 'tdata'
+                        )
+                        if tdata_update:
+                            info += " | TData文件已更新"
+                    
+                    results["成功"].append((file_path, file_name, info))
+                    print(f"✅ 删除成功 {processed + 1}/{total}: {file_name}")
+                else:
+                    results["失败"].append((file_path, file_name, info))
+                    print(f"❌ 删除失败 {processed + 1}/{total}: {file_name} - {info}")
+                
+                processed += 1
+                
+                # 调用进度回调
+                if progress_callback:
+                    elapsed = time.time() - start_time
+                    speed = processed / elapsed if elapsed > 0 else 0
+                    await progress_callback(processed, total, results, speed, elapsed)
+                
+            except Exception as e:
+                results["失败"].append((file_path, file_name, f"异常: {str(e)[:50]}"))
+                processed += 1
+                print(f"❌ 处理失败 {processed}/{total}: {file_name} - {str(e)}")
+        
+        # 批量并发处理（使用semaphore限制并发数为50）
+        semaphore = asyncio.Semaphore(50)
+        
+        async def process_with_semaphore(file_path, file_name):
+            async with semaphore:
+                await process_single_file(file_path, file_name)
+        
+        tasks = [process_with_semaphore(file_path, file_name) for file_path, file_name in files]
+        await asyncio.gather(*tasks, return_exceptions=True)
         
         return results
     
@@ -8617,11 +8904,11 @@ class EnhancedBot:
             ],
             [
                 InlineKeyboardButton("🔓 忘记2FA", callback_data="forget_2fa"),
-                InlineKeyboardButton("🔗 API转换", callback_data="api_conversion")
+                InlineKeyboardButton("❌ 删除2FA", callback_data="remove_2fa")
             ],
             [
                 InlineKeyboardButton("➕ 添加2FA", callback_data="add_2fa"),
-                InlineKeyboardButton("📦 账号拆分", callback_data="classify_menu")
+                InlineKeyboardButton("🔗 API转换", callback_data="api_conversion")
             ],
             [
                 InlineKeyboardButton("📝 文件重命名", callback_data="rename_start"),
@@ -9659,8 +9946,55 @@ class EnhancedBot:
             self.handle_change_2fa(query)
         elif data == "forget_2fa":
             self.handle_forget_2fa(query)
+        elif data == "remove_2fa":
+            self.handle_remove_2fa(query)
         elif data == "add_2fa":
             self.handle_add_2fa(query)
+        elif data == "remove_2fa_auto":
+            # 自动识别密码
+            query.answer()
+            user_id = query.from_user.id
+            if user_id in self.two_factor_manager.pending_2fa_tasks:
+                task_info = self.two_factor_manager.pending_2fa_tasks[user_id]
+                if task_info.get('operation') == 'remove':
+                    # 使用 None 表示自动识别
+                    def process_remove():
+                        asyncio.run(self.complete_remove_2fa(update, context, user_id, None))
+                    threading.Thread(target=process_remove, daemon=True).start()
+                else:
+                    query.answer("❌ 操作类型不匹配")
+            else:
+                query.answer("❌ 没有待处理的任务")
+        elif data == "remove_2fa_manual":
+            # 手动输入密码
+            query.answer()
+            user_id = query.from_user.id
+            if user_id in self.two_factor_manager.pending_2fa_tasks:
+                task_info = self.two_factor_manager.pending_2fa_tasks[user_id]
+                if task_info.get('operation') == 'remove':
+                    # 请求用户输入密码
+                    try:
+                        progress_msg = task_info['progress_msg']
+                        total_files = len(task_info['files'])
+                        progress_msg.edit_text(
+                            f"📁 <b>已找到 {total_files} 个账号文件</b>\n\n"
+                            f"🔐 <b>请输入当前的2FA密码：</b>\n\n"
+                            f"• 输入您当前使用的2FA密码\n"
+                            f"• 系统将验证密码并删除2FA\n"
+                            f"• 请在5分钟内发送密码...\n\n"
+                            f"💡 如需取消，请点击 /start 返回主菜单",
+                            parse_mode='HTML'
+                        )
+                        # 设置用户状态为等待输入密码
+                        self.db.save_user(user_id, query.from_user.username or "", 
+                                        query.from_user.first_name or "", "waiting_remove_2fa_input")
+                    except Exception as e:
+                        print(f"❌ 更新消息失败: {e}")
+                        query.answer("❌ 操作失败")
+                else:
+                    query.answer("❌ 操作类型不匹配")
+            else:
+                query.answer("❌ 没有待处理的任务")
         elif data == "convert_tdata_to_session":
             self.handle_convert_tdata_to_session(query)
         elif data == "convert_session_to_tdata":
@@ -9745,15 +10079,15 @@ class EnhancedBot:
                 ],
                 [
                     InlineKeyboardButton("🔓 忘记2FA", callback_data="forget_2fa"),
-                    InlineKeyboardButton("🔗 API转换", callback_data="api_conversion")
+                    InlineKeyboardButton("❌ 删除2FA", callback_data="remove_2fa")
                 ],
                 [
                     InlineKeyboardButton("➕ 添加2FA", callback_data="add_2fa"),
-                    InlineKeyboardButton("📦 账号拆分", callback_data="classify_menu")
+                    InlineKeyboardButton("🔗 API转换", callback_data="api_conversion")
                 ],
                 [
-                    InlineKeyboardButton("📝 文件重命名", callback_data="rename_start"),
-                    InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
+                    InlineKeyboardButton("📦 账号拆分", callback_data="classify_menu"),
+                    InlineKeyboardButton("📝 文件重命名", callback_data="rename_start")
                 ],
                 [
                     InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start"),
@@ -10144,6 +10478,59 @@ class EnhancedBot:
         # 设置用户状态 - 等待上传文件
         self.db.save_user(user_id, query.from_user.username or "", 
                          query.from_user.first_name or "", "waiting_add_2fa_file")
+    
+    def handle_remove_2fa(self, query):
+        """处理删除2FA入口"""
+        query.answer()
+        user_id = query.from_user.id
+        
+        # 检查权限
+        is_member, level, _ = self.db.check_membership(user_id)
+        if not is_member and not self.db.is_admin(user_id):
+            self.safe_edit_message(query, "❌ 需要会员权限才能使用删除2FA功能")
+            return
+        
+        if not TELETHON_AVAILABLE:
+            self.safe_edit_message(query, "❌ 删除2FA功能不可用\n\n原因: Telethon库未安装")
+            return
+        
+        text = """
+❌ <b>批量删除2FA密码功能</b>
+
+<b>✨ 核心功能</b>
+• 🔍 <b>密码自动识别</b>
+  - TData格式：自动识别 2fa.txt、twofa.txt、password.txt
+  - Session格式：自动识别 JSON 中的 twoFA、2fa、password 字段
+  - 智能备选：识别失败时使用手动输入的备选密码
+
+• ✏️ <b>交互式密码输入</b>
+  - 上传文件后可选择自动识别或手动输入密码
+  - 自动识别：从文件中读取当前密码
+  - 手动输入：用户输入当前的2FA密码
+  - 5分钟输入超时保护
+
+• 🔄 <b>自动更新密码文件</b>
+  - Session格式：自动清空JSON文件中所有密码字段
+  - TData格式：自动删除或清空2fa.txt等密码文件
+  - 删除成功后文件立即同步更新
+  - 无需手动编辑配置文件
+
+<b>⚠️ 注意事项</b>
+• 删除2FA后账号将不再需要二次验证密码
+• 系统会首先尝试自动识别现有密码
+• 如果自动识别失败，您可以手动输入当前密码
+• 请在5分钟内完成操作，否则任务将自动取消
+• 请确保账号已登录且session文件有效
+• 删除成功后密码文件将自动更新并包含在结果ZIP中
+
+🚀请上传您的ZIP文件...
+        """
+        
+        self.safe_edit_message(query, text, 'HTML')
+        
+        # 设置用户状态 - 等待上传文件
+        self.db.save_user(user_id, query.from_user.username or "", 
+                         query.from_user.first_name or "", "waiting_remove_2fa_file")
     
     def handle_help_callback(self, query):
         query.answer()
@@ -10667,6 +11054,7 @@ class EnhancedBot:
                 "waiting_merge_files",
                 "waiting_forget_2fa_file",
                 "waiting_add_2fa_file",
+                "waiting_remove_2fa_file",
                 "waiting_cleanup_file",
                 "batch_create_upload",
                 "batch_create_names",
@@ -10798,6 +11186,19 @@ class EnhancedBot:
                     import traceback
                     traceback.print_exc()
             thread = threading.Thread(target=process_add_2fa, daemon=True)
+            thread.start()
+        elif user_status == "waiting_remove_2fa_file":
+            # 删除2FA处理
+            def process_remove_2fa():
+                try:
+                    asyncio.run(self.process_remove_2fa(update, context, document))
+                except asyncio.CancelledError:
+                    print(f"[process_remove_2fa] 任务被取消")
+                except Exception as e:
+                    print(f"[process_remove_2fa] 处理异常: {e}")
+                    import traceback
+                    traceback.print_exc()
+            thread = threading.Thread(target=process_remove_2fa, daemon=True)
             thread.start()
         elif user_status == "waiting_cleanup_file":
             # 一键清理处理
@@ -12134,6 +12535,25 @@ class EnhancedBot:
                 elif user_status == "waiting_rename_newname":
                     self.handle_rename_newname_input(update, context, user_id, text)
                     return
+                elif user_status == "waiting_add_2fa_input":
+                    self.handle_add_2fa_input(update, context, user_id, text)
+                    return
+                elif user_status == "waiting_remove_2fa_input":
+                    # 处理删除2FA的手动密码输入
+                    if user_id in self.two_factor_manager.pending_2fa_tasks:
+                        task_info = self.two_factor_manager.pending_2fa_tasks[user_id]
+                        if task_info.get('operation') == 'remove':
+                            old_password = text.strip()
+                            print(f"🗑️ 用户 {user_id} 输入删除2FA密码")
+                            # 异步处理密码删除
+                            def process_remove():
+                                asyncio.run(self.complete_remove_2fa(update, context, user_id, old_password))
+                            threading.Thread(target=process_remove, daemon=True).start()
+                        else:
+                            self.safe_send_message(update, "❌ 操作类型不匹配")
+                    else:
+                        self.safe_send_message(update, "❌ 没有待处理的删除2FA任务")
+                    return
                 elif user_status == "batch_create_count":
                     self.handle_batch_create_count_input(update, context, user_id, text)
                     return
@@ -13019,6 +13439,298 @@ class EnhancedBot:
             
         except Exception as e:
             return {'success': False, 'error': str(e)}
+    
+    async def process_remove_2fa(self, update, context, document):
+        """处理删除2FA - 从文件中删除2FA密码"""
+        user_id = update.effective_user.id
+        start_time = time.time()
+        task_id = f"{user_id}_{int(start_time)}"
+        
+        print(f"🗑️ 开始删除2FA任务: {task_id}")
+        
+        # 发送进度消息
+        progress_msg = self.safe_send_message(
+            update,
+            "📥 <b>正在处理您的文件...</b>",
+            'HTML'
+        )
+        
+        if not progress_msg:
+            print("❌ 无法发送进度消息")
+            return
+        
+        temp_zip = None
+        try:
+            # 下载文件
+            temp_dir = tempfile.mkdtemp(prefix="temp_remove_2fa_")
+            temp_zip = os.path.join(temp_dir, document.file_name)
+            
+            document.get_file().download(temp_zip)
+            print(f"📥 下载文件: {temp_zip}")
+            
+            # 扫描文件
+            files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, task_id)
+            
+            if not files:
+                try:
+                    progress_msg.edit_text(
+                        "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的账号文件",
+                        parse_mode='HTML'
+                    )
+                except:
+                    pass
+                return
+            
+            total_files = len(files)
+            
+            # 保存任务信息，等待用户选择密码输入方式
+            self.two_factor_manager.pending_2fa_tasks[user_id] = {
+                'files': files,
+                'file_type': file_type,
+                'extract_dir': extract_dir,
+                'task_id': task_id,
+                'progress_msg': progress_msg,
+                'start_time': start_time,
+                'temp_zip': temp_zip,
+                'operation': 'remove'  # 标记为删除操作
+            }
+            
+            # 请求用户选择密码输入方式
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔍 自动识别密码", callback_data="remove_2fa_auto")],
+                [InlineKeyboardButton("✏️ 手动输入密码", callback_data="remove_2fa_manual")],
+                [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+            ])
+            
+            try:
+                progress_msg.edit_text(
+                    f"📁 <b>已找到 {total_files} 个账号文件</b>\n\n"
+                    f"📊 文件类型: {file_type.upper()}\n\n"
+                    f"🔐 <b>请选择密码输入方式：</b>\n\n"
+                    f"<b>🔍 自动识别密码</b>\n"
+                    f"• 系统自动从文件中读取当前2FA密码\n"
+                    f"• TData格式：识别 2fa.txt、twofa.txt、password.txt\n"
+                    f"• Session格式：识别 JSON 中的密码字段\n\n"
+                    f"<b>✏️ 手动输入密码</b>\n"
+                    f"• 您手动输入当前的2FA密码\n"
+                    f"• 适用于自动识别失败的情况\n\n"
+                    f"⏰ 请在5分钟内选择...",
+                    parse_mode='HTML',
+                    reply_markup=keyboard
+                )
+            except:
+                pass
+            
+            print(f"⏳ 等待用户 {user_id} 选择密码输入方式...")
+            
+        except Exception as e:
+            print(f"❌ 处理文件失败: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            try:
+                progress_msg.edit_text(
+                    f"❌ <b>处理文件失败</b>\n\n错误: {str(e)}",
+                    parse_mode='HTML'
+                )
+            except:
+                pass
+            
+            # 清理临时下载文件
+            if temp_zip and os.path.exists(temp_zip):
+                try:
+                    shutil.rmtree(os.path.dirname(temp_zip), ignore_errors=True)
+                except:
+                    pass
+    
+    async def complete_remove_2fa(self, update, context, user_id: int, old_password: Optional[str]):
+        """执行删除2FA操作"""
+        # 检查是否有待处理的任务
+        if user_id not in self.two_factor_manager.pending_2fa_tasks:
+            self.safe_send_message(update, "❌ 没有待处理的删除2FA任务")
+            return
+        
+        task_info = self.two_factor_manager.pending_2fa_tasks[user_id]
+        files = task_info['files']
+        file_type = task_info['file_type']
+        extract_dir = task_info['extract_dir']
+        task_id = task_info['task_id']
+        progress_msg = task_info['progress_msg']
+        start_time = task_info['start_time']
+        temp_zip = task_info['temp_zip']
+        
+        total_files = len(files)
+        
+        try:
+            # 更新消息，开始处理
+            try:
+                progress_msg.edit_text(
+                    f"🗑️ <b>开始删除2FA密码...</b>\n\n"
+                    f"📊 找到 {total_files} 个文件\n"
+                    f"⏳ 正在处理，请稍候...",
+                    parse_mode='HTML'
+                )
+            except:
+                pass
+            
+            # 定义进度回调
+            async def remove_callback(processed, total, results, speed, elapsed):
+                try:
+                    success_count = len(results.get("成功", []))
+                    fail_count = len(results.get("失败", []))
+                    
+                    progress_text = f"""
+🗑️ <b>删除2FA密码进行中...</b>
+
+📊 <b>当前进度</b>
+• 已处理: {processed}/{total}
+• 速度: {speed:.1f} 个/秒
+• 用时: {int(elapsed)} 秒
+
+✅ <b>删除成功</b>: {success_count}
+❌ <b>删除失败</b>: {fail_count}
+
+⏱️ 预计剩余: {int((total - processed) / speed) if speed > 0 else 0} 秒
+                    """
+                    
+                    try:
+                        progress_msg.edit_text(progress_text, parse_mode='HTML')
+                    except:
+                        pass
+                except Exception as e:
+                    print(f"⚠️ 更新进度失败: {e}")
+            
+            # 执行批量删除
+            results = await self.two_factor_manager.batch_remove_passwords(
+                files,
+                file_type,
+                old_password,
+                remove_callback
+            )
+            
+            # 创建结果文件
+            result_files = self.two_factor_manager.create_result_files(results, task_id, file_type)
+            
+            elapsed_time = time.time() - start_time
+            
+            # 发送结果统计
+            success_count = len(results["成功"])
+            fail_count = len(results["失败"])
+            
+            summary_text = f"""
+🎉 <b>2FA密码删除完成！</b>
+
+📊 <b>删除统计</b>
+• 总数: {total_files}
+• ✅ 成功: {success_count}
+• ❌ 失败: {fail_count}
+• ⏱️ 用时: {int(elapsed_time)} 秒
+• 🚀 速度: {total_files/elapsed_time:.1f} 个/秒
+
+📦 正在发送结果文件...
+            """
+            
+            try:
+                progress_msg.edit_text(summary_text, parse_mode='HTML')
+            except:
+                pass
+            
+            # 发送结果文件（分离发送 ZIP 和 TXT）
+            sent_count = 0
+            for zip_path, txt_path, status, count in result_files:
+                try:
+                    # 1. 发送 ZIP 文件
+                    if os.path.exists(zip_path):
+                        try:
+                            with open(zip_path, 'rb') as f:
+                                caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
+                                context.bot.send_document(
+                                    chat_id=update.effective_chat.id,
+                                    document=f,
+                                    filename=os.path.basename(zip_path),
+                                    caption=caption,
+                                    parse_mode='HTML'
+                                )
+                            print(f"📤 发送ZIP文件: {os.path.basename(zip_path)}")
+                            sent_count += 1
+                            await asyncio.sleep(1.0)
+                        except Exception as e:
+                            print(f"❌ 发送ZIP文件失败: {e}")
+                    
+                    # 2. 发送 TXT 报告
+                    if os.path.exists(txt_path):
+                        try:
+                            with open(txt_path, 'rb') as f:
+                                caption = f"📋 <b>{status} 详细报告</b>\n\n包含 {count} 个账号的详细信息"
+                                context.bot.send_document(
+                                    chat_id=update.effective_chat.id,
+                                    document=f,
+                                    filename=os.path.basename(txt_path),
+                                    caption=caption,
+                                    parse_mode='HTML'
+                                )
+                            print(f"📤 发送TXT报告: {os.path.basename(txt_path)}")
+                            sent_count += 1
+                            await asyncio.sleep(1.0)
+                        except Exception as e:
+                            print(f"❌ 发送TXT报告失败: {e}")
+                    
+                except Exception as e:
+                    print(f"❌ 发送结果文件失败: {e}")
+            
+            # 最终汇总消息
+            final_text = f"""
+✅ <b>删除2FA任务完成！</b>
+
+📊 <b>最终统计</b>
+• 成功: {success_count} 个
+• 失败: {fail_count} 个
+• 已发送: {sent_count} 个文件
+
+💡 <b>提示</b>
+• 成功删除的账号不再需要2FA密码
+• 文件中的密码配置已自动清空
+• 请妥善保管结果文件
+            """
+            
+            try:
+                progress_msg.edit_text(final_text, parse_mode='HTML')
+            except:
+                pass
+            
+            # 清理任务
+            del self.two_factor_manager.pending_2fa_tasks[user_id]
+            
+            # 清理临时文件
+            try:
+                if temp_zip and os.path.exists(temp_zip):
+                    shutil.rmtree(os.path.dirname(temp_zip), ignore_errors=True)
+                if extract_dir and os.path.exists(extract_dir):
+                    shutil.rmtree(extract_dir, ignore_errors=True)
+                for zip_path, txt_path, _, _ in result_files:
+                    if os.path.exists(zip_path):
+                        os.remove(zip_path)
+                    if os.path.exists(txt_path):
+                        os.remove(txt_path)
+            except Exception as e:
+                print(f"⚠️ 清理临时文件失败: {e}")
+            
+        except Exception as e:
+            print(f"❌ 删除2FA失败: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            try:
+                progress_msg.edit_text(
+                    f"❌ <b>删除2FA失败</b>\n\n错误: {str(e)}",
+                    parse_mode='HTML'
+                )
+            except:
+                pass
+            
+            # 清理任务
+            if user_id in self.two_factor_manager.pending_2fa_tasks:
+                del self.two_factor_manager.pending_2fa_tasks[user_id]
     
     async def process_classify_stage1(self, update, context, document):
         """账号分类 - 阶段1：扫描文件并选择拆分方式"""
