@@ -5191,12 +5191,14 @@ class TwoFactorManager:
         Returns:
             [(zip文件路径, txt文件路径, 状态名称, 数量), ...]
         """
+        logger.info(f"开始创建结果文件: task_id={task_id}, file_type={file_type}")
         result_files = []
         
         for status, items in results.items():
             if not items:
                 continue
             
+            logger.info(f"📦 正在创建 {status} 结果文件，包含 {len(items)} 个账号")
             print(f"📦 正在创建 {status} 结果文件，包含 {len(items)} 个账号")
             
             # 为每个状态创建唯一的临时目录
@@ -5208,6 +5210,7 @@ class TwoFactorManager:
             used_names = set()
             
             try:
+                logger.info(f"开始复制文件到临时目录: {status_temp_dir}")
                 for index, (file_path, file_name, info) in enumerate(items):
                     if file_type == "session":
                         # 复制 session 文件
@@ -5274,6 +5277,7 @@ class TwoFactorManager:
                                 print(f"📄 复制密码文件: {unique_name}/{password_file_name}")
                 
                 # 创建 ZIP 文件 - 新格式
+                logger.info(f"开始打包ZIP文件: {status}, {len(items)} 个文件")
                 zip_filename = f"修改2FA_{status}_{len(items)}个.zip"
                 zip_path = os.path.join(config.RESULTS_DIR, zip_filename)
                 
@@ -5285,9 +5289,11 @@ class TwoFactorManager:
                             arcname = os.path.relpath(file_path_full, status_temp_dir)
                             zipf.write(file_path_full, arcname)
                 
+                logger.info(f"✅ ZIP文件创建成功: {zip_filename}")
                 print(f"✅ 创建ZIP文件: {zip_filename}")
                 
                 # 创建 TXT 报告 - 新格式
+                logger.info(f"开始创建TXT报告: {status}")
                 txt_filename = f"修改2FA_{status}_{len(items)}个_报告.txt"
                 txt_path = os.path.join(config.RESULTS_DIR, txt_filename)
                 
@@ -5322,11 +5328,13 @@ class TwoFactorManager:
                         f.write("   - 检查代理设置是否正确\n")
                         f.write("   - 尝试使用本地连接或更换代理\n\n")
                 
+                logger.info(f"✅ TXT报告创建成功: {txt_filename}")
                 print(f"✅ 创建TXT报告: {txt_filename}")
                 
                 result_files.append((zip_path, txt_path, status, len(items)))
                 
             except Exception as e:
+                logger.error(f"❌ 创建{status}结果文件失败: {e}")
                 print(f"❌ 创建{status}结果文件失败: {e}")
                 import traceback
                 traceback.print_exc()
@@ -5334,7 +5342,9 @@ class TwoFactorManager:
                 # 清理临时目录
                 if os.path.exists(status_temp_dir):
                     shutil.rmtree(status_temp_dir, ignore_errors=True)
+                    logger.info(f"临时目录已清理: {status_temp_dir}")
         
+        logger.info(f"结果文件创建完成: 共 {len(result_files)} 组文件")
         return result_files
     
     def cleanup_expired_tasks(self, timeout_seconds: int = 300):
@@ -13645,6 +13655,12 @@ class EnhancedBot:
                     success_count = len(results.get("成功", []))
                     fail_count = len(results.get("失败", []))
                     
+                    # 添加日志跟踪进度
+                    if processed >= total:
+                        logger.info(f"进度回调: 处理完成 {processed}/{total}, 成功={success_count}, 失败={fail_count}")
+                    elif processed % 50 == 0:  # 每50个记录一次
+                        logger.info(f"进度回调: {processed}/{total}, 成功={success_count}, 失败={fail_count}")
+                    
                     progress_text = f"""
 🗑️ <b>删除2FA密码进行中...</b>
 
@@ -13661,10 +13677,12 @@ class EnhancedBot:
                     
                     try:
                         progress_msg.edit_text(progress_text, parse_mode='HTML')
-                    except:
+                    except Exception as e:
+                        if processed >= total:
+                            logger.warning(f"更新最终进度消息失败: {e}")
                         pass
                 except Exception as e:
-                    print(f"⚠️ 更新进度失败: {e}")
+                    logger.error(f"⚠️ 进度回调错误: {e}")
             
             # 执行批量删除
             logger.info("开始执行批量删除...")
