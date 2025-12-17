@@ -5024,7 +5024,26 @@ class TwoFactorManager:
                 await process_single_file(file_path, file_name)
         
         tasks = [process_with_semaphore(file_path, file_name) for file_path, file_name in files]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 等待所有任务完成 - 添加超时保护
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=3600  # 1小时超时
+            )
+        except asyncio.TimeoutError:
+            logger.error("批量修改2FA密码超时")
+            print("❌ 批量修改2FA密码超时（1小时）")
+        
+        # 确保最后一次进度回调被调用
+        if progress_callback:
+            try:
+                elapsed = time.time() - start_time
+                speed = processed / elapsed if elapsed > 0 else 0
+                await progress_callback(processed, total, results, speed, elapsed)
+                logger.info(f"修改2FA密码完成: {processed}/{total}")
+            except Exception as e:
+                logger.error(f"最终进度回调错误: {e}")
         
         return results
     
@@ -5142,7 +5161,26 @@ class TwoFactorManager:
                 await process_single_file(file_path, file_name)
         
         tasks = [process_with_semaphore(file_path, file_name) for file_path, file_name in files]
-        await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 等待所有任务完成 - 添加超时保护
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=3600  # 1小时超时
+            )
+        except asyncio.TimeoutError:
+            logger.error("批量删除2FA超时")
+            print("❌ 批量删除2FA超时（1小时）")
+        
+        # 确保最后一次进度回调被调用
+        if progress_callback:
+            try:
+                elapsed = time.time() - start_time
+                speed = processed / elapsed if elapsed > 0 else 0
+                await progress_callback(processed, total, results, speed, elapsed)
+                logger.info(f"删除2FA完成: {processed}/{total}")
+            except Exception as e:
+                logger.error(f"最终进度回调错误: {e}")
         
         return results
     
@@ -5153,12 +5191,14 @@ class TwoFactorManager:
         Returns:
             [(zip文件路径, txt文件路径, 状态名称, 数量), ...]
         """
+        logger.info(f"开始创建结果文件: task_id={task_id}, file_type={file_type}")
         result_files = []
         
         for status, items in results.items():
             if not items:
                 continue
             
+            logger.info(f"📦 正在创建 {status} 结果文件，包含 {len(items)} 个账号")
             print(f"📦 正在创建 {status} 结果文件，包含 {len(items)} 个账号")
             
             # 为每个状态创建唯一的临时目录
@@ -5170,6 +5210,7 @@ class TwoFactorManager:
             used_names = set()
             
             try:
+                logger.info(f"开始复制文件到临时目录: {status_temp_dir}")
                 for index, (file_path, file_name, info) in enumerate(items):
                     if file_type == "session":
                         # 复制 session 文件
@@ -5236,6 +5277,7 @@ class TwoFactorManager:
                                 print(f"📄 复制密码文件: {unique_name}/{password_file_name}")
                 
                 # 创建 ZIP 文件 - 新格式
+                logger.info(f"开始打包ZIP文件: {status}, {len(items)} 个文件")
                 zip_filename = f"修改2FA_{status}_{len(items)}个.zip"
                 zip_path = os.path.join(config.RESULTS_DIR, zip_filename)
                 
@@ -5247,9 +5289,11 @@ class TwoFactorManager:
                             arcname = os.path.relpath(file_path_full, status_temp_dir)
                             zipf.write(file_path_full, arcname)
                 
+                logger.info(f"✅ ZIP文件创建成功: {zip_filename}")
                 print(f"✅ 创建ZIP文件: {zip_filename}")
                 
                 # 创建 TXT 报告 - 新格式
+                logger.info(f"开始创建TXT报告: {status}")
                 txt_filename = f"修改2FA_{status}_{len(items)}个_报告.txt"
                 txt_path = os.path.join(config.RESULTS_DIR, txt_filename)
                 
@@ -5284,11 +5328,13 @@ class TwoFactorManager:
                         f.write("   - 检查代理设置是否正确\n")
                         f.write("   - 尝试使用本地连接或更换代理\n\n")
                 
+                logger.info(f"✅ TXT报告创建成功: {txt_filename}")
                 print(f"✅ 创建TXT报告: {txt_filename}")
                 
                 result_files.append((zip_path, txt_path, status, len(items)))
                 
             except Exception as e:
+                logger.error(f"❌ 创建{status}结果文件失败: {e}")
                 print(f"❌ 创建{status}结果文件失败: {e}")
                 import traceback
                 traceback.print_exc()
@@ -5296,7 +5342,9 @@ class TwoFactorManager:
                 # 清理临时目录
                 if os.path.exists(status_temp_dir):
                     shutil.rmtree(status_temp_dir, ignore_errors=True)
+                    logger.info(f"临时目录已清理: {status_temp_dir}")
         
+        logger.info(f"结果文件创建完成: 共 {len(result_files)} 组文件")
         return result_files
     
     def cleanup_expired_tasks(self, timeout_seconds: int = 300):
@@ -13587,6 +13635,8 @@ class EnhancedBot:
         
         total_files = len(files)
         
+        logger.info(f"开始删除2FA任务: user_id={user_id}, 文件数={total_files}")
+        
         try:
             # 更新消息，开始处理
             try:
@@ -13605,6 +13655,12 @@ class EnhancedBot:
                     success_count = len(results.get("成功", []))
                     fail_count = len(results.get("失败", []))
                     
+                    # 添加日志跟踪进度
+                    if processed >= total:
+                        logger.info(f"进度回调: 处理完成 {processed}/{total}, 成功={success_count}, 失败={fail_count}")
+                    elif processed % 50 == 0:  # 每50个记录一次
+                        logger.info(f"进度回调: {processed}/{total}, 成功={success_count}, 失败={fail_count}")
+                    
                     progress_text = f"""
 🗑️ <b>删除2FA密码进行中...</b>
 
@@ -13621,21 +13677,27 @@ class EnhancedBot:
                     
                     try:
                         progress_msg.edit_text(progress_text, parse_mode='HTML')
-                    except:
+                    except Exception as e:
+                        if processed >= total:
+                            logger.warning(f"更新最终进度消息失败: {e}")
                         pass
                 except Exception as e:
-                    print(f"⚠️ 更新进度失败: {e}")
+                    logger.error(f"⚠️ 进度回调错误: {e}")
             
             # 执行批量删除
+            logger.info("开始执行批量删除...")
             results = await self.two_factor_manager.batch_remove_passwords(
                 files,
                 file_type,
                 old_password,
                 remove_callback
             )
+            logger.info(f"批量删除完成: 成功={len(results.get('成功', []))}, 失败={len(results.get('失败', []))}")
             
             # 创建结果文件
+            logger.info("开始生成结果文件...")
             result_files = self.two_factor_manager.create_result_files(results, task_id, file_type)
+            logger.info(f"结果文件生成完成，共 {len(result_files)} 个文件")
             
             elapsed_time = time.time() - start_time
             
@@ -13662,47 +13724,82 @@ class EnhancedBot:
                 pass
             
             # 发送结果文件（分离发送 ZIP 和 TXT）
+            logger.info(f"开始发送 {len(result_files)} 个结果文件...")
             sent_count = 0
-            for zip_path, txt_path, status, count in result_files:
+            for idx, (zip_path, txt_path, status, count) in enumerate(result_files, 1):
+                logger.info(f"发送第 {idx}/{len(result_files)} 个文件组: {status}")
                 try:
                     # 1. 发送 ZIP 文件
                     if os.path.exists(zip_path):
-                        try:
-                            with open(zip_path, 'rb') as f:
-                                caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
-                                context.bot.send_document(
-                                    chat_id=update.effective_chat.id,
-                                    document=f,
-                                    filename=os.path.basename(zip_path),
-                                    caption=caption,
-                                    parse_mode='HTML'
-                                )
-                            print(f"📤 发送ZIP文件: {os.path.basename(zip_path)}")
-                            sent_count += 1
-                            await asyncio.sleep(1.0)
-                        except Exception as e:
-                            print(f"❌ 发送ZIP文件失败: {e}")
+                        logger.info(f"发送ZIP文件: {os.path.basename(zip_path)}")
+                        max_retries = 3
+                        for attempt in range(max_retries):
+                            try:
+                                with open(zip_path, 'rb') as f:
+                                    caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
+                                    context.bot.send_document(
+                                        chat_id=update.effective_chat.id,
+                                        document=f,
+                                        filename=os.path.basename(zip_path),
+                                        caption=caption,
+                                        parse_mode='HTML',
+                                        timeout=300  # 5分钟超时
+                                    )
+                                logger.info(f"✅ ZIP文件发送成功: {os.path.basename(zip_path)}")
+                                sent_count += 1
+                                await asyncio.sleep(1.0)
+                                break
+                            except RetryAfter as e:
+                                wait_time = e.retry_after + 1
+                                logger.warning(f"被限流，等待 {wait_time} 秒后重试...")
+                                await asyncio.sleep(wait_time)
+                            except Exception as e:
+                                if attempt < max_retries - 1:
+                                    logger.warning(f"发送ZIP失败 (尝试 {attempt+1}/{max_retries}): {e}")
+                                    await asyncio.sleep(2 ** attempt)
+                                else:
+                                    logger.error(f"❌ 发送ZIP文件失败（已重试{max_retries}次）: {e}")
+                    else:
+                        logger.warning(f"ZIP文件不存在: {zip_path}")
                     
                     # 2. 发送 TXT 报告
                     if os.path.exists(txt_path):
-                        try:
-                            with open(txt_path, 'rb') as f:
-                                caption = f"📋 <b>{status} 详细报告</b>\n\n包含 {count} 个账号的详细信息"
-                                context.bot.send_document(
-                                    chat_id=update.effective_chat.id,
-                                    document=f,
-                                    filename=os.path.basename(txt_path),
-                                    caption=caption,
-                                    parse_mode='HTML'
-                                )
-                            print(f"📤 发送TXT报告: {os.path.basename(txt_path)}")
-                            sent_count += 1
-                            await asyncio.sleep(1.0)
-                        except Exception as e:
-                            print(f"❌ 发送TXT报告失败: {e}")
+                        logger.info(f"发送TXT报告: {os.path.basename(txt_path)}")
+                        max_retries = 3
+                        for attempt in range(max_retries):
+                            try:
+                                with open(txt_path, 'rb') as f:
+                                    caption = f"📋 <b>{status} 详细报告</b>\n\n包含 {count} 个账号的详细信息"
+                                    context.bot.send_document(
+                                        chat_id=update.effective_chat.id,
+                                        document=f,
+                                        filename=os.path.basename(txt_path),
+                                        caption=caption,
+                                        parse_mode='HTML',
+                                        timeout=300  # 5分钟超时
+                                    )
+                                logger.info(f"✅ TXT报告发送成功: {os.path.basename(txt_path)}")
+                                sent_count += 1
+                                await asyncio.sleep(1.0)
+                                break
+                            except RetryAfter as e:
+                                wait_time = e.retry_after + 1
+                                logger.warning(f"被限流，等待 {wait_time} 秒后重试...")
+                                await asyncio.sleep(wait_time)
+                            except Exception as e:
+                                if attempt < max_retries - 1:
+                                    logger.warning(f"发送TXT失败 (尝试 {attempt+1}/{max_retries}): {e}")
+                                    await asyncio.sleep(2 ** attempt)
+                                else:
+                                    logger.error(f"❌ 发送TXT报告失败（已重试{max_retries}次）: {e}")
+                    else:
+                        logger.warning(f"TXT文件不存在: {txt_path}")
                     
                 except Exception as e:
-                    print(f"❌ 发送结果文件失败: {e}")
+                    logger.error(f"❌ 处理文件组失败: {e}")
+                    # 即使某个文件组失败也继续处理下一个
+            
+            logger.info(f"文件发送完成: 成功发送 {sent_count}/{len(result_files)*2} 个文件")
             
             # 最终汇总消息
             final_text = f"""
@@ -13721,42 +13818,62 @@ class EnhancedBot:
             
             try:
                 progress_msg.edit_text(final_text, parse_mode='HTML')
-            except:
-                pass
-            
-            # 清理任务
-            del self.two_factor_manager.pending_2fa_tasks[user_id]
-            
-            # 清理临时文件
-            try:
-                if temp_zip and os.path.exists(temp_zip):
-                    shutil.rmtree(os.path.dirname(temp_zip), ignore_errors=True)
-                if extract_dir and os.path.exists(extract_dir):
-                    shutil.rmtree(extract_dir, ignore_errors=True)
-                for zip_path, txt_path, _, _ in result_files:
-                    if os.path.exists(zip_path):
-                        os.remove(zip_path)
-                    if os.path.exists(txt_path):
-                        os.remove(txt_path)
+                logger.info("最终汇总消息已发送")
             except Exception as e:
-                print(f"⚠️ 清理临时文件失败: {e}")
+                logger.error(f"更新最终汇总消息失败: {e}")
             
         except Exception as e:
-            print(f"❌ 删除2FA失败: {e}")
+            logger.error(f"❌ 删除2FA任务失败: {e}")
             import traceback
             traceback.print_exc()
             
             try:
+                # 尝试发送错误信息给用户
                 progress_msg.edit_text(
                     f"❌ <b>删除2FA失败</b>\n\n错误: {str(e)}",
                     parse_mode='HTML'
                 )
             except:
-                pass
+                # 如果更新消息失败，尝试发送新消息
+                try:
+                    self.safe_send_message(update, f"❌ 删除2FA失败: {str(e)}")
+                except:
+                    pass
+        
+        finally:
+            # 确保清理任务和临时文件（在finally块中确保一定执行）
+            logger.info("开始清理任务和临时文件...")
             
             # 清理任务
             if user_id in self.two_factor_manager.pending_2fa_tasks:
                 del self.two_factor_manager.pending_2fa_tasks[user_id]
+                logger.info("任务已从队列中移除")
+            
+            # 清理临时文件
+            try:
+                if temp_zip and os.path.exists(temp_zip):
+                    shutil.rmtree(os.path.dirname(temp_zip), ignore_errors=True)
+                    logger.info(f"已清理临时ZIP目录: {os.path.dirname(temp_zip)}")
+                if extract_dir and os.path.exists(extract_dir):
+                    shutil.rmtree(extract_dir, ignore_errors=True)
+                    logger.info(f"已清理解压目录: {extract_dir}")
+                
+                # 清理结果文件（如果已生成）
+                if 'result_files' in locals():
+                    for zip_path, txt_path, _, _ in result_files:
+                        try:
+                            if os.path.exists(zip_path):
+                                os.remove(zip_path)
+                                logger.info(f"已删除结果ZIP: {os.path.basename(zip_path)}")
+                            if os.path.exists(txt_path):
+                                os.remove(txt_path)
+                                logger.info(f"已删除结果TXT: {os.path.basename(txt_path)}")
+                        except Exception as e:
+                            logger.warning(f"删除结果文件失败: {e}")
+                
+                logger.info("临时文件清理完成")
+            except Exception as e:
+                logger.error(f"⚠️ 清理临时文件失败: {e}")
     
     async def process_classify_stage1(self, update, context, document):
         """账号分类 - 阶段1：扫描文件并选择拆分方式"""
