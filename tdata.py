@@ -10467,29 +10467,14 @@ class EnhancedBot:
         # 检查权限
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_edit_message(query, "❌ 需要会员权限才能使用检测功能")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.not_member'))
             return
         
         if not TELETHON_AVAILABLE:
-            self.safe_edit_message(query, "❌ 检测功能不可用\n\n原因: Telethon库未安装")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'error.system', error='Telethon库未安装'))
             return
         
-        proxy_info = ""
-        if config.USE_PROXY:
-            proxy_count = len(self.proxy_manager.proxies)
-            proxy_info = f"\n📡 代理模式: 启用 ({proxy_count}个代理)"
-        
-        text = f"""
-📤 <b>请上传您的账号文件</b>
-
-📁 <b>支持格式</b>
-• ZIP压缩包 (推荐)
-• 包含 Session 文件 (.session)
-• 包含 Session+JSON 文件 (.session + .json)
-• 包含 TData 文件夹{proxy_info}
-
-请选择您的ZIP文件并上传...
-        """
+        text = self.i18n.get(user_id, 'check.upload_prompt')
         
         self.safe_edit_message(query, text, 'HTML')
         
@@ -10505,39 +10490,19 @@ class EnhancedBot:
         # 检查权限
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_edit_message(query, "❌ 需要会员权限才能使用格式转换功能")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.not_member'))
             return
         
         if not OPENTELE_AVAILABLE:
-            self.safe_edit_message(query, "❌ 格式转换功能不可用\n\n原因: opentele库未安装\n💡 请安装: pip install opentele")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'error.system', error='opentele库未安装'))
             return
         
-        text = """
-🔄 <b>格式转换功能</b>
-
-<b>📁 支持的转换</b>
-1️⃣ <b>Tdata → Session</b>
-   • 将Telegram Desktop的tdata格式转换为Session格式
-   • 适用于需要使用Session的工具
-
-2️⃣ <b>Session → Tdata</b>
-   • 将Session格式转换为Telegram Desktop的tdata格式
-   • 适用于Telegram Desktop客户端
-
-<b>⚡ 功能特点</b>
-• 批量并发转换，提高效率
-• 实时进度显示
-• 自动分类成功和失败
-• 完善的错误处理
-
-<b>📤 操作说明</b>
-请选择要执行的转换类型：
-        """
+        text = self.i18n.get(user_id, 'convert.title') + "\n\n" + self.i18n.get(user_id, 'convert.menu')
         
         buttons = [
-            [InlineKeyboardButton("📤 Tdata → Session", callback_data="convert_tdata_to_session")],
-            [InlineKeyboardButton("📥 Session → Tdata", callback_data="convert_session_to_tdata")],
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'convert.tdata_to_session'), callback_data="convert_tdata_to_session")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'convert.session_to_tdata'), callback_data="convert_session_to_tdata")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back_main'), callback_data="back_to_main")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10548,25 +10513,7 @@ class EnhancedBot:
         query.answer()
         user_id = query.from_user.id
         
-        text = """
-📤 <b>Tdata → Session 转换</b>
-
-<b>📁 请准备以下文件</b>
-• ZIP压缩包，包含Tdata文件夹
-• 每个Tdata文件夹应包含 D877F783D5D3EF8C 目录
-
-<b>🔧 转换说明</b>
-• 系统将自动识别所有Tdata文件夹
-• 批量转换为Session格式
-• 生成对应的.session和.json文件
-
-<b>⚡ 高性能处理</b>
-• 并发转换，提高速度
-• 实时显示进度
-• 自动分类成功/失败
-
-请上传您的ZIP文件...
-        """
+        text = self.i18n.get(user_id, 'convert.upload_prompt')
         
         self.safe_edit_message(query, text, 'HTML')
         
@@ -10579,25 +10526,7 @@ class EnhancedBot:
         query.answer()
         user_id = query.from_user.id
         
-        text = """
-📥 <b>Session → Tdata 转换</b>
-
-<b>📁 请准备以下文件</b>
-• ZIP压缩包，包含.session文件
-• 可选：对应的.json配置文件
-
-<b>🔧 转换说明</b>
-• 系统将自动识别所有Session文件
-• 批量转换为Tdata格式
-• 生成对应的Tdata文件夹
-
-<b>⚡ 高性能处理</b>
-• 并发转换，提高速度
-• 实时显示进度
-• 自动分类成功/失败
-
-请上传您的ZIP文件...
-        """
+        text = self.i18n.get(user_id, 'convert.upload_prompt')
         
         self.safe_edit_message(query, text, 'HTML')
         
@@ -19263,9 +19192,9 @@ admin3</code>
         if not PROFILE_MODIFIER_AVAILABLE:
             self.safe_edit_message(
                 query,
-                "❌ 资料修改功能不可用\n\n原因: profile_modifier模块未安装",
+                self.i18n.get(user_id, 'error.system', error='profile_modifier模块未安装'),
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="back_to_main")
                 ]])
             )
             return
@@ -19275,37 +19204,23 @@ admin3</code>
         if not is_member and not self.db.is_admin(user_id):
             self.safe_edit_message(
                 query,
-                "⚠️ 修改资料功能需要会员权限\n\n请先开通会员",
+                self.i18n.get(user_id, 'common.not_member'),
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
-                    InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'start.button_vip'), callback_data="vip_menu"),
+                    InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="back_to_main")
                 ]])
             )
             return
         
         keyboard = [
-            [InlineKeyboardButton("🎲 随机生成", callback_data='modify_random')],
-            [InlineKeyboardButton("✏️ 自定义配置", callback_data='modify_custom')],
-            [InlineKeyboardButton("🔙 返回", callback_data='back_to_main')]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'modify.mode_random'), callback_data='modify_random')],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'modify.mode_custom'), callback_data='modify_custom')],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data='back_to_main')]
         ]
         
-        text = (
-            "📱 *修改资料功能*\n\n"
-            "请选择模式：\n\n"
-            "💡 *随机生成说明*：\n"
-            "• 姓名：根据手机区号智能匹配\n"
-            "• 头像：自动清空现有头像\n"
-            "• 简介：对应语言随机生成或留空\n"
-            "• 支持40+国家/地区，12+种语言\n\n"
-            "💡 *自定义配置说明*：\n"
-            "• 手动指定姓名、头像、简介\n"
-            "• 支持批量上传配置文件\n\n"
-            "⚠️ *注意*：\n"
-            "• 优先使用代理连接\n"
-            "• 代理超时自动回退本地"
-        )
+        text = self.i18n.get(user_id, 'modify.title') + "\n\n" + self.i18n.get(user_id, 'modify.menu')
         
-        self.safe_edit_message(query, text, parse_mode='Markdown',
+        self.safe_edit_message(query, text, parse_mode='HTML',
                               reply_markup=InlineKeyboardMarkup(keyboard))
     
     def handle_modify_random(self, query):
