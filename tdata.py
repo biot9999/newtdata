@@ -3156,8 +3156,8 @@ class FileProcessor:
             print(f"⚠️ 验证TData结构失败: {e}")
             return False, None
     
-    def scan_zip_file(self, zip_path: str, user_id: int, task_id: str) -> Tuple[List[Tuple[str, str]], str, str]:
-        """扫描ZIP文件 - 修复重复计数问题"""
+    def scan_zip_file(self, zip_path: str, user_id: int, task_id: str) -> Tuple[List[Tuple[str, str, str]], str, str]:
+        """扫描ZIP文件 - 修复重复计数问题，返回 (file_path, file_name, file_type) 三元组"""
         session_files = []
         tdata_folders = []
         seen_tdata_paths = set()  # 防止重复计数TData目录
@@ -3197,7 +3197,7 @@ class FileProcessor:
                             continue
                         
                         seen_session_files.add(normalized_path)
-                        session_files.append((file_full_path, file))
+                        session_files.append((file_full_path, file, 'session'))
                         
                         # 检查是否有对应的JSON文件
                         json_path = file_full_path.replace('.session', '.json')
@@ -3307,7 +3307,7 @@ class FileProcessor:
                     display_name = self.extract_phone_from_tdata_directory(tdata_root_path)
                     
                     # 使用tdata_root_path而不是dir_path，这是TDesktop实际需要的路径
-                    tdata_folders.append((tdata_root_path, display_name))
+                    tdata_folders.append((tdata_root_path, display_name, 'tdata'))
                     print(f"📂 找到TData目录: {display_name} (路径: {dir_name})")
         
         except Exception as e:
@@ -5103,7 +5103,7 @@ class TwoFactorManager:
             async with semaphore:
                 await process_single_file(file_path, file_name)
         
-        tasks = [process_with_semaphore(file_path, file_name) for file_path, file_name in files]
+        tasks = [process_with_semaphore(file_path, file_name) for file_path, file_name, _ in files]
         
         # 等待所有任务完成 - 添加超时保护
         try:
@@ -5240,7 +5240,7 @@ class TwoFactorManager:
             async with semaphore:
                 await process_single_file(file_path, file_name)
         
-        tasks = [process_with_semaphore(file_path, file_name) for file_path, file_name in files]
+        tasks = [process_with_semaphore(file_path, file_name) for file_path, file_name, _ in files]
         
         # 等待所有任务完成 - 添加超时保护
         try:
@@ -5721,7 +5721,7 @@ class APIFormatConverter:
         sessions_dir = config.SESSIONS_DIR
         os.makedirs(sessions_dir, exist_ok=True)
 
-        for file_path, file_name in files:
+        for file_path, file_name, _ in files:
             try:
                 if file_type == "session":
                     info = await self.extract_account_info_from_session(file_path)
@@ -13450,7 +13450,7 @@ class EnhancedBot:
             failed_count = 0
             results = []
             
-            for file_path, file_name in files:
+            for file_path, file_name, _ in files:
                 try:
                     if file_type == "session":
                         # 处理Session文件 - 创建对应的JSON文件
@@ -19620,7 +19620,7 @@ admin3</code>
         detected_count = 0
         password_map = {}  # {file_path: password}
         
-        for file_path, file_name in files:
+        for file_path, file_name, _ in files:
             try:
                 detected_password = self.two_factor_manager.password_detector.detect_password(file_path, file_type)
                 if detected_password:
@@ -21385,7 +21385,7 @@ admin3</code>
                     processed += 1
         
         # 执行所有查询
-        tasks = [check_single_account(file_path, file_name) for file_path, file_name in files]
+        tasks = [check_single_account(file_path, file_name) for file_path, file_name, _ in files]
         await asyncio.gather(*tasks, return_exceptions=True)
         
         # 生成报告
