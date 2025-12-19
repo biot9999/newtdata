@@ -47,3 +47,4 @@ proxy.txt
 temp_*
 *.zip
 device_params/
+user_languages.json
