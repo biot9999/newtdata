@@ -3307,17 +3307,18 @@ class FileProcessor:
             shutil.rmtree(task_upload_dir, ignore_errors=True)
             return [], "", "error"
         
-        # 优先级：TData > Session（修复检测优先级问题）
-        if tdata_folders:
-            print(f"🎯 检测到TData文件，优先使用TData检测")
-            print(f"✅ 找到 {len(tdata_folders)} 个唯一TData文件夹")
-            if session_files:
-                print(f"📱 同时发现 {len(session_files)} 个Session文件（已忽略，优先TData）")
-            return tdata_folders, task_upload_dir, "tdata"
-        elif session_files:
-            print(f"📱 检测到Session文件，使用Session检测")
+        # 优先级：Session > TData（优先使用Session检查，准确性更高）
+        # 如果同时存在Session和TData，优先使用Session进行检查
+        if session_files:
+            print(f"📱 检测到Session文件，优先使用Session检测（准确性更高）")
             print(f"✅ 找到 {len(session_files)} 个Session文件")
+            if tdata_folders:
+                print(f"📂 同时发现 {len(tdata_folders)} 个TData文件夹（已忽略，优先Session）")
             return session_files, task_upload_dir, "session"
+        elif tdata_folders:
+            print(f"🎯 检测到TData文件，使用TData检测")
+            print(f"✅ 找到 {len(tdata_folders)} 个唯一TData文件夹")
+            return tdata_folders, task_upload_dir, "tdata"
         else:
             print("❌ 未找到有效的账号文件")
             print("💡 TData格式要求:")
