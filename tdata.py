@@ -19178,12 +19178,13 @@ admin3</code>
         processed = 0
         total = len(files)
         start_time = time.time()
+        last_update_time = 0  # 记录上次更新时间
         
         # 30并发
         semaphore = asyncio.Semaphore(30)
         
         async def process_single(file_path: str, file_name: str, file_type: str):
-            nonlocal processed
+            nonlocal processed, last_update_time
             async with semaphore:
                 try:
                     # 提取手机号
@@ -19286,8 +19287,11 @@ admin3</code>
                     results['failed'].append((file_path, file_name, str(e)))
                 finally:
                     processed += 1
-                    # 更新进度
-                    await self._update_modify_progress(progress_msg, processed, total, results, start_time)
+                    # 控制更新频率，每10秒或每处理完成时更新一次
+                    current_time = time.time()
+                    if current_time - last_update_time >= 10 or processed == total:
+                        await self._update_modify_progress(progress_msg, processed, total, results, start_time)
+                        last_update_time = current_time
         
         # 创建所有任务
         tasks = [
