@@ -19480,8 +19480,11 @@ admin3</code>
                 return config.get('bio_data', '') or "(空)"
         elif mode == 'empty':
             return "(空)"
-        elif mode == 'emoji':
-            return "随机Emoji头像"
+        elif mode == 'photo':
+            photo_count = len(config.get('avatar_data', []))
+            return f"上传图片 ({photo_count}张)"
+        elif mode == 'delete':
+            return "删除头像"
         else:
             return "未配置"
     
@@ -19945,9 +19948,44 @@ admin3</code>
             avatar_result = {'old_status': '未修改', 'new_status': '未修改'}
             emoji = None
             
-            if custom_config.get('avatar_mode') == 'emoji':
-                emoji = self.profile_modifier.emoji_gen.get_random_emoji()
-                avatar_result = await self.profile_modifier.emoji_gen.set_emoji_avatar_properly(client, emoji)
+            if custom_config.get('avatar_mode') == 'delete':
+                # 删除头像
+                old_count, old_status_desc = await self.profile_modifier.emoji_gen.delete_all_avatars(client)
+                avatar_result = {
+                    'old_status': '有头像' if old_count > 0 else '无头像',
+                    'new_status': '已删除'
+                }
+            elif custom_config.get('avatar_mode') == 'photo':
+                # 上传图片头像
+                photo_paths = custom_config.get('avatar_data', [])
+                if photo_paths:
+                    # 循环分配图片
+                    photo_path = photo_paths[index % len(photo_paths)]
+                    
+                    # 先删除旧头像
+                    old_count, _ = await self.profile_modifier.emoji_gen.delete_all_avatars(client)
+                    old_status = '有头像' if old_count > 0 else '无头像'
+                    
+                    # 上传新头像
+                    try:
+                        uploaded_file = await client.upload_file(photo_path)
+                        await client(functions.photos.UploadProfilePhotoRequest(
+                            file=uploaded_file
+                        ))
+                        
+                        avatar_result = {
+                            'old_status': old_status,
+                            'new_status': '已上传图片'
+                        }
+                    except Exception as e:
+                        logger.error(f"上传头像失败: {e}")
+                        avatar_result = {
+                            'old_status': old_status,
+                            'new_status': '已删除',
+                            'error': str(e)
+                        }
+            
+            # avatar_mode == 'skip' 时不做任何操作
             
             # 5. 检测语言
             language = self.profile_modifier.name_gen.detect_language_from_phone(phone)
