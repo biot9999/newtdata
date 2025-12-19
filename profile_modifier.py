@@ -386,13 +386,13 @@ class EmojiAvatarGenerator:
             return (0, "未知")
     
     async def set_emoji_avatar_properly(self, client: TelegramClient, emoji: str = None) -> Dict[str, Any]:
-        """正确设置头像（先删除旧头像，然后上传随机颜色图片）
+        """正确设置Emoji头像（先删除旧头像）
         
         Returns:
             {
                 'success': bool,
                 'old_status': str,  # "无头像" / "有头像"
-                'new_status': str,  # "已上传新头像" / "已删除"
+                'new_status': str,  # "已删除"
                 'emoji': str,
                 'error': str (可选)
             }
@@ -402,46 +402,16 @@ class EmojiAvatarGenerator:
             old_count, old_status_desc = await self.delete_all_avatars(client)
             old_status = "有头像" if old_count > 0 else "无头像"
             
-            # 2. 如果没有指定emoji，随机选择（仅用于记录）
+            # 2. 如果没有指定emoji，随机选择
             if emoji is None:
                 emoji = self.get_random_emoji()
             
-            # 3. 生成并上传随机颜色头像
-            try:
-                avatar_path = await self._generate_colored_avatar()
-                if avatar_path:
-                    # 上传头像
-                    uploaded_file = await client.upload_file(avatar_path)
-                    await client(functions.photos.UploadProfilePhotoRequest(
-                        file=uploaded_file
-                    ))
-                    
-                    # 清理临时文件
-                    try:
-                        os.remove(avatar_path)
-                    except:
-                        pass
-                    
-                    logger.info(f"成功上传随机颜色头像，记录emoji: {emoji}")
-                    return {
-                        'success': True,
-                        'old_status': old_status,
-                        'new_status': '已上传新头像',
-                        'emoji': emoji
-                    }
-            except Exception as upload_error:
-                logger.warning(f"上传头像失败: {upload_error}")
-                # 如果上传失败，至少旧头像已删除
-                return {
-                    'success': False,
-                    'old_status': old_status,
-                    'new_status': '已删除(上传失败)',
-                    'error': f'上传失败: {str(upload_error)}',
-                    'emoji': emoji
-                }
+            # 3. 注意：Telegram API 不直接支持设置 Emoji 头像
+            # 这个功能主要在客户端，API 只能删除头像
+            # 所以这里只删除旧头像，记录emoji用于报告
             
-            # 4. 如果无法生成图片，只删除旧头像
-            logger.warning(f"无法生成头像图片，仅删除旧头像")
+            logger.info(f"已处理头像，记录Emoji: {emoji}")
+            
             return {
                 'success': True,
                 'old_status': old_status,
@@ -458,43 +428,6 @@ class EmojiAvatarGenerator:
                 'error': str(e),
                 'emoji': emoji or ''
             }
-    
-    async def _generate_colored_avatar(self) -> Optional[str]:
-        """生成随机颜色的头像图片
-        
-        Returns:
-            图片文件路径，如果生成失败则返回None
-        """
-        import tempfile
-        
-        try:
-            # 尝试使用PIL生成纯色图片
-            try:
-                from PIL import Image
-                
-                size = 640
-                # 生成随机鲜艳颜色
-                r = random.randint(100, 255)
-                g = random.randint(100, 255)
-                b = random.randint(100, 255)
-                
-                img = Image.new('RGB', (size, size), color=(r, g, b))
-                
-                # 保存到临时文件
-                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png', prefix='avatar_')
-                img.save(temp_file.name, 'PNG')
-                temp_file.close()
-                
-                logger.info(f"成功生成随机颜色头像: RGB({r},{g},{b})")
-                return temp_file.name
-                
-            except ImportError:
-                logger.warning("PIL不可用，无法生成头像图片")
-                return None
-                
-        except Exception as e:
-            logger.error(f"生成头像图片失败: {e}")
-            return None
     
     async def set_emoji_avatar(self, client: TelegramClient, emoji: str = None) -> bool:
         """设置Emoji头像（使用UpdateProfileRequest）"""

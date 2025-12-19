@@ -13,9 +13,6 @@ PySocks>=1.7.1
 # Additional Dependencies
 asyncio-throttle>=1.0.2
 
-# Image Processing for Avatar Generation
-Pillow>=9.0.0
-
 
 # 核心 Web/API
 Flask>=2.2,<3.1
