@@ -10152,6 +10152,14 @@ class EnhancedBot:
             self.handle_modify_random(query)
         elif data == "modify_custom":
             self.handle_modify_custom(query)
+        elif data.startswith("custom_name_"):
+            self.handle_custom_name_config(update, context, query, data)
+        elif data.startswith("custom_avatar_"):
+            self.handle_custom_avatar_config(update, context, query, data)
+        elif data.startswith("custom_bio_"):
+            self.handle_custom_bio_config(update, context, query, data)
+        elif data.startswith("custom_confirm_"):
+            self.handle_custom_confirm(update, context, query, data)
         elif data.startswith("exec_modify_"):
             self.handle_exec_modify(update, context, query, data)
         elif data.startswith("classify_") or data == "classify_menu":
@@ -11476,8 +11484,32 @@ class EnhancedBot:
             self.pending_modify_tasks[user_id]['file_type'] = file_type
             self.pending_modify_tasks[user_id]['extract_dir'] = extract_dir
             
-            # 显示确认消息
+            # 检查模式
             mode = self.pending_modify_tasks[user_id].get('mode', 'random')
+            
+            if mode == 'custom':
+                # 自定义模式：进入配置流程
+                self.pending_modify_tasks[user_id]['custom_state'] = 'config_name'
+                
+                text = (
+                    f"✅ <b>已接收 {total_files} 个账号</b>\n\n"
+                    f"步骤 2/5: 配置姓名\n\n"
+                    f"请选择姓名配置方式："
+                )
+                
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📝 统一姓名", callback_data=f'custom_name_single_{user_id}')],
+                    [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_name_skip_{user_id}')],
+                    [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+                ])
+                
+                try:
+                    progress_msg.edit_text(text, parse_mode='HTML', reply_markup=keyboard)
+                except:
+                    pass
+                return
+            
+            # 随机模式：显示确认消息
             mode_text = "随机生成" if mode == 'random' else "自定义配置"
             
             text = (
@@ -12771,6 +12803,12 @@ class EnhancedBot:
                     return
                 elif user_status == "waiting_rename_newname":
                     self.handle_rename_newname_input(update, context, user_id, text)
+                    return
+                elif user_status == "waiting_custom_name_input":
+                    self.handle_custom_name_input(update, context, user_id, text)
+                    return
+                elif user_status == "waiting_custom_bio_input":
+                    self.handle_custom_bio_input(update, context, user_id, text)
                     return
                 elif user_status == "waiting_add_2fa_input":
                     self.handle_add_2fa_input(update, context, user_id, text)
@@ -19118,11 +19156,21 @@ admin3</code>
         if user_id not in self.pending_modify_tasks:
             self.pending_modify_tasks[user_id] = {}
         self.pending_modify_tasks[user_id]['mode'] = 'custom'
+        self.pending_modify_tasks[user_id]['custom_config'] = {
+            'name_mode': None,
+            'name_data': None,
+            'avatar_mode': None,
+            'avatar_data': None,
+            'bio_mode': None,
+            'bio_data': None,
+        }
+        self.pending_modify_tasks[user_id]['custom_state'] = 'upload_file'
         
         text = (
             "✏️ *自定义配置模式*\n\n"
-            "⚠️ 功能开发中，暂时使用随机模式\n\n"
-            "请上传账号文件（ZIP压缩包）"
+            "步骤 1/5: 上传账号文件\n\n"
+            "请上传账号文件（ZIP压缩包）\n"
+            "支持格式：Session / TData"
         )
         
         self.safe_edit_message(query, text, parse_mode='Markdown')
@@ -19134,6 +19182,311 @@ admin3</code>
             query.from_user.first_name or "",
             "waiting_modify_file"
         )
+    
+    def handle_custom_name_config(self, update: Update, context: CallbackContext, query, data: str):
+        """处理自定义姓名配置"""
+        query.answer()
+        user_id = int(data.split('_')[-1])
+        action = '_'.join(data.split('_')[:-1])
+        
+        if user_id not in self.pending_modify_tasks:
+            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            return
+        
+        config = self.pending_modify_tasks[user_id].get('custom_config', {})
+        total_files = len(self.pending_modify_tasks[user_id].get('files', []))
+        
+        if action == 'custom_name_single':
+            # 统一姓名 - 让用户回复消息输入
+            config['name_mode'] = 'single'
+            self.pending_modify_tasks[user_id]['custom_state'] = 'input_name'
+            
+            text = (
+                f"📝 <b>统一姓名配置</b>\n\n"
+                f"所有 {total_files} 个账号将使用相同的姓名\n\n"
+                f"请直接回复此消息，输入姓名：\n"
+                f"格式: 名字 姓氏 或 名字\n"
+                f"例如: John Smith 或 王伟"
+            )
+            
+            self.safe_edit_message(query, text, parse_mode='HTML')
+            
+            # 设置等待输入状态
+            self.db.save_user(
+                user_id,
+                query.from_user.username or "",
+                query.from_user.first_name or "",
+                "waiting_custom_name_input"
+            )
+            
+        elif action == 'custom_name_skip':
+            # 跳过姓名配置
+            config['name_mode'] = 'skip'
+            self.pending_modify_tasks[user_id]['custom_state'] = 'config_avatar'
+            
+            # 进入头像配置
+            text = (
+                f"✅ <b>已跳过姓名配置</b>\n\n"
+                f"步骤 3/5: 配置头像\n\n"
+                f"请选择头像配置方式："
+            )
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("😀 使用Emoji", callback_data=f'custom_avatar_emoji_{user_id}')],
+                [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_avatar_skip_{user_id}')],
+                [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+            ])
+            
+            self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
+    
+    def handle_custom_avatar_config(self, update: Update, context: CallbackContext, query, data: str):
+        """处理自定义头像配置"""
+        query.answer()
+        user_id = int(data.split('_')[-1])
+        action = '_'.join(data.split('_')[:-1])
+        
+        if user_id not in self.pending_modify_tasks:
+            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            return
+        
+        config = self.pending_modify_tasks[user_id].get('custom_config', {})
+        
+        if action == 'custom_avatar_emoji':
+            # 使用Emoji头像（随机）
+            config['avatar_mode'] = 'emoji'
+            config['avatar_data'] = None  # 随机选择
+            self.pending_modify_tasks[user_id]['custom_state'] = 'config_bio'
+            
+            # 进入简介配置
+            text = (
+                f"✅ <b>已配置：使用随机Emoji头像</b>\n\n"
+                f"步骤 4/5: 配置简介\n\n"
+                f"请选择简介配置方式："
+            )
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("💬 统一简介", callback_data=f'custom_bio_single_{user_id}')],
+                [InlineKeyboardButton("⬜ 设置为空", callback_data=f'custom_bio_empty_{user_id}')],
+                [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_bio_skip_{user_id}')],
+                [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+            ])
+            
+            self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
+            
+        elif action == 'custom_avatar_skip':
+            # 跳过头像配置
+            config['avatar_mode'] = 'skip'
+            self.pending_modify_tasks[user_id]['custom_state'] = 'config_bio'
+            
+            # 进入简介配置
+            text = (
+                f"✅ <b>已跳过头像配置</b>\n\n"
+                f"步骤 4/5: 配置简介\n\n"
+                f"请选择简介配置方式："
+            )
+            
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("💬 统一简介", callback_data=f'custom_bio_single_{user_id}')],
+                [InlineKeyboardButton("⬜ 设置为空", callback_data=f'custom_bio_empty_{user_id}')],
+                [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_bio_skip_{user_id}')],
+                [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+            ])
+            
+            self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
+    
+    def handle_custom_bio_config(self, update: Update, context: CallbackContext, query, data: str):
+        """处理自定义简介配置"""
+        query.answer()
+        user_id = int(data.split('_')[-1])
+        action = '_'.join(data.split('_')[:-1])
+        
+        if user_id not in self.pending_modify_tasks:
+            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            return
+        
+        config = self.pending_modify_tasks[user_id].get('custom_config', {})
+        total_files = len(self.pending_modify_tasks[user_id].get('files', []))
+        
+        if action == 'custom_bio_single':
+            # 统一简介
+            config['bio_mode'] = 'single'
+            self.pending_modify_tasks[user_id]['custom_state'] = 'input_bio'
+            
+            text = (
+                f"💬 <b>统一简介配置</b>\n\n"
+                f"所有 {total_files} 个账号将使用相同的简介\n\n"
+                f"请直接回复此消息，输入简介："
+            )
+            
+            self.safe_edit_message(query, text, parse_mode='HTML')
+            
+            # 设置等待输入状态
+            self.db.save_user(
+                user_id,
+                query.from_user.username or "",
+                query.from_user.first_name or "",
+                "waiting_custom_bio_input"
+            )
+            
+        elif action == 'custom_bio_empty':
+            # 设置为空
+            config['bio_mode'] = 'empty'
+            config['bio_data'] = ''
+            self.show_custom_final_confirm(query, user_id)
+            
+        elif action == 'custom_bio_skip':
+            # 跳过简介配置
+            config['bio_mode'] = 'skip'
+            self.show_custom_final_confirm(query, user_id)
+    
+    def show_custom_final_confirm(self, query, user_id: int):
+        """显示自定义配置最终确认"""
+        if user_id not in self.pending_modify_tasks:
+            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            return
+        
+        task = self.pending_modify_tasks[user_id]
+        config = task.get('custom_config', {})
+        total_files = len(task.get('files', []))
+        
+        # 生成配置摘要
+        name_summary = self._format_config_summary(config, 'name')
+        avatar_summary = self._format_config_summary(config, 'avatar')
+        bio_summary = self._format_config_summary(config, 'bio')
+        
+        text = (
+            f"<b>步骤 5/5: 确认配置</b>\n\n"
+            f"📦 账号数量: {total_files}\n"
+            f"📝 姓名: {name_summary}\n"
+            f"🎨 头像: {avatar_summary}\n"
+            f"💬 简介: {bio_summary}\n\n"
+            f"确认开始处理？"
+        )
+        
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🚀 开始处理", callback_data=f'exec_modify_{user_id}'),
+            InlineKeyboardButton("❌ 取消", callback_data='back_to_main')
+        ]])
+        
+        self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
+    
+    def _format_config_summary(self, config: dict, key: str) -> str:
+        """格式化配置摘要"""
+        mode = config.get(f'{key}_mode')
+        
+        if mode == 'skip':
+            return "不修改"
+        elif mode == 'single':
+            if key == 'name':
+                data = config.get('name_data', {})
+                return f"{data.get('first', '')} {data.get('last', '')}".strip()
+            elif key == 'bio':
+                return config.get('bio_data', '') or "(空)"
+        elif mode == 'empty':
+            return "(空)"
+        elif mode == 'emoji':
+            return "随机Emoji头像"
+        else:
+            return "未配置"
+    
+    def handle_custom_name_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
+        """处理自定义姓名输入"""
+        if user_id not in self.pending_modify_tasks:
+            self.safe_send_message(update, "❌ 任务已过期，请重新开始")
+            return
+        
+        # 解析姓名
+        name_text = text.strip()
+        if not name_text:
+            self.safe_send_message(update, "❌ 姓名不能为空，请重新输入")
+            return
+        
+        parts = name_text.split(maxsplit=1)
+        first_name = parts[0]
+        last_name = parts[1] if len(parts) > 1 else ""
+        
+        # 保存配置
+        config = self.pending_modify_tasks[user_id].get('custom_config', {})
+        config['name_data'] = {'first': first_name, 'last': last_name}
+        
+        # 清除等待状态
+        self.db.save_user(
+            user_id,
+            update.effective_user.username or "",
+            update.effective_user.first_name or "",
+            ""
+        )
+        
+        # 进入头像配置
+        self.pending_modify_tasks[user_id]['custom_state'] = 'config_avatar'
+        
+        text = (
+            f"✅ <b>姓名已设置</b>\n\n"
+            f"名字: {first_name}\n"
+            f"姓氏: {last_name or '(无)'}\n\n"
+            f"步骤 3/5: 配置头像\n\n"
+            f"请选择头像配置方式："
+        )
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("😀 使用Emoji", callback_data=f'custom_avatar_emoji_{user_id}')],
+            [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_avatar_skip_{user_id}')],
+            [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+        ])
+        
+        self.safe_send_message(update, text, 'HTML', reply_markup=keyboard)
+    
+    def handle_custom_bio_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
+        """处理自定义简介输入"""
+        if user_id not in self.pending_modify_tasks:
+            self.safe_send_message(update, "❌ 任务已过期，请重新开始")
+            return
+        
+        # 保存简介
+        bio_text = text.strip()
+        config = self.pending_modify_tasks[user_id].get('custom_config', {})
+        config['bio_data'] = bio_text
+        
+        # 清除等待状态
+        self.db.save_user(
+            user_id,
+            update.effective_user.username or "",
+            update.effective_user.first_name or "",
+            ""
+        )
+        
+        # 显示最终确认
+        total_files = len(self.pending_modify_tasks[user_id].get('files', []))
+        
+        text = (
+            f"✅ <b>简介已设置</b>\n\n"
+            f"内容: {bio_text or '(空)'}\n\n"
+            f"<b>步骤 5/5: 确认配置</b>\n\n"
+            f"📦 账号数量: {total_files}\n"
+            f"📝 姓名: {self._format_config_summary(config, 'name')}\n"
+            f"🎨 头像: {self._format_config_summary(config, 'avatar')}\n"
+            f"💬 简介: {bio_text or '(空)'}\n\n"
+            f"确认开始处理？"
+        )
+        
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🚀 开始处理", callback_data=f'exec_modify_{user_id}'),
+            InlineKeyboardButton("❌ 取消", callback_data='back_to_main')
+        ]])
+        
+        self.safe_send_message(update, text, 'HTML', reply_markup=keyboard)
+    
+    def handle_custom_confirm(self, update: Update, context: CallbackContext, query, data: str):
+        """处理自定义配置确认"""
+        query.answer()
+        user_id = int(data.split('_')[-1])
+        
+        if user_id not in self.pending_modify_tasks:
+            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            return
+        
+        # 进入执行流程（与handle_exec_modify相同）
+        self.handle_exec_modify(update, context, query, f'exec_modify_{user_id}')
     
     def handle_exec_modify(self, update: Update, context: CallbackContext, query, data: str):
         """执行修改资料"""
@@ -19261,8 +19614,16 @@ admin3</code>
                     if not connected:
                         raise Exception("无法连接到Telegram")
                     
-                    # 修改资料
-                    result = await self.profile_modifier.modify_profile_random(client, phone)
+                    # 修改资料 - 根据模式调用不同的方法
+                    if mode == 'custom':
+                        # 自定义模式：使用自定义配置
+                        custom_config = self.pending_modify_tasks[user_id].get('custom_config', {})
+                        result = await self.modify_profile_with_custom_config(
+                            client, phone, custom_config, processed
+                        )
+                    else:
+                        # 随机模式
+                        result = await self.profile_modifier.modify_profile_random(client, phone)
                     
                     await client.disconnect()
                     
@@ -19396,6 +19757,97 @@ admin3</code>
         # 清理任务
         if user_id in self.pending_modify_tasks:
             del self.pending_modify_tasks[user_id]
+    
+    async def modify_profile_with_custom_config(self, client: TelegramClient, phone: str, 
+                                                 custom_config: dict, index: int) -> Dict[str, Any]:
+        """使用自定义配置修改资料"""
+        try:
+            # 1. 获取当前资料（修改前）
+            me = await client.get_me()
+            old_first_name = me.first_name or ""
+            old_last_name = me.last_name or ""
+            
+            # 获取简介
+            try:
+                full_user = await client(functions.users.GetFullUserRequest(
+                    id=types.InputUserSelf()
+                ))
+                old_bio = full_user.full_user.about or ""
+            except:
+                old_bio = ""
+            
+            # 2. 确定新资料
+            new_first_name = old_first_name
+            new_last_name = old_last_name
+            new_bio = old_bio
+            
+            # 姓名配置
+            if custom_config.get('name_mode') == 'single':
+                name_data = custom_config.get('name_data', {})
+                new_first_name = name_data.get('first', old_first_name)
+                new_last_name = name_data.get('last', old_last_name)
+            
+            # 简介配置
+            if custom_config.get('bio_mode') == 'single':
+                new_bio = custom_config.get('bio_data', '')
+            elif custom_config.get('bio_mode') == 'empty':
+                new_bio = ""
+            
+            # 3. 修改姓名和简介（如果有变化）
+            if (new_first_name != old_first_name or 
+                new_last_name != old_last_name or 
+                new_bio != old_bio):
+                
+                await client(functions.account.UpdateProfileRequest(
+                    first_name=new_first_name,
+                    last_name=new_last_name,
+                    about=new_bio
+                ))
+            
+            # 4. 头像配置
+            avatar_result = {'old_status': '未修改', 'new_status': '未修改'}
+            emoji = None
+            
+            if custom_config.get('avatar_mode') == 'emoji':
+                emoji = self.profile_modifier.emoji_gen.get_random_emoji()
+                avatar_result = await self.profile_modifier.emoji_gen.set_emoji_avatar_properly(client, emoji)
+            
+            # 5. 检测语言
+            language = self.profile_modifier.name_gen.detect_language_from_phone(phone)
+            
+            return {
+                'status': 'success',
+                'phone': phone,
+                'old_first_name': old_first_name,
+                'old_last_name': old_last_name,
+                'old_bio': old_bio,
+                'new_first_name': new_first_name,
+                'new_last_name': new_last_name,
+                'new_bio': new_bio,
+                'old_avatar_status': avatar_result.get('old_status', '未修改'),
+                'new_avatar_status': avatar_result.get('new_status', '未修改'),
+                'language': language,
+                'emoji': emoji or '',
+                # 保持向后兼容
+                'first_name': new_first_name,
+                'last_name': new_last_name,
+                'bio': new_bio or '(空)'
+            }
+            
+        except FloodWaitError as e:
+            logger.warning(f"遇到限流，需要等待 {e.seconds} 秒")
+            return {
+                'status': 'failed',
+                'phone': phone,
+                'error': f'限流，需等待{e.seconds}秒'
+            }
+        except Exception as e:
+            logger.error(f"自定义修改失败 {phone}: {e}")
+            return {
+                'status': 'failed',
+                'phone': phone,
+                'error': str(e)
+            }
     
     async def _update_modify_progress(self, progress_msg, processed: int, total: int, results: dict, start_time: float):
         """更新修改进度"""
