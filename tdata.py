@@ -3421,7 +3421,7 @@ class FileProcessor:
         batch_size = config.MAX_CONCURRENT_CHECKS
         for i in range(0, len(files), batch_size):
             batch = files[i:i + batch_size]
-            tasks = [process_single_account(file_path, file_name) for file_path, file_name in batch]
+            tasks = [process_single_account(file_path, file_name) for file_path, file_name, _ in batch]
             await asyncio.gather(*tasks, return_exceptions=True)
         
         return results
@@ -4124,7 +4124,7 @@ class FormatConverter:
         
         for i in range(0, len(files), batch_size):
             batch = files[i:i + batch_size]
-            tasks = [process_single_file(file_path, file_name) for file_path, file_name in batch]
+            tasks = [process_single_file(file_path, file_name) for file_path, file_name, _ in batch]
             await asyncio.gather(*tasks, return_exceptions=True)
         
         return results
@@ -7430,7 +7430,7 @@ class Forget2FAManager:
             # 创建任务列表
             tasks = [
                 process_single_with_callback(file_path, file_name)
-                for file_path, file_name in batch
+                for file_path, file_name, _ in batch
             ]
             
             # 并发执行当前批次
@@ -11685,7 +11685,7 @@ class EnhancedBot:
                         return ("failed", reason, file_name)
                 
                 # 创建并发任务
-                tasks = [process_single_file(file_path, file_name) for file_path, file_name in batch_files]
+                tasks = [process_single_file(file_path, file_name) for file_path, file_name, _ in batch_files]
                 
                 # 并发执行所有任务
                 results = await asyncio.gather(*tasks, return_exceptions=True)
