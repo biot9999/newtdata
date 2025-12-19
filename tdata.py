@@ -177,6 +177,14 @@ except Exception as e:
     print(f"⚠️ 账号分类模块不可用: {e}")
 
 try:
+    from profile_modifier import ProfileModifier
+    PROFILE_MODIFIER_AVAILABLE = True
+    print("✅ 资料修改模块导入成功")
+except Exception as e:
+    PROFILE_MODIFIER_AVAILABLE = False
+    print(f"⚠️ 资料修改模块不可用: {e}")
+
+try:
     import phonenumbers
     print("✅ phonenumbers 导入成功")
 except Exception:
@@ -8586,6 +8594,10 @@ class EnhancedBot:
         self.classifier = AccountClassifier() if CLASSIFY_AVAILABLE else None
         self.pending_classify_tasks: Dict[int, Dict[str, Any]] = {}
         
+        # 初始化资料修改器
+        self.profile_modifier = ProfileModifier() if PROFILE_MODIFIER_AVAILABLE else None
+        self.pending_modify_tasks: Dict[int, Dict[str, Any]] = {}
+        
         # 广播消息待处理任务
         self.pending_broadcasts: Dict[int, Dict[str, Any]] = {}
         
@@ -9028,30 +9040,31 @@ class EnhancedBot:
                 InlineKeyboardButton("🔄 格式转换", callback_data="format_conversion")
             ],
             [
-                InlineKeyboardButton("🔐 修改2FA", callback_data="change_2fa"),
+                InlineKeyboardButton("👤 修改资料", callback_data="modify_profile"),
                 InlineKeyboardButton("📦 批量创建", callback_data="batch_create_start")
             ],
             [
-                InlineKeyboardButton("🔓 忘记2FA", callback_data="forget_2fa"),
-                InlineKeyboardButton("❌ 删除2FA", callback_data="remove_2fa")
+                InlineKeyboardButton("🔐 修改2FA", callback_data="change_2fa"),
+                InlineKeyboardButton("🔓 忘记2FA", callback_data="forget_2fa")
             ],
             [
-                InlineKeyboardButton("➕ 添加2FA", callback_data="add_2fa"),
-                InlineKeyboardButton("📦 账号拆分", callback_data="classify_menu")
+                InlineKeyboardButton("❌ 删除2FA", callback_data="remove_2fa"),
+                InlineKeyboardButton("➕ 添加2FA", callback_data="add_2fa")
             ],
             [
-                InlineKeyboardButton("🔗 API转换", callback_data="api_conversion"),
-                InlineKeyboardButton("📝 文件重命名", callback_data="rename_start")
+                InlineKeyboardButton("📦 账号拆分", callback_data="classify_menu"),
+                InlineKeyboardButton("🔗 API转换", callback_data="api_conversion")
             ],
             [
-                InlineKeyboardButton("🧩 账户合并", callback_data="merge_start"),
-                InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start")
+                InlineKeyboardButton("📝 文件重命名", callback_data="rename_start"),
+                InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
             ],
             [
-                InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start"),
-                InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start")
+                InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start"),
+                InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start")
             ],
             [
+                InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start"),
                 InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
             ]
         ]
@@ -10133,6 +10146,14 @@ class EnhancedBot:
             self.handle_convert_session_to_tdata(query)
         elif data == "api_conversion":
             self.handle_api_conversion(query)
+        elif data == "modify_profile":
+            self.handle_modify_profile(query)
+        elif data == "modify_random":
+            self.handle_modify_random(query)
+        elif data == "modify_custom":
+            self.handle_modify_custom(query)
+        elif data.startswith("exec_modify_"):
+            self.handle_exec_modify(update, context, query, data)
         elif data.startswith("classify_") or data == "classify_menu":
             self.handle_classify_callbacks(update, context, query, data)
         elif data == "rename_start":
@@ -10206,30 +10227,31 @@ class EnhancedBot:
                     InlineKeyboardButton("🔄 格式转换", callback_data="format_conversion")
                 ],
                 [
-                    InlineKeyboardButton("🔐 修改2FA", callback_data="change_2fa"),
+                    InlineKeyboardButton("👤 修改资料", callback_data="modify_profile"),
                     InlineKeyboardButton("📦 批量创建", callback_data="batch_create_start")
                 ],
                 [
-                    InlineKeyboardButton("🔓 忘记2FA", callback_data="forget_2fa"),
-                    InlineKeyboardButton("❌ 删除2FA", callback_data="remove_2fa")
+                    InlineKeyboardButton("🔐 修改2FA", callback_data="change_2fa"),
+                    InlineKeyboardButton("🔓 忘记2FA", callback_data="forget_2fa")
                 ],
                 [
-                    InlineKeyboardButton("➕ 添加2FA", callback_data="add_2fa"),
-                    InlineKeyboardButton("🔗 API转换", callback_data="api_conversion")
+                    InlineKeyboardButton("❌ 删除2FA", callback_data="remove_2fa"),
+                    InlineKeyboardButton("➕ 添加2FA", callback_data="add_2fa")
                 ],
                 [
                     InlineKeyboardButton("📦 账号拆分", callback_data="classify_menu"),
-                    InlineKeyboardButton("📝 文件重命名", callback_data="rename_start")
+                    InlineKeyboardButton("🔗 API转换", callback_data="api_conversion")
                 ],
                 [
-                    InlineKeyboardButton("🧩 账户合并", callback_data="merge_start"),
-                    InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start")
+                    InlineKeyboardButton("📝 文件重命名", callback_data="rename_start"),
+                    InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
                 ],
                 [
-                    InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start"),
-                    InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start")
+                    InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start"),
+                    InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start")
                 ],
                 [
+                    InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start"),
                     InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
                 ]
             ]
@@ -11181,7 +11203,7 @@ class EnhancedBot:
             row = c.fetchone()
             conn.close()
 
-            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files, waiting_cleanup_file, batch_create_upload, reauthorize_upload, registration_check_upload
+            # 放行的状态，新增 waiting_api_file, waiting_rename_file, waiting_merge_files, waiting_cleanup_file, batch_create_upload, reauthorize_upload, registration_check_upload, waiting_modify_file
             if not row or row[0] not in [
                 "waiting_file",
                 "waiting_convert_tdata",
@@ -11200,6 +11222,7 @@ class EnhancedBot:
                 "batch_create_usernames",
                 "reauthorize_upload",
                 "registration_check_upload",
+                "waiting_modify_file",
             ]:
                 self.safe_send_message(update, "❌ 请先点击相应的功能按钮")
                 return
@@ -11397,6 +11420,19 @@ class EnhancedBot:
                     traceback.print_exc()
             thread = threading.Thread(target=process_registration_check, daemon=True)
             thread.start()
+        elif user_status == "waiting_modify_file":
+            # 修改资料文件处理
+            def process_modify_profile():
+                try:
+                    asyncio.run(self.process_modify_file_upload(update, context, document))
+                except asyncio.CancelledError:
+                    print(f"[process_modify_profile] 任务被取消")
+                except Exception as e:
+                    print(f"[process_modify_profile] 处理异常: {e}")
+                    import traceback
+                    traceback.print_exc()
+            thread = threading.Thread(target=process_modify_profile, daemon=True)
+            thread.start()
         # 清空用户状态
         self.db.save_user(
             user_id,
@@ -11405,6 +11441,68 @@ class EnhancedBot:
             ""
         )
 
+
+    async def process_modify_file_upload(self, update, context, document):
+        """处理修改资料的文件上传"""
+        user_id = update.effective_user.id
+        
+        progress_msg = self.safe_send_message(update, "📥 <b>正在处理您的文件...</b>", 'HTML')
+        if not progress_msg:
+            return
+        
+        temp_zip = None
+        try:
+            temp_dir = tempfile.mkdtemp(prefix="temp_modify_")
+            temp_zip = os.path.join(temp_dir, document.file_name)
+            document.get_file().download(temp_zip)
+            
+            # 扫描ZIP文件
+            task_id = f"{user_id}_{int(time.time())}"
+            files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, task_id)
+            
+            if not files:
+                try:
+                    progress_msg.edit_text("❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
+                except:
+                    pass
+                return
+            
+            total_files = len(files)
+            
+            # 存储文件信息到任务
+            if user_id not in self.pending_modify_tasks:
+                self.pending_modify_tasks[user_id] = {}
+            self.pending_modify_tasks[user_id]['files'] = files
+            self.pending_modify_tasks[user_id]['file_type'] = file_type
+            self.pending_modify_tasks[user_id]['extract_dir'] = extract_dir
+            
+            # 显示确认消息
+            mode = self.pending_modify_tasks[user_id].get('mode', 'random')
+            mode_text = "随机生成" if mode == 'random' else "自定义配置"
+            
+            text = (
+                f"✅ <b>已接收 {total_files} 个账号</b>\n\n"
+                f"📊 类型: {file_type.upper()}\n"
+                f"🎯 模式: {mode_text}\n\n"
+                f"确认开始修改资料？"
+            )
+            
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🚀 开始处理", callback_data=f'exec_modify_{user_id}'),
+                InlineKeyboardButton("❌ 取消", callback_data='back_to_main')
+            ]])
+            
+            try:
+                progress_msg.edit_text(text, parse_mode='HTML', reply_markup=keyboard)
+            except:
+                pass
+                
+        except Exception as e:
+            logger.error(f"处理修改资料文件失败: {e}")
+            try:
+                progress_msg.edit_text(f"❌ <b>处理失败</b>\n\n{str(e)}", parse_mode='HTML')
+            except:
+                pass
 
     async def process_api_conversion(self, update, context, document):
         """API格式转换 - 阶段1：解析文件并询问网页展示的2FA"""
@@ -18926,6 +19024,409 @@ admin3</code>
                         logger.info(f"🧹 已清理TData转换的临时Session: {account.file_name}")
                     except Exception as e:
                         logger.warning(f"⚠️ 清理临时Session失败 {account.file_name}: {e}")
+    
+    # ================================
+    # 修改资料功能
+    # ================================
+    
+    def handle_modify_profile(self, query):
+        """修改资料入口"""
+        query.answer()
+        user_id = query.from_user.id
+        
+        # 检查功能是否可用
+        if not PROFILE_MODIFIER_AVAILABLE:
+            self.safe_edit_message(
+                query,
+                "❌ 资料修改功能不可用\n\n原因: profile_modifier模块未安装",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+                ]])
+            )
+            return
+        
+        # 检查会员权限
+        is_member, level, expiry = self.db.check_membership(user_id)
+        if not is_member and not self.db.is_admin(user_id):
+            self.safe_edit_message(
+                query,
+                "⚠️ 修改资料功能需要会员权限\n\n请先开通会员",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
+                    InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+                ]])
+            )
+            return
+        
+        keyboard = [
+            [InlineKeyboardButton("🎲 随机生成", callback_data='modify_random')],
+            [InlineKeyboardButton("✏️ 自定义配置", callback_data='modify_custom')],
+            [InlineKeyboardButton("🔙 返回", callback_data='back_to_main')]
+        ]
+        
+        text = (
+            "📱 *修改资料功能*\n\n"
+            "请选择模式：\n\n"
+            "💡 *随机生成说明*：\n"
+            "• 姓名：根据手机区号智能匹配\n"
+            "• 头像：自动清空现有头像\n"
+            "• 简介：对应语言随机生成或留空\n"
+            "• 支持40+国家/地区，12+种语言\n\n"
+            "💡 *自定义配置说明*：\n"
+            "• 手动指定姓名、头像、简介\n"
+            "• 支持批量上传配置文件\n\n"
+            "⚠️ *注意*：\n"
+            "• 优先使用代理连接\n"
+            "• 代理超时自动回退本地"
+        )
+        
+        self.safe_edit_message(query, text, parse_mode='Markdown',
+                              reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    def handle_modify_random(self, query):
+        """随机生成模式"""
+        query.answer()
+        user_id = query.from_user.id
+        
+        # 存储用户选择
+        if user_id not in self.pending_modify_tasks:
+            self.pending_modify_tasks[user_id] = {}
+        self.pending_modify_tasks[user_id]['mode'] = 'random'
+        
+        text = (
+            "🎲 *随机生成模式*\n\n"
+            "请上传账号文件（ZIP压缩包）\n\n"
+            "支持格式：Session / TData"
+        )
+        
+        self.safe_edit_message(query, text, parse_mode='Markdown')
+        
+        # 设置用户状态等待文件上传
+        self.db.save_user(
+            user_id,
+            query.from_user.username or "",
+            query.from_user.first_name or "",
+            "waiting_modify_file"
+        )
+    
+    def handle_modify_custom(self, query):
+        """自定义配置模式"""
+        query.answer()
+        user_id = query.from_user.id
+        
+        # 存储用户选择
+        if user_id not in self.pending_modify_tasks:
+            self.pending_modify_tasks[user_id] = {}
+        self.pending_modify_tasks[user_id]['mode'] = 'custom'
+        
+        text = (
+            "✏️ *自定义配置模式*\n\n"
+            "⚠️ 功能开发中，暂时使用随机模式\n\n"
+            "请上传账号文件（ZIP压缩包）"
+        )
+        
+        self.safe_edit_message(query, text, parse_mode='Markdown')
+        
+        # 设置用户状态等待文件上传
+        self.db.save_user(
+            user_id,
+            query.from_user.username or "",
+            query.from_user.first_name or "",
+            "waiting_modify_file"
+        )
+    
+    def handle_exec_modify(self, update: Update, context: CallbackContext, query, data: str):
+        """执行修改资料"""
+        query.answer()
+        user_id = int(data.split('_')[2])
+        
+        # 获取任务信息
+        if user_id not in self.pending_modify_tasks:
+            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            return
+        
+        task = self.pending_modify_tasks[user_id]
+        files = task.get('files', [])
+        mode = task.get('mode', 'random')
+        
+        if not files:
+            self.safe_edit_message(query, "❌ 没有找到文件")
+            return
+        
+        # 启动异步任务
+        def run_modify_task():
+            asyncio.run(self.execute_modify_profile(user_id, query.message.chat.id, files, mode))
+        
+        threading.Thread(target=run_modify_task, daemon=True).start()
+        
+        self.safe_edit_message(query, "⏳ 正在初始化，请稍候...")
+    
+    async def execute_modify_profile(self, user_id: int, chat_id: int, files: List[Tuple[str, str, str]], mode: str):
+        """异步执行资料修改"""
+        import asyncio
+        from telethon import TelegramClient
+        from telethon.errors import FloodWaitError, SessionPasswordNeededError, AuthKeyUnregisteredError
+        
+        # 发送进度消息
+        progress_msg = self.updater.bot.send_message(
+            chat_id=chat_id,
+            text="⏳ *正在处理...*\n\n进度: 0/0",
+            parse_mode='Markdown'
+        )
+        
+        results = {'success': [], 'failed': []}
+        processed = 0
+        total = len(files)
+        start_time = time.time()
+        
+        # 30并发
+        semaphore = asyncio.Semaphore(30)
+        
+        async def process_single(file_path: str, file_name: str, file_type: str):
+            nonlocal processed
+            async with semaphore:
+                try:
+                    # 提取手机号
+                    phone = self._extract_phone_from_file(file_path, file_type)
+                    if not phone:
+                        phone = file_name  # 使用文件名作为备用
+                    
+                    # 创建客户端
+                    api_id = config.API_ID
+                    api_hash = config.API_HASH
+                    
+                    # 根据文件类型处理
+                    if file_type == 'tdata':
+                        # TData转Session
+                        temp_session = None
+                        try:
+                            if not OPENTELE_AVAILABLE:
+                                raise Exception("opentele未安装，无法处理TData")
+                            
+                            # 转换TData到Session
+                            tdesk = TDesktop(file_path)
+                            temp_session = os.path.join(tempfile.gettempdir(), f"temp_modify_{user_id}_{file_name}")
+                            client = await tdesk.ToTelethon(temp_session, flag=UseCurrentSession)
+                        except Exception as e:
+                            raise Exception(f"TData转换失败: {e}")
+                    else:
+                        # Session文件
+                        session_path = file_path.replace('.session', '') if file_path.endswith('.session') else file_path
+                        client = TelegramClient(session_path, api_id, api_hash)
+                    
+                    # 尝试连接（优先代理，超时回退本地）
+                    connected = False
+                    proxy_dict = None
+                    
+                    # 优先尝试代理连接
+                    if self.proxy_manager.is_proxy_mode_active(self.db) and self.proxy_manager.proxies:
+                        try:
+                            proxy_info = self.proxy_manager.get_next_proxy()
+                            if proxy_info:
+                                proxy_dict = {
+                                    'proxy_type': proxy_info['type'],
+                                    'addr': proxy_info['host'],
+                                    'port': proxy_info['port'],
+                                    'username': proxy_info.get('username'),
+                                    'password': proxy_info.get('password')
+                                }
+                                
+                                # 设置代理并连接（15秒超时）
+                                client.set_proxy(proxy_dict)
+                                await asyncio.wait_for(client.connect(), timeout=15)
+                                
+                                if await client.is_user_authorized():
+                                    connected = True
+                                    logger.info(f"✅ 通过代理连接成功: {phone}")
+                        except asyncio.TimeoutError:
+                            logger.warning(f"⚠️ 代理连接超时，回退本地: {phone}")
+                            await client.disconnect()
+                            client.set_proxy(None)
+                        except Exception as e:
+                            logger.warning(f"⚠️ 代理连接失败，回退本地: {e}")
+                            await client.disconnect()
+                            client.set_proxy(None)
+                    
+                    # 如果代理未连接，回退本地连接
+                    if not connected:
+                        try:
+                            await asyncio.wait_for(client.connect(), timeout=10)
+                            if await client.is_user_authorized():
+                                connected = True
+                                logger.info(f"✅ 本地连接成功: {phone}")
+                        except Exception as e:
+                            raise Exception(f"本地连接失败: {e}")
+                    
+                    if not connected:
+                        raise Exception("无法连接到Telegram")
+                    
+                    # 修改资料
+                    result = await self.profile_modifier.modify_profile_random(client, phone)
+                    
+                    await client.disconnect()
+                    
+                    # 清理临时session
+                    if file_type == 'tdata' and temp_session:
+                        try:
+                            if os.path.exists(f"{temp_session}.session"):
+                                os.remove(f"{temp_session}.session")
+                            if os.path.exists(f"{temp_session}.session-journal"):
+                                os.remove(f"{temp_session}.session-journal")
+                        except:
+                            pass
+                    
+                    if result['status'] == 'success':
+                        results['success'].append((file_path, file_name, result))
+                    else:
+                        results['failed'].append((file_path, file_name, result.get('error', '未知错误')))
+                        
+                except AuthKeyUnregisteredError:
+                    results['failed'].append((file_path, file_name, '账号已冻结'))
+                except Exception as e:
+                    results['failed'].append((file_path, file_name, str(e)))
+                finally:
+                    processed += 1
+                    # 更新进度
+                    await self._update_modify_progress(progress_msg, processed, total, results, start_time)
+        
+        # 创建所有任务
+        tasks = [
+            process_single(file_path, file_name, file_type)
+            for file_path, file_name, file_type in files
+        ]
+        
+        await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 生成结果文件
+        timestamp = datetime.now(BEIJING_TZ).strftime('%Y%m%d_%H%M%S')
+        
+        # 打包成功的账号
+        if results['success']:
+            success_zip_path = os.path.join(config.RESULTS_DIR, f"modified_success_{timestamp}.zip")
+            with zipfile.ZipFile(success_zip_path, 'w') as zf:
+                for file_path, file_name, result in results['success']:
+                    if os.path.isdir(file_path):
+                        # TData目录
+                        for root, _, files_in_dir in os.walk(file_path):
+                            for f in files_in_dir:
+                                full_path = os.path.join(root, f)
+                                arcname = os.path.join(file_name, os.path.relpath(full_path, file_path))
+                                zf.write(full_path, arcname)
+                    else:
+                        # Session文件
+                        zf.write(file_path, file_name)
+                        # 也包含JSON文件（如果存在）
+                        json_file = file_path.replace('.session', '.json')
+                        if os.path.exists(json_file):
+                            zf.write(json_file, file_name.replace('.session', '.json'))
+            
+            with open(success_zip_path, 'rb') as f:
+                self.updater.bot.send_document(
+                    chat_id=chat_id,
+                    document=f,
+                    filename=f"modified_success_{timestamp}.zip",
+                    caption=f"✅ 修改成功 ({len(results['success'])} 个账号)"
+                )
+        
+        # 生成失败报告
+        if results['failed']:
+            failed_txt_path = os.path.join(config.RESULTS_DIR, f"modified_failed_{timestamp}.txt")
+            with open(failed_txt_path, 'w', encoding='utf-8') as f:
+                f.write("=" * 80 + "\n")
+                f.write("修改资料 - 失败列表\n")
+                f.write("=" * 80 + "\n")
+                f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
+                f.write(f"失败数量: {len(results['failed'])}\n\n")
+                
+                for file_path, file_name, error in results['failed']:
+                    f.write("-" * 80 + "\n")
+                    f.write(f"文件名: {file_name}\n")
+                    f.write(f"失败原因: {error}\n\n")
+                
+                f.write("=" * 80 + "\n")
+            
+            with open(failed_txt_path, 'rb') as f:
+                self.updater.bot.send_document(
+                    chat_id=chat_id,
+                    document=f,
+                    filename=f"modified_failed_{timestamp}.txt",
+                    caption=f"❌ 失败详情 ({len(results['failed'])} 个账号)"
+                )
+        
+        # 发送汇总
+        elapsed = time.time() - start_time
+        summary = (
+            f"📊 *修改资料完成*\n\n"
+            f"✅ 成功: {len(results['success'])} 个\n"
+            f"❌ 失败: {len(results['failed'])} 个\n"
+            f"⏱ 用时: {int(elapsed)} 秒\n"
+            f"⚡ 速度: {total/elapsed:.1f} 个/秒"
+        )
+        
+        self.updater.bot.send_message(
+            chat_id=chat_id,
+            text=summary,
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")
+            ]])
+        )
+        
+        # 清理任务
+        if user_id in self.pending_modify_tasks:
+            del self.pending_modify_tasks[user_id]
+    
+    async def _update_modify_progress(self, progress_msg, processed: int, total: int, results: dict, start_time: float):
+        """更新修改进度"""
+        try:
+            elapsed = time.time() - start_time
+            speed = processed / elapsed if elapsed > 0 else 0
+            
+            text = (
+                f"⏳ *正在修改资料...*\n\n"
+                f"进度: {processed}/{total}\n"
+                f"成功: {len(results['success'])} 个\n"
+                f"失败: {len(results['failed'])} 个\n"
+                f"速度: {speed:.1f} 个/秒\n"
+                f"用时: {int(elapsed)} 秒"
+            )
+            
+            # 显示最后一个成功的账号信息
+            if results['success']:
+                last_success = results['success'][-1][2]
+                text += f"\n\n当前: {last_success.get('first_name', '')} {last_success.get('last_name', '')} "
+                text += f"{last_success.get('emoji', '')} | {last_success.get('language', '')}"
+            
+            progress_msg.edit_text(text, parse_mode='Markdown')
+        except Exception as e:
+            # 忽略更新错误（可能是消息更新太频繁）
+            pass
+    
+    def _extract_phone_from_file(self, file_path: str, file_type: str) -> Optional[str]:
+        """从文件中提取手机号"""
+        import re
+        import json
+        
+        # 尝试从文件名提取
+        phone_match = re.search(r'\+?\d{10,15}', os.path.basename(file_path))
+        if phone_match:
+            return phone_match.group(0)
+        
+        # 尝试从JSON文件提取
+        if file_type == 'session':
+            json_file = file_path.replace('.session', '.json')
+            if os.path.exists(json_file):
+                try:
+                    with open(json_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        if 'phone' in data:
+                            return data['phone']
+                        if 'phone_number' in data:
+                            return data['phone_number']
+                except:
+                    pass
+        
+        return None
     
     # ================================
     # 重新授权功能
