@@ -8656,6 +8656,7 @@ class EnhancedBot:
         self.dp.add_handler(CommandHandler("testproxy", self.test_proxy_command))
         self.dp.add_handler(CommandHandler("cleanproxy", self.clean_proxy_command))
         self.dp.add_handler(CommandHandler("convert", self.convert_command))
+        self.dp.add_handler(CommandHandler("done", self.done_command))
         # 新增：API格式转换命令
         self.dp.add_handler(CommandHandler("api", self.api_command))
         # 新增：账号分类命令
@@ -9271,6 +9272,62 @@ class EnhancedBot:
             """
         
         self.safe_send_message(update, help_text, 'HTML')
+    
+    def done_command(self, update: Update, context: CallbackContext):
+        """处理 /done 命令 - 完成头像上传"""
+        user_id = update.effective_user.id
+        
+        # 检查用户状态
+        try:
+            conn = sqlite3.connect(config.DB_NAME)
+            c = conn.cursor()
+            c.execute("SELECT status FROM users WHERE user_id = ?", (user_id,))
+            row = c.fetchone()
+            conn.close()
+            
+            if not row or row[0] != "waiting_custom_avatar_upload":
+                self.safe_send_message(update, "❌ 当前没有正在进行的头像上传任务")
+                return
+        except:
+            return
+        
+        # 检查任务
+        if user_id not in self.pending_modify_tasks:
+            self.safe_send_message(update, "❌ 任务已过期，请重新开始")
+            return
+        
+        config_data = self.pending_modify_tasks[user_id].get('custom_config', {})
+        photo_count = len(config_data.get('avatar_data', []))
+        
+        if photo_count == 0:
+            self.safe_send_message(update, "❌ 还没有上传任何图片，请先上传图片")
+            return
+        
+        # 清除等待状态
+        self.db.save_user(
+            user_id,
+            update.effective_user.username or "",
+            update.effective_user.first_name or "",
+            ""
+        )
+        
+        # 进入简介配置
+        self.pending_modify_tasks[user_id]['custom_state'] = 'config_bio'
+        
+        text = (
+            f"✅ <b>已上传 {photo_count} 张图片</b>\n\n"
+            f"步骤 4/5: 配置简介\n\n"
+            f"请选择简介配置方式："
+        )
+        
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💬 统一简介", callback_data=f'custom_bio_single_{user_id}')],
+            [InlineKeyboardButton("⬜ 设置为空", callback_data=f'custom_bio_empty_{user_id}')],
+            [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_bio_skip_{user_id}')],
+            [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+        ])
+        
+        self.safe_send_message(update, text, 'HTML', reply_markup=keyboard)
     
     def add_admin_command(self, update: Update, context: CallbackContext):
         """添加管理员命令"""
@@ -12654,7 +12711,7 @@ class EnhancedBot:
                 print(f"🗑️ 清理任务信息: user_id={user_id}")
     
     def handle_photo(self, update: Update, context: CallbackContext):
-        """处理图片上传（用于广播媒体）"""
+        """处理图片上传（用于广播媒体和自定义头像）"""
         user_id = update.effective_user.id
         
         # 检查用户状态
@@ -12665,8 +12722,19 @@ class EnhancedBot:
             row = c.fetchone()
             conn.close()
             
-            if not row or row[0] != "waiting_broadcast_media":
-                # 不是在等待广播媒体上传，忽略
+            if not row:
+                return
+            
+            user_status = row[0]
+            
+            # 处理自定义头像上传
+            if user_status == "waiting_custom_avatar_upload":
+                self.handle_custom_avatar_photo_upload(update, context, user_id)
+                return
+            
+            # 处理广播媒体上传
+            if user_status != "waiting_broadcast_media":
+                # 不是在等待上传，忽略
                 return
         except:
             return
@@ -19232,7 +19300,8 @@ admin3</code>
             )
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("😀 使用Emoji", callback_data=f'custom_avatar_emoji_{user_id}')],
+                [InlineKeyboardButton("📷 上传图片", callback_data=f'custom_avatar_photo_{user_id}')],
+                [InlineKeyboardButton("🚫 删除头像", callback_data=f'custom_avatar_delete_{user_id}')],
                 [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_avatar_skip_{user_id}')],
                 [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
             ])
@@ -19251,15 +19320,42 @@ admin3</code>
         
         config = self.pending_modify_tasks[user_id].get('custom_config', {})
         
-        if action == 'custom_avatar_emoji':
-            # 使用Emoji头像（随机）
-            config['avatar_mode'] = 'emoji'
-            config['avatar_data'] = None  # 随机选择
+        if action == 'custom_avatar_photo':
+            # 上传图片头像
+            config['avatar_mode'] = 'photo'
+            config['avatar_data'] = []  # 将存储上传的图片路径列表
+            self.pending_modify_tasks[user_id]['custom_state'] = 'upload_avatar'
+            
+            # 设置用户状态等待图片上传
+            self.db.save_user(
+                user_id,
+                update.callback_query.from_user.username or "",
+                update.callback_query.from_user.first_name or "",
+                "waiting_custom_avatar_upload"
+            )
+            
+            text = (
+                f"📷 <b>上传图片头像</b>\n\n"
+                f"请发送一张或多张图片\n\n"
+                f"• 单张图片：所有账号使用相同头像\n"
+                f"• 多张图片：按顺序循环分配给账号\n\n"
+                f"⚠️ 支持格式：JPG, PNG, WebP\n"
+                f"⚠️ 建议尺寸：640x640 或更大\n\n"
+                f"上传完成后，发送 /done 继续"
+            )
+            
+            self.safe_edit_message(query, text, parse_mode='HTML')
+            
+        elif action == 'custom_avatar_delete':
+            # 删除头像
+            config['avatar_mode'] = 'delete'
+            config['avatar_data'] = None
             self.pending_modify_tasks[user_id]['custom_state'] = 'config_bio'
             
             # 进入简介配置
             text = (
-                f"✅ <b>已配置：使用随机Emoji头像</b>\n\n"
+                f"✅ <b>已设置为删除头像</b>\n\n"
+                f"所有账号的现有头像将被删除\n\n"
                 f"步骤 4/5: 配置简介\n\n"
                 f"请选择简介配置方式："
             )
@@ -19429,12 +19525,53 @@ admin3</code>
         )
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("😀 使用Emoji", callback_data=f'custom_avatar_emoji_{user_id}')],
+            [InlineKeyboardButton("📷 上传图片", callback_data=f'custom_avatar_photo_{user_id}')],
+            [InlineKeyboardButton("🚫 删除头像", callback_data=f'custom_avatar_delete_{user_id}')],
             [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_avatar_skip_{user_id}')],
             [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
         ])
         
         self.safe_send_message(update, text, 'HTML', reply_markup=keyboard)
+    
+    def handle_custom_avatar_photo_upload(self, update: Update, context: CallbackContext, user_id: int):
+        """处理自定义头像图片上传"""
+        if user_id not in self.pending_modify_tasks:
+            self.safe_send_message(update, "❌ 任务已过期，请重新开始")
+            return
+        
+        try:
+            # 获取最大尺寸的图片
+            photo = update.message.photo[-1]
+            
+            # 下载图片到临时文件
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.jpg', dir='/tmp') as tmp_file:
+                file_path = tmp_file.name
+            
+            # 下载图片
+            file = context.bot.get_file(photo.file_id)
+            file.download(file_path)
+            
+            # 保存到配置
+            config = self.pending_modify_tasks[user_id].get('custom_config', {})
+            if 'avatar_data' not in config:
+                config['avatar_data'] = []
+            
+            config['avatar_data'].append(file_path)
+            
+            # 发送确认消息
+            photo_count = len(config['avatar_data'])
+            
+            text = (
+                f"✅ <b>已上传 {photo_count} 张图片</b>\n\n"
+                f"继续上传更多图片，或发送 /done 进入下一步"
+            )
+            
+            self.safe_send_message(update, text, 'HTML')
+            
+        except Exception as e:
+            logger.error(f"处理头像上传失败: {e}")
+            self.safe_send_message(update, f"❌ 上传失败: {e}")
     
     def handle_custom_bio_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理自定义简介输入"""
