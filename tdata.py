@@ -9068,7 +9068,7 @@ class EnhancedBot:
             user_id,
             'start.welcome',
             first_name=first_name,
-            user_id=user_id,
+            uid=user_id,
             member_status=member_status,
             expiry=expiry,
             proxy_status=proxy_status,

@@ -1,8 +1,7 @@
 {
   "language_name": "🇺🇸 English",
-  
   "start": {
-    "welcome": "<b>🔍 Telegram Account Bot V8.0</b>\n\n👤 <b>User Information</b>\n• Name: {first_name}\n• ID: <code>{user_id}</code>\n• Membership: {member_status}\n• Expires: {expiry}\n\n📡 <b>Proxy Status</b>\n• Proxy Mode: {proxy_status}\n• Proxy Count: {proxy_count}\n• Current Time: {current_time}",
+    "welcome": "<b>🔍 Telegram Account Bot V8.0</b>\n\n👤 <b>User Information</b>\n• Name: {first_name}\n• ID: <code>{uid}</code>\n• Membership: {member_status}\n• Expires: {expiry}\n\n📡 <b>Proxy Status</b>\n• Proxy Mode: {proxy_status}\n• Proxy Count: {proxy_count}\n• Current Time: {current_time}",
     "button_check": "🚀 Check Accounts",
     "button_convert": "🔄 Format Conversion",
     "button_modify": "👤 Modify Profile",
@@ -30,7 +29,6 @@
     "proxy_enabled": "🟢 Enabled",
     "proxy_local": "🔴 Local Connection"
   },
-  
   "check": {
     "title": "📱 <b>Account Detection</b>",
     "upload_prompt": "Please upload account files (ZIP)\n\n✅ <b>Supported Formats:</b>\n• Session files\n• TData folders\n\n💡 <b>Instructions:</b>\n1️⃣ Pack account files into ZIP\n2️⃣ Upload ZIP archive\n3️⃣ Wait for automatic detection\n4️⃣ Download detection results",
@@ -40,7 +38,6 @@
     "invalid_format": "❌ Invalid file format",
     "error": "❌ Detection failed: {error}"
   },
-  
   "convert": {
     "title": "🔄 <b>Format Conversion</b>",
     "menu": "Please select conversion direction:",
@@ -51,7 +48,6 @@
     "complete": "✅ Conversion Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
     "error": "❌ Conversion failed: {error}"
   },
-  
   "modify": {
     "title": "👤 <b>Modify Profile</b>",
     "menu": "Please select modification mode:",
@@ -77,7 +73,6 @@
     "custom_bio_skip": "⏭ Skip",
     "error": "❌ Modification failed: {error}"
   },
-  
   "twofa": {
     "change_title": "🔐 <b>Change 2FA Password</b>",
     "change_prompt": "Please upload account files (ZIP)",
@@ -94,7 +89,6 @@
     "input_password": "🔐 <b>Please enter your current 2FA password:</b>\n\n• Enter your current 2FA password\n• System will verify and remove 2FA\n• Please send within 5 minutes...\n\n💡 To cancel, click /start to return",
     "error": "❌ Operation failed: {error}"
   },
-  
   "classify": {
     "title": "📦 <b>Account Classification</b>",
     "menu": "Please select classification method:",
@@ -106,7 +100,6 @@
     "complete": "✅ Classification Complete!\n\n• Total: {total}\n• Categories: {categories}",
     "error": "❌ Classification failed: {error}"
   },
-  
   "batch": {
     "title": "📦 <b>Batch Account Creation</b>",
     "menu": "Please enter quantity (1-100):",
@@ -114,7 +107,6 @@
     "complete": "✅ Creation Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
     "error": "❌ Creation failed: {error}"
   },
-  
   "api": {
     "title": "🔗 <b>API Conversion</b>",
     "upload_prompt": "Please upload account files (ZIP)",
@@ -122,7 +114,6 @@
     "complete": "✅ Conversion Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
     "error": "❌ Conversion failed: {error}"
   },
-  
   "rename": {
     "title": "📝 <b>File Rename</b>",
     "upload_prompt": "Please upload files to rename (ZIP)",
@@ -130,7 +121,6 @@
     "complete": "✅ Rename Complete!",
     "error": "❌ Rename failed: {error}"
   },
-  
   "merge": {
     "title": "🧩 <b>Account Merge</b>",
     "upload_prompt": "Please upload account files to merge (ZIP)",
@@ -141,7 +131,6 @@
     "cancel": "❌ Cancel",
     "error": "❌ Merge failed: {error}"
   },
-  
   "cleanup": {
     "title": "🧹 <b>One-Click Cleanup</b>",
     "prompt": "⚠️ <b>Warning:</b>\n\nThis will clean system temp files and cache, continue?",
@@ -151,7 +140,6 @@
     "complete": "✅ Cleanup Complete!",
     "error": "❌ Cleanup failed: {error}"
   },
-  
   "reauthorize": {
     "title": "🔑 <b>Reauthorize</b>",
     "upload_prompt": "Please upload account files to reauthorize (ZIP)",
@@ -159,7 +147,6 @@
     "complete": "✅ Reauthorization Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
     "error": "❌ Reauthorization failed: {error}"
   },
-  
   "registration": {
     "title": "🕰️ <b>Check Registration Time</b>",
     "upload_prompt": "Please upload account files (ZIP)",
@@ -168,7 +155,6 @@
     "result": "📅 Registration: {date}",
     "error": "❌ Check failed: {error}"
   },
-  
   "vip": {
     "title": "💳 <b>VIP Membership</b>",
     "menu": "Please select operation:",
@@ -181,7 +167,6 @@
     "redeem_failed": "❌ Redemption Failed: {error}",
     "error": "❌ Operation failed: {error}"
   },
-  
   "admin": {
     "title": "👑 <b>Admin Panel</b>",
     "menu": "Please select admin function:",
@@ -198,7 +183,6 @@
     "broadcast_complete": "✅ Broadcast Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
     "error": "❌ Operation failed: {error}"
   },
-  
   "proxy": {
     "title": "📡 <b>Proxy Management</b>",
     "menu": "Please select operation:",
@@ -215,7 +199,6 @@
     "disable_success": "✅ Proxy mode disabled",
     "error": "❌ Operation failed: {error}"
   },
-  
   "settings": {
     "title": "⚙️ <b>Settings</b>",
     "menu": "Please select setting:",
@@ -225,12 +208,10 @@
     "language_changed": "✅ Language changed to {lang}",
     "error": "❌ Settings failed: {error}"
   },
-  
   "status": {
     "title": "⚙️ <b>System Status</b>",
     "info": "📊 <b>System Information</b>\n\n• Version: V8.0\n• Uptime: {uptime}\n• Users: {users}\n• Proxy Status: {proxy_status}\n• Current Time: {current_time}"
   },
-  
   "common": {
     "back": "🔙 Back",
     "back_main": "🔙 Back to Main",
@@ -255,7 +236,6 @@
     "not_member": "❌ Membership Required",
     "admin_only": "❌ Admin Only"
   },
-  
   "file": {
     "uploading": "⬆️ Uploading file...",
     "downloading": "⬇️ Downloading file...",
@@ -269,7 +249,6 @@
     "not_found": "❌ File not found",
     "complete": "✅ File processing complete"
   },
-  
   "error": {
     "unknown": "❌ Unknown error",
     "network": "❌ Network error",
