@@ -3307,17 +3307,18 @@ class FileProcessor:
             shutil.rmtree(task_upload_dir, ignore_errors=True)
             return [], "", "error"
         
-        # 优先级：TData > Session（修复检测优先级问题）
-        if tdata_folders:
-            print(f"🎯 检测到TData文件，优先使用TData检测")
-            print(f"✅ 找到 {len(tdata_folders)} 个唯一TData文件夹")
-            if session_files:
-                print(f"📱 同时发现 {len(session_files)} 个Session文件（已忽略，优先TData）")
-            return tdata_folders, task_upload_dir, "tdata"
-        elif session_files:
-            print(f"📱 检测到Session文件，使用Session检测")
+        # 优先级：Session > TData（优先使用Session检查，准确性更高）
+        # 如果同时存在Session和TData，优先使用Session进行检查
+        if session_files:
+            print(f"📱 检测到Session文件，优先使用Session检测（准确性更高）")
             print(f"✅ 找到 {len(session_files)} 个Session文件")
+            if tdata_folders:
+                print(f"📂 同时发现 {len(tdata_folders)} 个TData文件夹（已忽略，优先Session）")
             return session_files, task_upload_dir, "session"
+        elif tdata_folders:
+            print(f"🎯 检测到TData文件，使用TData检测")
+            print(f"✅ 找到 {len(tdata_folders)} 个唯一TData文件夹")
+            return tdata_folders, task_upload_dir, "tdata"
         else:
             print("❌ 未找到有效的账号文件")
             print("💡 TData格式要求:")
@@ -4316,50 +4317,121 @@ class PasswordDetector:
     """密码自动检测器 - 支持TData和Session格式"""
     
     def __init__(self):
-        # TData格式的密码文件名（不区分大小写）
-        self.tdata_password_files = ['2fa.txt', 'twofa.txt', 'password.txt']
+        # TData格式的密码文件关键词（优先级从高到低）
+        # 使用关键词匹配，支持任意大小写组合
+        self.tdata_password_keywords = [
+            '2fa',      # 匹配 2fa.txt, 2FA.txt, 2Fa.TXT 等
+            'twofa',    # 匹配 twofa.txt, TwoFA.txt, TWOFA.TXT 等
+            'password', # 匹配 password.txt, Password.txt, PASSWORD.TXT 等
+            '两步验证',  # 匹配中文文件名
+            '密码',      # 匹配中文 密码.txt
+            'pass',     # 匹配 pass.txt 等简写
+        ]
         # Session JSON中的密码字段名
         self.session_password_fields = ['twoFA', '2fa', 'password', 'two_fa', 'twofa']
     
     def detect_tdata_password(self, tdata_path: str) -> Optional[str]:
         """
-        检测TData格式中的密码
+        检测TData格式的密码
         
         Args:
-            tdata_path: TData目录路径
+            tdata_path: TData 目录路径或包含 tdata 的父目录
             
         Returns:
-            检测到的密码，如果未找到则返回None
+            检测到的密码，如果未找到则返回 None
         """
         try:
-            # 检查D877F783D5D3EF8C目录
-            d877_path = os.path.join(tdata_path, "D877F783D5D3EF8C")
-            if not os.path.exists(d877_path):
-                print(f"⚠️ TData目录结构无效: {tdata_path}")
-                return None
+            # 可能的搜索路径
+            search_paths = []
             
-            # 搜索密码文件
-            for filename in self.tdata_password_files:
-                # 尝试不同的大小写组合
-                for root, dirs, files in os.walk(tdata_path):
-                    for file in files:
-                        if file.lower() == filename.lower():
-                            password_file = os.path.join(root, file)
-                            try:
-                                with open(password_file, 'r', encoding='utf-8') as f:
-                                    password = f.read().strip()
-                                    if password:
-                                        print(f"✅ 在TData中检测到密码文件: {file}")
-                                        return password
-                            except Exception as e:
-                                print(f"⚠️ 读取密码文件失败 {file}: {e}")
-                                continue
+            # 情况1: tdata_path 本身就是 tdata 目录
+            if os.path.basename(tdata_path).lower() == 'tdata':
+                search_paths.append(tdata_path)
+                search_paths.append(os.path.dirname(tdata_path))  # 父目录
+                logger.debug(f"TData目录检测: {tdata_path} 本身是tdata目录")
+            # 情况2: tdata_path 是包含 tdata 的父目录
+            elif os.path.isdir(os.path.join(tdata_path, 'tdata')):
+                search_paths.append(os.path.join(tdata_path, 'tdata'))
+                search_paths.append(tdata_path)
+                logger.debug(f"TData目录检测: {tdata_path} 包含tdata子目录")
+            # 情况3: tdata_path 是其他目录（可能是D877目录或账号根目录）
+            else:
+                search_paths.append(tdata_path)
+                parent_dir = os.path.dirname(tdata_path)
+                if parent_dir:
+                    search_paths.append(parent_dir)
+                    # 也检查父目录的父目录（处理深层嵌套）
+                    grandparent_dir = os.path.dirname(parent_dir)
+                    if grandparent_dir:
+                        search_paths.append(grandparent_dir)
+                logger.debug(f"TData目录检测: {tdata_path} 是其他目录，搜索多级父目录")
             
-            print(f"ℹ️ 未在TData中找到密码文件")
+            logger.info(f"开始在 {len(search_paths)} 个路径中搜索密码文件")
+            logger.debug(f"搜索路径: {search_paths}")
+            
+            # 在所有可能的路径中搜索密码文件
+            for search_path in search_paths:
+                if not os.path.isdir(search_path):
+                    logger.debug(f"跳过非目录路径: {search_path}")
+                    continue
+                
+                logger.debug(f"搜索目录: {search_path}")
+                logger.debug(f"目录内容: {os.listdir(search_path) if os.path.isdir(search_path) else '无法列出'}")
+                
+                # 获取目录中的所有文件（不区分大小写匹配）
+                try:
+                    files_in_dir = os.listdir(search_path)
+                except Exception as e:
+                    logger.warning(f"无法列出目录 {search_path}: {e}")
+                    continue
+                
+                # 按关键词优先级匹配文件
+                for keyword in self.tdata_password_keywords:
+                    # 在目录中查找包含关键词的文件（不区分大小写）
+                    for actual_file in files_in_dir:
+                        # 检查文件名（不含扩展名）是否包含关键词
+                        file_lower = actual_file.lower()
+                        keyword_lower = keyword.lower()
+                        
+                        # 匹配条件：文件名包含关键词，且是文本文件
+                        if keyword_lower in file_lower and actual_file.lower().endswith('.txt'):
+                            password_file = os.path.join(search_path, actual_file)
+                            
+                            if os.path.isfile(password_file):
+                                logger.info(f"找到密码文件: {password_file} (匹配关键词: {keyword})")
+                                try:
+                                    # 先尝试UTF-8编码
+                                    with open(password_file, 'r', encoding='utf-8') as f:
+                                        password = f.read().strip()
+                                        if password:  # 确保不是空文件
+                                            logger.info(f"从 {password_file} 检测到密码 (UTF-8编码)")
+                                            return password
+                                        else:
+                                            logger.warning(f"密码文件为空: {password_file}")
+                                            # 继续查找其他文件
+                                except UnicodeDecodeError:
+                                    # 尝试GBK编码
+                                    try:
+                                        with open(password_file, 'r', encoding='gbk') as f:
+                                            password = f.read().strip()
+                                            if password:
+                                                logger.info(f"从 {password_file} 检测到密码 (GBK编码)")
+                                                return password
+                                            else:
+                                                logger.warning(f"密码文件为空: {password_file}")
+                                    except Exception as e:
+                                        logger.warning(f"读取密码文件失败 {password_file} (GBK): {e}")
+                                        continue
+                                except Exception as e:
+                                    logger.warning(f"读取密码文件失败 {password_file}: {e}")
+                                    continue
+            
+            logger.debug(f"未在 TData 目录中找到密码文件: {tdata_path}")
+            logger.debug(f"搜索的关键词: {self.tdata_password_keywords}")
             return None
             
         except Exception as e:
-            print(f"❌ TData密码检测失败: {e}")
+            logger.error(f"检测TData密码时出错: {e}")
             return None
     
     def detect_session_password(self, json_path: str) -> Optional[str]:
@@ -18994,7 +19066,8 @@ admin3</code>
 
 💡 <i>自动识别支持：</i>
 - Session格式：JSON中的twofa/password/2fa字段
-- TData格式：2fa.txt、twofa.txt、password.txt等文件
+- TData格式：任何包含2fa/twofa/password的.txt文件（不区分大小写）
+  例如：2FA.txt, twoFA.TXT, password.txt, 两步验证.txt 等
 """
             
             keyboard = InlineKeyboardMarkup([
