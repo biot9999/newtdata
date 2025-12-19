@@ -1,0 +1,286 @@
+{
+  "language_name": "🇺🇸 English",
+  
+  "start": {
+    "welcome": "<b>🔍 Telegram Account Bot V8.0</b>\n\n👤 <b>User Information</b>\n• Name: {first_name}\n• ID: <code>{user_id}</code>\n• Membership: {member_status}\n• Expires: {expiry}\n\n📡 <b>Proxy Status</b>\n• Proxy Mode: {proxy_status}\n• Proxy Count: {proxy_count}\n• Current Time: {current_time}",
+    "button_check": "🚀 Check Accounts",
+    "button_convert": "🔄 Format Conversion",
+    "button_modify": "👤 Modify Profile",
+    "button_batch": "📦 Batch Creation",
+    "button_change_2fa": "🔐 Change 2FA",
+    "button_forget_2fa": "🔓 Forgot 2FA",
+    "button_remove_2fa": "❌ Remove 2FA",
+    "button_add_2fa": "➕ Add 2FA",
+    "button_classify": "📦 Account Classification",
+    "button_api_convert": "🔗 API Conversion",
+    "button_rename": "📝 File Rename",
+    "button_merge": "🧩 Account Merge",
+    "button_cleanup": "🧹 One-Click Cleanup",
+    "button_reauthorize": "🔑 Reauthorize",
+    "button_check_registration": "🕰️ Check Registration",
+    "button_vip": "💳 VIP Membership",
+    "button_admin": "👑 Admin Panel",
+    "button_proxy": "📡 Proxy Management",
+    "button_status": "⚙️ Status",
+    "button_settings": "⚙️ Settings",
+    "user_label": "User",
+    "admin_status": "👑 Administrator",
+    "member_status": "🎁 {level}",
+    "no_member": "❌ No Membership",
+    "proxy_enabled": "🟢 Enabled",
+    "proxy_local": "🔴 Local Connection"
+  },
+  
+  "check": {
+    "title": "📱 <b>Account Detection</b>",
+    "upload_prompt": "Please upload account files (ZIP)\n\n✅ <b>Supported Formats:</b>\n• Session files\n• TData folders\n\n💡 <b>Instructions:</b>\n1️⃣ Pack account files into ZIP\n2️⃣ Upload ZIP archive\n3️⃣ Wait for automatic detection\n4️⃣ Download detection results",
+    "processing": "⏳ <b>Processing...</b>\n\n📊 <b>Progress:</b>\n• Total: {total}\n• Checked: {current}\n• Alive: {alive}\n• Dead: {dead}\n• Speed: {speed:.1f}/s\n• ETA: {eta}",
+    "complete": "✅ <b>Detection Complete!</b>\n\n📊 <b>Results:</b>\n• Total: {total}\n• Alive: {alive}\n• Dead: {dead}\n• Success Rate: {rate}%\n\n⏱️ Total Time: {duration}",
+    "no_files": "❌ No valid account files found",
+    "invalid_format": "❌ Invalid file format",
+    "error": "❌ Detection failed: {error}"
+  },
+  
+  "convert": {
+    "title": "🔄 <b>Format Conversion</b>",
+    "menu": "Please select conversion direction:",
+    "session_to_tdata": "Session → TData",
+    "tdata_to_session": "TData → Session",
+    "upload_prompt": "Please upload files to convert (ZIP)",
+    "processing": "⏳ Converting...\n\nProgress: {current}/{total}",
+    "complete": "✅ Conversion Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
+    "error": "❌ Conversion failed: {error}"
+  },
+  
+  "modify": {
+    "title": "👤 <b>Modify Profile</b>",
+    "menu": "Please select modification mode:",
+    "mode_random": "🎲 Random Generation",
+    "mode_custom": "✏️ Custom Configuration",
+    "upload_prompt": "Please upload account files (ZIP)",
+    "processing": "⏳ Modifying profile...\n\nProgress: {current}/{total}",
+    "complete": "✅ Modification Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
+    "custom_name_title": "✏️ <b>Custom Name Configuration</b>",
+    "custom_name_prompt": "Please select name setting method:",
+    "custom_name_random": "🎲 Random Generation",
+    "custom_name_single": "📝 Unified Name",
+    "custom_name_skip": "⏭ Skip",
+    "custom_avatar_title": "🖼️ <b>Custom Avatar Configuration</b>",
+    "custom_avatar_prompt": "Please select avatar setting method:",
+    "custom_avatar_upload": "📤 Upload Avatar",
+    "custom_avatar_random": "🎲 Random Avatar",
+    "custom_avatar_skip": "⏭ Skip",
+    "custom_bio_title": "📝 <b>Custom Bio Configuration</b>",
+    "custom_bio_prompt": "Please select bio setting method:",
+    "custom_bio_single": "💬 Unified Bio",
+    "custom_bio_empty": "⬜ Set Empty",
+    "custom_bio_skip": "⏭ Skip",
+    "error": "❌ Modification failed: {error}"
+  },
+  
+  "twofa": {
+    "change_title": "🔐 <b>Change 2FA Password</b>",
+    "change_prompt": "Please upload account files (ZIP)",
+    "forget_title": "🔓 <b>Forgot 2FA Password</b>",
+    "forget_prompt": "Please upload account files (ZIP)\n\n⚠️ This will attempt to recover 2FA via email",
+    "remove_title": "❌ <b>Remove 2FA Password</b>",
+    "remove_prompt": "Please upload account files (ZIP)",
+    "remove_mode_auto": "🤖 Auto Detect Password",
+    "remove_mode_manual": "✍️ Manual Input",
+    "add_title": "➕ <b>Add 2FA Password</b>",
+    "add_prompt": "Please upload account files (ZIP)",
+    "processing": "⏳ Processing...\n\nProgress: {current}/{total}",
+    "complete": "✅ Process Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
+    "input_password": "🔐 <b>Please enter your current 2FA password:</b>\n\n• Enter your current 2FA password\n• System will verify and remove 2FA\n• Please send within 5 minutes...\n\n💡 To cancel, click /start to return",
+    "error": "❌ Operation failed: {error}"
+  },
+  
+  "classify": {
+    "title": "📦 <b>Account Classification</b>",
+    "menu": "Please select classification method:",
+    "by_status": "📊 By Status",
+    "by_2fa": "🔐 By 2FA",
+    "by_premium": "👑 By Premium",
+    "upload_prompt": "Please upload account files (ZIP)",
+    "processing": "⏳ Classifying...\n\nProgress: {current}/{total}",
+    "complete": "✅ Classification Complete!\n\n• Total: {total}\n• Categories: {categories}",
+    "error": "❌ Classification failed: {error}"
+  },
+  
+  "batch": {
+    "title": "📦 <b>Batch Account Creation</b>",
+    "menu": "Please enter quantity (1-100):",
+    "processing": "⏳ Creating accounts...\n\nProgress: {current}/{total}",
+    "complete": "✅ Creation Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
+    "error": "❌ Creation failed: {error}"
+  },
+  
+  "api": {
+    "title": "🔗 <b>API Conversion</b>",
+    "upload_prompt": "Please upload account files (ZIP)",
+    "processing": "⏳ Converting...\n\nProgress: {current}/{total}",
+    "complete": "✅ Conversion Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
+    "error": "❌ Conversion failed: {error}"
+  },
+  
+  "rename": {
+    "title": "📝 <b>File Rename</b>",
+    "upload_prompt": "Please upload files to rename (ZIP)",
+    "processing": "⏳ Renaming...",
+    "complete": "✅ Rename Complete!",
+    "error": "❌ Rename failed: {error}"
+  },
+  
+  "merge": {
+    "title": "🧩 <b>Account Merge</b>",
+    "upload_prompt": "Please upload account files to merge (ZIP)",
+    "processing": "⏳ Merging...",
+    "complete": "✅ Merge Complete!\n\n• Count: {count}",
+    "continue": "➕ Continue Upload",
+    "finish": "✅ Finish Merge",
+    "cancel": "❌ Cancel",
+    "error": "❌ Merge failed: {error}"
+  },
+  
+  "cleanup": {
+    "title": "🧹 <b>One-Click Cleanup</b>",
+    "prompt": "⚠️ <b>Warning:</b>\n\nThis will clean system temp files and cache, continue?",
+    "confirm": "✅ Confirm Cleanup",
+    "cancel": "❌ Cancel",
+    "processing": "⏳ Cleaning...",
+    "complete": "✅ Cleanup Complete!",
+    "error": "❌ Cleanup failed: {error}"
+  },
+  
+  "reauthorize": {
+    "title": "🔑 <b>Reauthorize</b>",
+    "upload_prompt": "Please upload account files to reauthorize (ZIP)",
+    "processing": "⏳ Reauthorizing...\n\nProgress: {current}/{total}",
+    "complete": "✅ Reauthorization Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
+    "error": "❌ Reauthorization failed: {error}"
+  },
+  
+  "registration": {
+    "title": "🕰️ <b>Check Registration Time</b>",
+    "upload_prompt": "Please upload account files (ZIP)",
+    "processing": "⏳ Checking...\n\nProgress: {current}/{total}",
+    "complete": "✅ Check Complete!\n\n• Total: {total}",
+    "result": "📅 Registration: {date}",
+    "error": "❌ Check failed: {error}"
+  },
+  
+  "vip": {
+    "title": "💳 <b>VIP Membership</b>",
+    "menu": "Please select operation:",
+    "open": "💳 Open Membership",
+    "redeem": "🎁 Redeem Code",
+    "status": "📊 Membership Status",
+    "current_status": "Current Status: {status}\nExpires: {expiry}",
+    "redeem_prompt": "Please enter redemption code:",
+    "redeem_success": "✅ Redeemed Successfully!\n\nLevel: {level}\nExpires: {expiry}",
+    "redeem_failed": "❌ Redemption Failed: {error}",
+    "error": "❌ Operation failed: {error}"
+  },
+  
+  "admin": {
+    "title": "👑 <b>Admin Panel</b>",
+    "menu": "Please select admin function:",
+    "add_admin": "➕ Add Admin",
+    "remove_admin": "➖ Remove Admin",
+    "broadcast": "📢 Broadcast Message",
+    "stats": "📊 Statistics",
+    "user_manage": "👥 User Management",
+    "vip_manage": "💎 VIP Management",
+    "stats_info": "📊 <b>System Statistics</b>\n\n👥 Total Users: {total_users}\n💎 VIP Users: {vip_users}\n📝 Active Today: {active_today}",
+    "broadcast_prompt": "Please enter broadcast message:",
+    "broadcast_confirm": "Send to {count} users?",
+    "broadcast_sending": "📤 Sending...\n\nProgress: {current}/{total}",
+    "broadcast_complete": "✅ Broadcast Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
+    "error": "❌ Operation failed: {error}"
+  },
+  
+  "proxy": {
+    "title": "📡 <b>Proxy Management</b>",
+    "menu": "Please select operation:",
+    "test": "🧪 Test Proxies",
+    "reload": "🔄 Reload Proxies",
+    "stats": "📊 Proxy Statistics",
+    "enable": "🟢 Enable Proxy",
+    "disable": "🔴 Disable Proxy",
+    "testing": "🧪 Testing {count} proxies...\n\n⚡ Concurrent: {concurrent}\n⏱️ Timeout: {timeout}s",
+    "test_result": "📊 Proxy Test Complete:\n• Total: {total}\n• Working: {working} ({working_rate}%)\n• Failed: {failed} ({failed_rate}%)\n• Avg Response: {avg_time:.2f}s",
+    "reload_success": "✅ Proxies Reloaded!\n\nLoaded {count} proxies",
+    "stats_info": "📊 <b>Proxy Statistics</b>\n\n• Total: {total}\n• Working: {working}\n• Failed: {failed}\n• Proxy Mode: {status}",
+    "enable_success": "✅ Proxy mode enabled",
+    "disable_success": "✅ Proxy mode disabled",
+    "error": "❌ Operation failed: {error}"
+  },
+  
+  "settings": {
+    "title": "⚙️ <b>Settings</b>",
+    "menu": "Please select setting:",
+    "language": "🌐 Language Settings",
+    "current_language": "Current Language: {lang}",
+    "select_language": "🌐 <b>Language Settings</b>\n\nPlease select language:",
+    "language_changed": "✅ Language changed to {lang}",
+    "error": "❌ Settings failed: {error}"
+  },
+  
+  "status": {
+    "title": "⚙️ <b>System Status</b>",
+    "info": "📊 <b>System Information</b>\n\n• Version: V8.0\n• Uptime: {uptime}\n• Users: {users}\n• Proxy Status: {proxy_status}\n• Current Time: {current_time}"
+  },
+  
+  "common": {
+    "back": "🔙 Back",
+    "back_main": "🔙 Back to Main",
+    "cancel": "❌ Cancel",
+    "confirm": "✅ Confirm",
+    "continue": "▶️ Continue",
+    "finish": "✅ Finish",
+    "processing": "⏳ Processing...",
+    "success": "✅ Success",
+    "failed": "❌ Failed",
+    "error": "❌ Error: {error}",
+    "invalid_input": "❌ Invalid Input",
+    "timeout": "⏱️ Operation Timeout",
+    "please_wait": "⏳ Please Wait...",
+    "upload_file": "📤 Please Upload File",
+    "downloading": "⬇️ Downloading...",
+    "uploading": "⬆️ Uploading...",
+    "extracting": "📦 Extracting...",
+    "compressing": "📦 Compressing...",
+    "eta": "ETA: {time}",
+    "no_permission": "❌ Permission Denied",
+    "not_member": "❌ Membership Required",
+    "admin_only": "❌ Admin Only"
+  },
+  
+  "file": {
+    "uploading": "⬆️ Uploading file...",
+    "downloading": "⬇️ Downloading file...",
+    "processing": "⏳ Processing file...",
+    "extracting": "📦 Extracting file...",
+    "compressing": "📦 Compressing file...",
+    "invalid_format": "❌ Invalid file format",
+    "too_large": "❌ File too large",
+    "upload_failed": "❌ Upload failed: {error}",
+    "download_failed": "❌ Download failed: {error}",
+    "not_found": "❌ File not found",
+    "complete": "✅ File processing complete"
+  },
+  
+  "error": {
+    "unknown": "❌ Unknown error",
+    "network": "❌ Network error",
+    "timeout": "❌ Connection timeout",
+    "invalid_file": "❌ Invalid file",
+    "no_permission": "❌ Permission denied",
+    "system": "❌ System error: {error}",
+    "user_not_found": "❌ User not found",
+    "account_frozen": "❌ Account frozen",
+    "account_banned": "❌ Account banned",
+    "invalid_2fa": "❌ Invalid 2FA password",
+    "session_expired": "❌ Session expired"
+  }
+}

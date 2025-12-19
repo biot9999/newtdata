@@ -1,0 +1,286 @@
+{
+  "language_name": "🇨🇳 简体中文",
+  
+  "start": {
+    "welcome": "<b>🔍 Telegram账号机器人 V8.0</b>\n\n👤 <b>用户信息</b>\n• 昵称: {first_name}\n• ID: <code>{user_id}</code>\n• 会员: {member_status}\n• 到期: {expiry}\n\n📡 <b>代理状态</b>\n• 代理模式: {proxy_status}\n• 代理数量: {proxy_count}个\n• 当前时间: {current_time}",
+    "button_check": "🚀 账号检测",
+    "button_convert": "🔄 格式转换",
+    "button_modify": "👤 修改资料",
+    "button_batch": "📦 批量创建",
+    "button_change_2fa": "🔐 修改2FA",
+    "button_forget_2fa": "🔓 忘记2FA",
+    "button_remove_2fa": "❌ 删除2FA",
+    "button_add_2fa": "➕ 添加2FA",
+    "button_classify": "📦 账号拆分",
+    "button_api_convert": "🔗 API转换",
+    "button_rename": "📝 文件重命名",
+    "button_merge": "🧩 账户合并",
+    "button_cleanup": "🧹 一键清理",
+    "button_reauthorize": "🔑 重新授权",
+    "button_check_registration": "🕰️ 查询注册时间",
+    "button_vip": "💳 开通/兑换会员",
+    "button_admin": "👑 管理员面板",
+    "button_proxy": "📡 代理管理",
+    "button_status": "⚙️ 状态",
+    "button_settings": "⚙️ 设置",
+    "user_label": "用户",
+    "admin_status": "👑 管理员",
+    "member_status": "🎁 {level}",
+    "no_member": "❌ 无会员",
+    "proxy_enabled": "🟢启用",
+    "proxy_local": "🔴本地连接"
+  },
+  
+  "check": {
+    "title": "📱 <b>账号检测功能</b>",
+    "upload_prompt": "请上传账号文件（ZIP压缩包）\n\n✅ <b>支持格式：</b>\n• Session 文件\n• TData 文件夹\n\n💡 <b>使用说明：</b>\n1️⃣ 将账号文件打包成 ZIP\n2️⃣ 上传 ZIP 压缩包\n3️⃣ 等待自动检测完成\n4️⃣ 下载检测结果",
+    "processing": "⏳ <b>正在检测...</b>\n\n📊 <b>检测进度：</b>\n• 总数: {total}\n• 已检: {current}\n• 存活: {alive}\n• 死亡: {dead}\n• 速度: {speed:.1f} 个/秒\n• 预计剩余: {eta}",
+    "complete": "✅ <b>检测完成！</b>\n\n📊 <b>检测结果：</b>\n• 总计: {total}\n• 存活: {alive}\n• 死亡: {dead}\n• 存活率: {rate}%\n\n⏱️ 总耗时: {duration}",
+    "no_files": "❌ 未找到有效的账号文件",
+    "invalid_format": "❌ 文件格式无效",
+    "error": "❌ 检测失败: {error}"
+  },
+  
+  "convert": {
+    "title": "🔄 <b>格式转换功能</b>",
+    "menu": "请选择转换方向：",
+    "session_to_tdata": "Session → TData",
+    "tdata_to_session": "TData → Session",
+    "upload_prompt": "请上传需要转换的文件（ZIP压缩包）",
+    "processing": "⏳ 正在转换...\n\n进度: {current}/{total}",
+    "complete": "✅ 转换完成！\n\n• 总数: {total}\n• 成功: {success}\n• 失败: {failed}",
+    "error": "❌ 转换失败: {error}"
+  },
+  
+  "modify": {
+    "title": "👤 <b>修改资料功能</b>",
+    "menu": "请选择修改模式：",
+    "mode_random": "🎲 随机生成",
+    "mode_custom": "✏️ 自定义配置",
+    "upload_prompt": "请上传账号文件（ZIP压缩包）",
+    "processing": "⏳ 正在修改资料...\n\n进度: {current}/{total}",
+    "complete": "✅ 修改完成！\n\n• 总数: {total}\n• 成功: {success}\n• 失败: {failed}",
+    "custom_name_title": "✏️ <b>自定义名字配置</b>",
+    "custom_name_prompt": "请选择名字设置方式：",
+    "custom_name_random": "🎲 随机生成",
+    "custom_name_single": "📝 统一名字",
+    "custom_name_skip": "⏭ 跳过不修改",
+    "custom_avatar_title": "🖼️ <b>自定义头像配置</b>",
+    "custom_avatar_prompt": "请选择头像设置方式：",
+    "custom_avatar_upload": "📤 上传头像",
+    "custom_avatar_random": "🎲 随机头像",
+    "custom_avatar_skip": "⏭ 跳过不修改",
+    "custom_bio_title": "📝 <b>自定义简介配置</b>",
+    "custom_bio_prompt": "请选择简介设置方式：",
+    "custom_bio_single": "💬 统一简介",
+    "custom_bio_empty": "⬜ 设置为空",
+    "custom_bio_skip": "⏭ 跳过不修改",
+    "error": "❌ 修改失败: {error}"
+  },
+  
+  "twofa": {
+    "change_title": "🔐 <b>修改2FA密码</b>",
+    "change_prompt": "请上传账号文件（ZIP压缩包）",
+    "forget_title": "🔓 <b>忘记2FA密码</b>",
+    "forget_prompt": "请上传账号文件（ZIP压缩包）\n\n⚠️ 此功能将尝试通过邮箱恢复2FA",
+    "remove_title": "❌ <b>删除2FA密码</b>",
+    "remove_prompt": "请上传账号文件（ZIP压缩包）",
+    "remove_mode_auto": "🤖 自动识别密码",
+    "remove_mode_manual": "✍️ 手动输入密码",
+    "add_title": "➕ <b>添加2FA密码</b>",
+    "add_prompt": "请上传账号文件（ZIP压缩包）",
+    "processing": "⏳ 正在处理...\n\n进度: {current}/{total}",
+    "complete": "✅ 处理完成！\n\n• 总数: {total}\n• 成功: {success}\n• 失败: {failed}",
+    "input_password": "🔐 <b>请输入当前的2FA密码：</b>\n\n• 输入您当前使用的2FA密码\n• 系统将验证密码并删除2FA\n• 请在5分钟内发送密码...\n\n💡 如需取消，请点击 /start 返回主菜单",
+    "error": "❌ 操作失败: {error}"
+  },
+  
+  "classify": {
+    "title": "📦 <b>账号拆分功能</b>",
+    "menu": "请选择拆分方式：",
+    "by_status": "📊 按状态拆分",
+    "by_2fa": "🔐 按2FA拆分",
+    "by_premium": "👑 按会员拆分",
+    "upload_prompt": "请上传账号文件（ZIP压缩包）",
+    "processing": "⏳ 正在拆分...\n\n进度: {current}/{total}",
+    "complete": "✅ 拆分完成！\n\n• 总数: {total}\n• 分类: {categories}",
+    "error": "❌ 拆分失败: {error}"
+  },
+  
+  "batch": {
+    "title": "📦 <b>批量创建账号</b>",
+    "menu": "请输入创建数量（1-100）：",
+    "processing": "⏳ 正在创建账号...\n\n进度: {current}/{total}",
+    "complete": "✅ 创建完成！\n\n• 总数: {total}\n• 成功: {success}\n• 失败: {failed}",
+    "error": "❌ 创建失败: {error}"
+  },
+  
+  "api": {
+    "title": "🔗 <b>API转换功能</b>",
+    "upload_prompt": "请上传账号文件（ZIP压缩包）",
+    "processing": "⏳ 正在转换...\n\n进度: {current}/{total}",
+    "complete": "✅ 转换完成！\n\n• 总数: {total}\n• 成功: {success}\n• 失败: {failed}",
+    "error": "❌ 转换失败: {error}"
+  },
+  
+  "rename": {
+    "title": "📝 <b>文件重命名</b>",
+    "upload_prompt": "请上传需要重命名的文件（ZIP压缩包）",
+    "processing": "⏳ 正在重命名...",
+    "complete": "✅ 重命名完成！",
+    "error": "❌ 重命名失败: {error}"
+  },
+  
+  "merge": {
+    "title": "🧩 <b>账户合并</b>",
+    "upload_prompt": "请上传需要合并的账号文件（ZIP压缩包）",
+    "processing": "⏳ 正在合并...",
+    "complete": "✅ 合并完成！\n\n• 合并数量: {count}",
+    "continue": "➕ 继续上传",
+    "finish": "✅ 完成合并",
+    "cancel": "❌ 取消",
+    "error": "❌ 合并失败: {error}"
+  },
+  
+  "cleanup": {
+    "title": "🧹 <b>一键清理</b>",
+    "prompt": "⚠️ <b>警告：</b>\n\n此操作将清理系统临时文件和缓存，是否继续？",
+    "confirm": "✅ 确认清理",
+    "cancel": "❌ 取消",
+    "processing": "⏳ 正在清理...",
+    "complete": "✅ 清理完成！",
+    "error": "❌ 清理失败: {error}"
+  },
+  
+  "reauthorize": {
+    "title": "🔑 <b>重新授权</b>",
+    "upload_prompt": "请上传需要重新授权的账号文件（ZIP压缩包）",
+    "processing": "⏳ 正在重新授权...\n\n进度: {current}/{total}",
+    "complete": "✅ 重新授权完成！\n\n• 总数: {total}\n• 成功: {success}\n• 失败: {failed}",
+    "error": "❌ 重新授权失败: {error}"
+  },
+  
+  "registration": {
+    "title": "🕰️ <b>查询注册时间</b>",
+    "upload_prompt": "请上传账号文件（ZIP压缩包）",
+    "processing": "⏳ 正在查询...\n\n进度: {current}/{total}",
+    "complete": "✅ 查询完成！\n\n• 总数: {total}",
+    "result": "📅 注册时间: {date}",
+    "error": "❌ 查询失败: {error}"
+  },
+  
+  "vip": {
+    "title": "💳 <b>开通/兑换会员</b>",
+    "menu": "请选择操作：",
+    "open": "💳 开通会员",
+    "redeem": "🎁 兑换卡密",
+    "status": "📊 会员状态",
+    "current_status": "当前会员状态：{status}\n到期时间：{expiry}",
+    "redeem_prompt": "请输入卡密：",
+    "redeem_success": "✅ 兑换成功！\n\n会员等级：{level}\n到期时间：{expiry}",
+    "redeem_failed": "❌ 兑换失败：{error}",
+    "error": "❌ 操作失败: {error}"
+  },
+  
+  "admin": {
+    "title": "👑 <b>管理员面板</b>",
+    "menu": "请选择管理功能：",
+    "add_admin": "➕ 添加管理员",
+    "remove_admin": "➖ 移除管理员",
+    "broadcast": "📢 广播消息",
+    "stats": "📊 统计信息",
+    "user_manage": "👥 用户管理",
+    "vip_manage": "💎 会员管理",
+    "stats_info": "📊 <b>系统统计</b>\n\n👥 总用户数: {total_users}\n💎 会员数: {vip_users}\n📝 今日活跃: {active_today}",
+    "broadcast_prompt": "请输入广播消息内容：",
+    "broadcast_confirm": "确认发送给 {count} 位用户？",
+    "broadcast_sending": "📤 正在发送...\n\n进度: {current}/{total}",
+    "broadcast_complete": "✅ 广播完成！\n\n• 总数: {total}\n• 成功: {success}\n• 失败: {failed}",
+    "error": "❌ 操作失败: {error}"
+  },
+  
+  "proxy": {
+    "title": "📡 <b>代理管理</b>",
+    "menu": "请选择操作：",
+    "test": "🧪 测试代理",
+    "reload": "🔄 重载代理",
+    "stats": "📊 代理统计",
+    "enable": "🟢 启用代理",
+    "disable": "🔴 禁用代理",
+    "testing": "🧪 开始测试 {count} 个代理...\n\n⚡ 并发数: {concurrent}\n⏱️ 超时: {timeout}秒",
+    "test_result": "📊 代理测试完成:\n• 总计: {total} 个\n• 可用: {working} 个 ({working_rate}%)\n• 失效: {failed} 个 ({failed_rate}%)\n• 平均响应: {avg_time:.2f}秒",
+    "reload_success": "✅ 代理重载成功！\n\n加载了 {count} 个代理",
+    "stats_info": "📊 <b>代理统计</b>\n\n• 总数: {total}\n• 可用: {working}\n• 失效: {failed}\n• 代理模式: {status}",
+    "enable_success": "✅ 代理模式已启用",
+    "disable_success": "✅ 代理模式已禁用",
+    "error": "❌ 操作失败: {error}"
+  },
+  
+  "settings": {
+    "title": "⚙️ <b>设置</b>",
+    "menu": "请选择设置项：",
+    "language": "🌐 语言设置",
+    "current_language": "当前语言: {lang}",
+    "select_language": "🌐 <b>语言设置</b>\n\n请选择语言：",
+    "language_changed": "✅ 语言已切换为 {lang}",
+    "error": "❌ 设置失败: {error}"
+  },
+  
+  "status": {
+    "title": "⚙️ <b>系统状态</b>",
+    "info": "📊 <b>系统信息</b>\n\n• 版本: V8.0\n• 运行时间: {uptime}\n• 用户数: {users}\n• 代理状态: {proxy_status}\n• 当前时间: {current_time}"
+  },
+  
+  "common": {
+    "back": "🔙 返回",
+    "back_main": "🔙 返回主菜单",
+    "cancel": "❌ 取消",
+    "confirm": "✅ 确认",
+    "continue": "▶️ 继续",
+    "finish": "✅ 完成",
+    "processing": "⏳ 处理中...",
+    "success": "✅ 成功",
+    "failed": "❌ 失败",
+    "error": "❌ 错误: {error}",
+    "invalid_input": "❌ 输入无效",
+    "timeout": "⏱️ 操作超时",
+    "please_wait": "⏳ 请稍候...",
+    "upload_file": "📤 请上传文件",
+    "downloading": "⬇️ 正在下载...",
+    "uploading": "⬆️ 正在上传...",
+    "extracting": "📦 正在解压...",
+    "compressing": "📦 正在压缩...",
+    "eta": "预计剩余: {time}",
+    "no_permission": "❌ 权限不足",
+    "not_member": "❌ 此功能需要会员权限",
+    "admin_only": "❌ 仅管理员可用"
+  },
+  
+  "file": {
+    "uploading": "⬆️ 正在上传文件...",
+    "downloading": "⬇️ 正在下载文件...",
+    "processing": "⏳ 正在处理文件...",
+    "extracting": "📦 正在解压文件...",
+    "compressing": "📦 正在压缩文件...",
+    "invalid_format": "❌ 文件格式无效",
+    "too_large": "❌ 文件过大",
+    "upload_failed": "❌ 上传失败: {error}",
+    "download_failed": "❌ 下载失败: {error}",
+    "not_found": "❌ 文件未找到",
+    "complete": "✅ 文件处理完成"
+  },
+  
+  "error": {
+    "unknown": "❌ 未知错误",
+    "network": "❌ 网络错误",
+    "timeout": "❌ 连接超时",
+    "invalid_file": "❌ 无效文件",
+    "no_permission": "❌ 权限不足",
+    "system": "❌ 系统错误: {error}",
+    "user_not_found": "❌ 用户不存在",
+    "account_frozen": "❌ 账号已冻结",
+    "account_banned": "❌ 账号已被封禁",
+    "invalid_2fa": "❌ 2FA密码错误",
+    "session_expired": "❌ 会话已过期"
+  }
+}
