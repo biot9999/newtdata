@@ -19304,6 +19304,23 @@ admin3</code>
         # 生成结果文件
         timestamp = datetime.now(BEIJING_TZ).strftime('%Y%m%d_%H%M%S')
         
+        # 生成详细修改报告
+        task_id = f"modify_{user_id}_{timestamp}"
+        report_path = self.profile_modifier.generate_modify_report(results, task_id, config.RESULTS_DIR)
+        
+        # 发送详细报告文件
+        if report_path and os.path.exists(report_path):
+            try:
+                with open(report_path, 'rb') as f:
+                    self.updater.bot.send_document(
+                        chat_id=chat_id,
+                        document=f,
+                        filename=f"modify_report_{timestamp}.txt",
+                        caption="📊 详细修改报告"
+                    )
+            except Exception as e:
+                logger.error(f"发送报告失败: {e}")
+        
         # 打包成功的账号
         if results['success']:
             success_zip_path = os.path.join(config.RESULTS_DIR, f"modified_success_{timestamp}.zip")

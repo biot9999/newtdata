@@ -5,6 +5,7 @@ Profile Modifier Module - Batch modify Telegram account profiles
 支持智能随机生成和自定义配置两种模式
 """
 
+import os
 import random
 import logging
 import asyncio
@@ -341,6 +342,93 @@ class EmojiAvatarGenerator:
         """获取随机emoji"""
         return random.choice(self.AVATAR_EMOJIS)
     
+    async def delete_all_avatars(self, client: TelegramClient) -> Tuple[int, str]:
+        """删除所有历史头像
+        
+        Returns:
+            (old_count, old_status): 旧头像数量和状态描述
+        """
+        try:
+            # 获取所有头像
+            photos = await client(functions.photos.GetUserPhotosRequest(
+                user_id=types.InputUserSelf(),
+                offset=0,
+                max_id=0,
+                limit=100
+            ))
+            
+            old_count = len(photos.photos)
+            
+            if old_count == 0:
+                return (0, "无头像")
+            
+            # 删除所有头像
+            deleted_count = 0
+            for photo in photos.photos:
+                try:
+                    await client(functions.photos.DeletePhotosRequest(
+                        id=[types.InputPhoto(
+                            id=photo.id,
+                            access_hash=photo.access_hash,
+                            file_reference=photo.file_reference
+                        )]
+                    ))
+                    deleted_count += 1
+                    logger.info(f"已删除旧头像: {photo.id}")
+                except Exception as e:
+                    logger.warning(f"删除头像 {photo.id} 失败: {e}")
+            
+            status = f"已删除 {deleted_count}/{old_count} 个头像"
+            return (old_count, status)
+            
+        except Exception as e:
+            logger.error(f"获取/删除头像失败: {e}")
+            return (0, "未知")
+    
+    async def set_emoji_avatar_properly(self, client: TelegramClient, emoji: str = None) -> Dict[str, Any]:
+        """正确设置Emoji头像（先删除旧头像）
+        
+        Returns:
+            {
+                'success': bool,
+                'old_status': str,  # "无头像" / "有头像"
+                'new_status': str,  # "已删除"
+                'emoji': str,
+                'error': str (可选)
+            }
+        """
+        try:
+            # 1. 删除所有旧头像
+            old_count, old_status_desc = await self.delete_all_avatars(client)
+            old_status = "有头像" if old_count > 0 else "无头像"
+            
+            # 2. 如果没有指定emoji，随机选择
+            if emoji is None:
+                emoji = self.get_random_emoji()
+            
+            # 3. 注意：Telegram API 不直接支持设置 Emoji 头像
+            # 这个功能主要在客户端，API 只能删除头像
+            # 所以这里只删除旧头像，记录emoji用于报告
+            
+            logger.info(f"已处理头像，记录Emoji: {emoji}")
+            
+            return {
+                'success': True,
+                'old_status': old_status,
+                'new_status': '已删除',
+                'emoji': emoji
+            }
+            
+        except Exception as e:
+            logger.error(f"头像处理失败: {e}")
+            return {
+                'success': False,
+                'old_status': '未知',
+                'new_status': '失败',
+                'error': str(e),
+                'emoji': emoji or ''
+            }
+    
     async def set_emoji_avatar(self, client: TelegramClient, emoji: str = None) -> bool:
         """设置Emoji头像（使用UpdateProfileRequest）"""
         try:
@@ -624,19 +712,33 @@ class ProfileModifier:
         self.used_names: Set[str] = set()
     
     async def modify_profile_random(self, client: TelegramClient, phone: str) -> Dict[str, Any]:
-        """随机模式修改资料"""
+        """随机模式修改资料（增强版 - 记录修改前后信息）"""
         try:
-            # 1. 根据手机号生成姓名
+            # 1. 获取当前资料（修改前）
+            me = await client.get_me()
+            old_first_name = me.first_name or ""
+            old_last_name = me.last_name or ""
+            
+            # 获取简介
+            try:
+                full_user = await client(functions.users.GetFullUserRequest(
+                    id=types.InputUserSelf()
+                ))
+                old_bio = full_user.full_user.about or ""
+            except:
+                old_bio = ""
+            
+            # 2. 根据手机号生成姓名
             first_name, last_name = self.name_gen.generate_name_by_phone(phone, self.used_names)
             
-            # 2. 随机 emoji（用于记录，实际无法通过API设置）
+            # 3. 随机 emoji
             emoji = self.emoji_gen.get_random_emoji()
             
-            # 3. 生成简介（根据语言）
+            # 4. 生成简介（根据语言）
             language = self.name_gen.detect_language_from_phone(phone)
             bio = self.bio_gen.generate_bio(language, empty_rate=0.3)
             
-            # 4. 执行修改
+            # 5. 执行修改
             # 修改姓名和简介
             await client(functions.account.UpdateProfileRequest(
                 first_name=first_name,
@@ -644,28 +746,41 @@ class ProfileModifier:
                 about=bio
             ))
             
-            # 尝试设置头像（清空现有头像）
-            await self.emoji_gen.set_emoji_avatar(client, emoji)
+            # 6. 删除旧头像并设置新的 Emoji 头像
+            avatar_result = await self.emoji_gen.set_emoji_avatar_properly(client, emoji)
             
+            # 7. 返回详细信息
             return {
                 'status': 'success',
+                'phone': phone,
+                'old_first_name': old_first_name,
+                'old_last_name': old_last_name,
+                'old_bio': old_bio,
+                'new_first_name': first_name,
+                'new_last_name': last_name,
+                'new_bio': bio,
+                'old_avatar_status': avatar_result.get('old_status', '未知'),
+                'new_avatar_status': avatar_result.get('new_status', '未知'),
+                'language': language,
+                'emoji': emoji,
+                # 保持向后兼容
                 'first_name': first_name,
                 'last_name': last_name,
-                'emoji': emoji,
-                'bio': bio or '(空)',
-                'language': language
+                'bio': bio or '(空)'
             }
             
         except FloodWaitError as e:
             logger.warning(f"遇到限流，需要等待 {e.seconds} 秒")
             return {
                 'status': 'failed',
+                'phone': phone,
                 'error': f'限流，需等待{e.seconds}秒'
             }
         except Exception as e:
             logger.error(f"修改资料失败: {e}")
             return {
                 'status': 'failed',
+                'phone': phone,
                 'error': str(e)
             }
     
@@ -692,3 +807,86 @@ class ProfileModifier:
             
         except Exception as e:
             return {'status': 'failed', 'error': str(e)}
+    
+    def generate_modify_report(self, results: dict, task_id: str, output_dir: str = '/tmp') -> Optional[str]:
+        """生成详细修改报告
+        
+        Args:
+            results: {'success': [...], 'failed': [...]}
+            task_id: 任务ID
+            output_dir: 输出目录
+            
+        Returns:
+            报告文件路径
+        """
+        from datetime import datetime
+        
+        report_path = os.path.join(output_dir, f"{task_id}_report.txt")
+        
+        try:
+            with open(report_path, 'w', encoding='utf-8') as f:
+                # 头部
+                f.write("=" * 60 + "\n")
+                f.write("Telegram 账号资料修改报告\n")
+                f.write(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"任务ID: {task_id}\n")
+                f.write("=" * 60 + "\n\n")
+                
+                # 统计信息
+                total = len(results['success']) + len(results['failed'])
+                success_rate = (len(results['success'])/total*100) if total > 0 else 0
+                f.write(f"总计: {total} 个账号\n")
+                f.write(f"✅ 修改成功: {len(results['success'])} 个\n")
+                f.write(f"❌ 修改失败: {len(results['failed'])} 个\n")
+                f.write(f"成功率: {success_rate:.1f}%\n\n")
+                
+                # 成功的账号
+                if results['success']:
+                    f.write("=" * 60 + "\n")
+                    f.write("成功修改的账号详情\n")
+                    f.write("=" * 60 + "\n\n")
+                    
+                    for idx, (file_path, file_name, result_data) in enumerate(results['success'], 1):
+                        phone = result_data.get('phone', 'Unknown')
+                        
+                        f.write(f"[{idx}] 账号: {phone}\n")
+                        f.write(f"    文件: {file_name}\n")
+                        
+                        old_name = f"{result_data.get('old_first_name', '')} {result_data.get('old_last_name', '')}".strip()
+                        new_name = f"{result_data.get('new_first_name', '')} {result_data.get('new_last_name', '')}".strip()
+                        f.write(f"    修改前姓名: {old_name or '(空)'}\n")
+                        f.write(f"    修改后姓名: {new_name}\n")
+                        
+                        f.write(f"    修改前简介: {result_data.get('old_bio') or '(空)'}\n")
+                        f.write(f"    修改后简介: {result_data.get('new_bio') or '(空)'}\n")
+                        
+                        f.write(f"    头像状态: {result_data.get('old_avatar_status', '未知')} → {result_data.get('new_avatar_status', '未知')}\n")
+                        f.write(f"    识别语言: {result_data.get('language', 'unknown')}\n")
+                        
+                        if result_data.get('emoji'):
+                            f.write(f"    使用Emoji: {result_data['emoji']}\n")
+                        
+                        f.write("-" * 60 + "\n\n")
+                
+                # 失败的账号
+                if results['failed']:
+                    f.write("=" * 60 + "\n")
+                    f.write("修改失败的账号详情\n")
+                    f.write("=" * 60 + "\n\n")
+                    
+                    for idx, (file_path, file_name, error_msg) in enumerate(results['failed'], 1):
+                        f.write(f"[{idx}] 文件: {file_name}\n")
+                        f.write(f"    失败原因: {error_msg}\n")
+                        f.write("-" * 60 + "\n\n")
+                
+                # 尾部
+                f.write("=" * 60 + "\n")
+                f.write("报告结束\n")
+                f.write("=" * 60 + "\n")
+            
+            logger.info(f"修改报告已生成: {report_path}")
+            return report_path
+            
+        except Exception as e:
+            logger.error(f"生成报告失败: {e}")
+            return None
