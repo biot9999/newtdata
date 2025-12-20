@@ -20462,7 +20462,7 @@ admin3</code>
             parse_mode='HTML'
         )
     
-    def _create_reauth_progress_keyboard(self, total: int, success: int, frozen: int, wrong_pwd: int, banned: int, network_error: int) -> InlineKeyboardMarkup:
+    def _create_reauth_progress_keyboard(self, user_id: int, total: int, success: int, frozen: int, wrong_pwd: int, banned: int, network_error: int) -> InlineKeyboardMarkup:
         """创建重新授权进度按钮 - 6行2列布局"""
         return InlineKeyboardMarkup([
             [
@@ -20506,7 +20506,7 @@ admin3</code>
         total_files = len(files)
         
         # 创建初始按钮布局
-        keyboard = self._create_reauth_progress_keyboard(total_files, 0, 0, 0, 0, 0)
+        keyboard = self._create_reauth_progress_keyboard(user_id, total_files, 0, 0, 0, 0, 0)
         
         progress_msg = context.bot.send_message(
             chat_id=user_id,
@@ -20548,7 +20548,7 @@ admin3</code>
                     
                     # 创建实时统计按钮
                     keyboard = self._create_reauth_progress_keyboard(
-                        total, success_count, frozen_count, wrong_pwd_count, banned_count, network_error_count
+                        user_id, total, success_count, frozen_count, wrong_pwd_count, banned_count, network_error_count
                     )
                     
                     logger.info(f"📊 重新授权进度: {current}/{total} ({progress}%) - 成功:{success_count} 冻结:{frozen_count} 封禁:{banned_count} 密码错误:{wrong_pwd_count} 网络:{network_error_count}")
