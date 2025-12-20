@@ -1080,7 +1080,7 @@ class SpamBotChecker:
                 "some phone numbers may trigger a harsh response",
                 "phone numbers may trigger",
             ],
-            "无限制": [
+            "unlimited": [
                 "good news, no limits are currently applied",
                 "you're free as a bird",
                 "no limits",
@@ -1095,7 +1095,7 @@ class SpamBotChecker:
                 "正常",
                 "没有限制",
                 "一切正常",
-                "无限制"
+                "unlimited"
             ],
             "临时限制": [
                 # 临时限制的关键指标（优先级最高）
@@ -1116,7 +1116,7 @@ class SpamBotChecker:
                 "临时限制",
                 "暂时受限"
             ],
-            "垃圾邮件": [
+            "spam": [
                 # 真正的限制 - "actions can trigger" 表示账号行为触发了限制
                 "actions can trigger a harsh response from our anti-spam systems",
                 "account was limited",
@@ -1127,7 +1127,7 @@ class SpamBotChecker:
                 # 中文关键词
                 "违规",
             ],
-            "冻结": [
+            "frozen": [
                 # 永久限制的关键指标
                 "permanently banned",
                 "account has been frozen permanently",
@@ -1249,7 +1249,7 @@ class SpamBotChecker:
         4. SpamBot检查
         """
         if not TELETHON_AVAILABLE:
-            return "连接错误", "Telethon未安装", account_name
+            return "connection_error", "Telethon未安装", account_name
         
         async with self.semaphore:
             start_time = time.time()
@@ -1260,7 +1260,7 @@ class SpamBotChecker:
                 # 1. 先进行快速连接测试
                 can_connect = await self._quick_connection_test(session_path)
                 if not can_connect:
-                    return "连接错误", "无法连接到Telegram服务器（session文件无效或不存在）", account_name
+                    return "connection_error", "无法连接到Telegram服务器（session文件无效或不存在）", account_name
                 
                 # 检查是否应使用代理
                 proxy_enabled = db.get_proxy_enabled() if db else True
@@ -1288,11 +1288,11 @@ class SpamBotChecker:
                     
                     # 记录尝试结果
                     elapsed = time.time() - start_time
-                    attempt_result = "success" if result[0] not in ["连接错误", "封禁"] else "failed"
+                    attempt_result = "success" if result[0] not in ["connection_error", "banned"] else "failed"
                     
                     # 检查是否为超时错误
                     is_timeout = "timeout" in result[1].lower() or "超时" in result[1]
-                    if not is_timeout and result[0] == "连接错误":
+                    if not is_timeout and result[0] == "connection_error":
                         all_timeout = False  # 有非超时的连接错误
                     
                     if proxy_info:
@@ -1306,7 +1306,7 @@ class SpamBotChecker:
                         })
                     
                     # 如果成功，记录并返回
-                    if result[0] != "连接错误":
+                    if result[0] != "connection_error":
                         # 创建使用记录
                         usage_record = ProxyUsageRecord(
                             account_name=account_name,
@@ -1351,9 +1351,9 @@ class SpamBotChecker:
                     usage_record = ProxyUsageRecord(
                         account_name=account_name,
                         proxy_attempted=None,
-                        attempt_result="success" if result[0] != "连接错误" else "failed",
+                        attempt_result="success" if result[0] != "connection_error" else "failed",
                         fallback_used=True,
-                        error=result[1] if result[0] == "连接错误" else None,
+                        error=result[1] if result[0] == "connection_error" else None,
                         is_residential=False,
                         elapsed=elapsed
                     )
@@ -1361,10 +1361,10 @@ class SpamBotChecker:
                     
                     return result
                 
-                return "连接错误", f"检查失败 (重试{max_proxy_attempts}次): 多次尝试后仍然失败", account_name
+                return "connection_error", f"检查失败 (重试{max_proxy_attempts}次): 多次尝试后仍然失败", account_name
                 
             except Exception as e:
-                return "连接错误", f"检查失败: {str(e)}", proxy_used
+                return "connection_error", f"检查失败: {str(e)}", proxy_used
     
     async def _single_check_with_proxy(self, session_path: str, account_name: str, db: 'Database',
                                         proxy_info: Optional[Dict], attempt: int) -> Tuple[str, str, str]:
@@ -1393,14 +1393,14 @@ class SpamBotChecker:
             if config.PROXY_FAST_MODE and attempt == 0:
                 quick_result = await self._quick_connection_test(session_path)
                 if not quick_result:
-                    return "连接错误", "快速连接测试失败", account_name
+                    return "connection_error", "快速连接测试失败", account_name
             
             # 创建代理字典（如果提供了proxy_info）
             proxy_dict = None
             if proxy_info:
                 proxy_dict = self.create_proxy_dict(proxy_info)
                 if not proxy_dict:
-                    return "连接错误", f"{proxy_used} | 代理配置错误", account_name
+                    return "connection_error", f"{proxy_used} | 代理配置错误", account_name
             
             # 根据代理类型调整超时时间
             if proxy_info and proxy_info.get('is_residential', False):
@@ -1442,12 +1442,12 @@ class SpamBotChecker:
             except asyncio.TimeoutError:
                 last_error = "连接超时"
                 error_reason = "timeout" if config.PROXY_SHOW_FAILURE_REASON else "连接超时"
-                return "连接错误", f"{proxy_used} | {error_reason}", account_name
+                return "connection_error", f"{proxy_used} | {error_reason}", account_name
             except Exception as e:
                 error_msg = str(e).lower()
                 # 检测冻结账户相关错误
                 if "deactivated" in error_msg or "banned" in error_msg:
-                    return "冻结", f"{proxy_used} | 账号已被冻结/停用", account_name
+                    return "frozen", f"{proxy_used} | 账号已被冻结/停用", account_name
                 
                 # 分类错误原因
                 if "timeout" in error_msg:
@@ -1462,47 +1462,47 @@ class SpamBotChecker:
                     error_reason = "network_error"
                 
                 if config.PROXY_SHOW_FAILURE_REASON:
-                    return "连接错误", f"{proxy_used} | {error_reason}", account_name
+                    return "connection_error", f"{proxy_used} | {error_reason}", account_name
                 else:
-                    return "连接错误", f"{proxy_used} | 连接失败", account_name
+                    return "connection_error", f"{proxy_used} | 连接失败", account_name
             
             # 2. 检查账号是否登录/授权（带超时）
             try:
                 is_authorized = await asyncio.wait_for(client.is_user_authorized(), timeout=15)
                 if not is_authorized:
-                    return "封禁", "账号未登录或已失效", account_name
+                    return "banned", "账号未登录或已失效", account_name
             except asyncio.TimeoutError:
-                return "连接错误", f"{proxy_used} | 授权检查超时", account_name
+                return "connection_error", f"{proxy_used} | 授权检查超时", account_name
             except Exception as e:
                 error_msg = str(e).lower()
                 # 检测冻结账户相关错误
                 if "deactivated" in error_msg or "banned" in error_msg or "deleted" in error_msg:
-                    return "冻结", f"{proxy_used} | 账号已被冻结/删除", account_name
+                    return "frozen", f"{proxy_used} | 账号已被冻结/删除", account_name
                 if "auth key" in error_msg or "unregistered" in error_msg:
-                    return "封禁", f"{proxy_used} | 会话密钥无效", account_name
-                return "连接错误", f"{proxy_used} | 授权检查失败: {str(e)[:30]}", account_name
+                    return "banned", f"{proxy_used} | 会话密钥无效", account_name
+                return "connection_error", f"{proxy_used} | 授权检查失败: {str(e)[:30]}", account_name
             
             # 3. 获取账号基本信息验证（带超时）
             user_info = "账号"
             try:
                 me = await asyncio.wait_for(client.get_me(), timeout=15)
                 if not me:
-                    return "封禁", "无法获取账号信息", account_name
+                    return "banned", "无法获取账号信息", account_name
                 user_info = f"ID:{me.id}"
                 if me.username:
                     user_info += f" @{me.username}"
                 if me.first_name:
                     user_info += f" {me.first_name}"
             except asyncio.TimeoutError:
-                return "连接错误", f"{proxy_used} | 获取账号信息超时", account_name
+                return "connection_error", f"{proxy_used} | 获取账号信息超时", account_name
             except Exception as e:
                 error_msg = str(e).lower()
                 # 检测冻结账户相关错误
                 if "deactivated" in error_msg or "banned" in error_msg or "deleted" in error_msg:
-                    return "冻结", f"{proxy_used} | 账号已被冻结/删除", account_name
+                    return "frozen", f"{proxy_used} | 账号已被冻结/删除", account_name
                 # 快速模式下用户信息获取失败不算严重错误
                 if not config.PROXY_FAST_MODE:
-                    return "封禁", f"账号信息获取失败: {str(e)[:30]}", account_name
+                    return "banned", f"账号信息获取失败: {str(e)[:30]}", account_name
             
             # 4. 发送消息给 SpamBot（带超时）
             try:
@@ -1538,36 +1538,36 @@ class SpamBotChecker:
                     
                     return status, info_str, account_name
                 else:
-                    return "连接错误", f"{user_info} | {proxy_used} | SpamBot无响应", account_name
+                    return "connection_error", f"{user_info} | {proxy_used} | SpamBot无响应", account_name
                     
             except asyncio.TimeoutError:
                 last_error = "SpamBot通信超时"
-                return "连接错误", f"{user_info} | {proxy_used} | SpamBot通信超时", account_name
+                return "connection_error", f"{user_info} | {proxy_used} | SpamBot通信超时", account_name
             except Exception as e:
                 error_str = str(e).lower()
                 # 检测冻结账户相关错误
                 if "deactivated" in error_str or "banned" in error_str or "deleted" in error_str:
-                    return "冻结", f"{user_info} | {proxy_used} | 账号已被冻结", account_name
+                    return "frozen", f"{user_info} | {proxy_used} | 账号已被冻结", account_name
                 if any(word in error_str for word in ["restricted", "limited", "blocked", "flood"]):
-                    return "封禁", f"{user_info} | {proxy_used} | 账号受限制", account_name
+                    return "banned", f"{user_info} | {proxy_used} | 账号受限制", account_name
                 if "peer" in error_str and "access" in error_str:
-                    return "封禁", f"{user_info} | {proxy_used} | 无法访问SpamBot", account_name
+                    return "banned", f"{user_info} | {proxy_used} | 无法访问SpamBot", account_name
                 last_error = str(e)
-                return "连接错误", f"{user_info} | {proxy_used} | SpamBot通信失败: {str(e)[:20]}", account_name
+                return "connection_error", f"{user_info} | {proxy_used} | SpamBot通信失败: {str(e)[:20]}", account_name
             
         except asyncio.TimeoutError:
             last_error = "连接超时"
-            return "连接错误", f"{proxy_used} | 连接超时", account_name
+            return "connection_error", f"{proxy_used} | 连接超时", account_name
             
         except ConnectionError as e:
             last_error = f"连接错误: {str(e)}"
-            return "连接错误", f"{proxy_used} | 连接错误: {str(e)[:30]}", account_name
+            return "connection_error", f"{proxy_used} | 连接错误: {str(e)[:30]}", account_name
             
         except Exception as e:
             error_msg = str(e).lower()
             # 检测冻结账户相关错误
             if "deactivated" in error_msg or "banned" in error_msg or "deleted" in error_msg:
-                return "冻结", f"{proxy_used} | 账号已被冻结/删除", account_name
+                return "frozen", f"{proxy_used} | 账号已被冻结/删除", account_name
             
             # 分类错误原因
             if "timeout" in error_msg:
@@ -1581,9 +1581,9 @@ class SpamBotChecker:
             
             last_error = str(e)
             if config.PROXY_SHOW_FAILURE_REASON:
-                return "连接错误", f"{proxy_used} | {error_reason}", account_name
+                return "connection_error", f"{proxy_used} | {error_reason}", account_name
             else:
-                return "连接错误", f"{proxy_used} | 检测失败", account_name
+                return "connection_error", f"{proxy_used} | 检测失败", account_name
         finally:
             if client:
                 try:
@@ -1633,13 +1633,13 @@ class SpamBotChecker:
         for pattern in self.status_patterns["地理限制"]:
             pattern_lower = pattern.lower()
             if pattern_lower in response_lower or pattern_lower in response_en:
-                return "无限制"
+                return "unlimited"
         
         # 2. 检查冻结/永久限制状态（最严重）
-        for pattern in self.status_patterns["冻结"]:
+        for pattern in self.status_patterns["frozen"]:
             pattern_lower = pattern.lower()
             if pattern_lower in response_lower or pattern_lower in response_en:
-                return "冻结"
+                return "frozen"
         
         # 3. 检查临时限制状态
         for pattern in self.status_patterns["临时限制"]:
@@ -1648,10 +1648,10 @@ class SpamBotChecker:
                 return "临时限制"
         
         # 4. 检查一般垃圾邮件限制
-        for pattern in self.status_patterns["垃圾邮件"]:
+        for pattern in self.status_patterns["spam"]:
             pattern_lower = pattern.lower()
             if pattern_lower in response_lower or pattern_lower in response_en:
-                return "垃圾邮件"
+                return "spam"
         
         # 5. 检查等待验证状态
         for pattern in self.status_patterns["等待验证"]:
@@ -1660,13 +1660,13 @@ class SpamBotChecker:
                 return "等待验证"
         
         # 6. 检查无限制（正常状态）
-        for pattern in self.status_patterns["无限制"]:
+        for pattern in self.status_patterns["unlimited"]:
             pattern_lower = pattern.lower()
             if pattern_lower in response_lower or pattern_lower in response_en:
-                return "无限制"
+                return "unlimited"
         
         # 7. 未知响应 - 返回无限制作为默认值（保持向后兼容）
-        return "无限制"
+        return "unlimited"
     
     def get_proxy_usage_stats(self) -> Dict[str, int]:
         """
@@ -1709,7 +1709,7 @@ class SpamBotChecker:
     async def check_tdata_with_spambot(self, tdata_path: str, tdata_name: str, db: 'Database') -> Tuple[str, str, str]:
         """基于opentele的真正TData SpamBot检测（带代理支持）"""
         if not OPENTELE_AVAILABLE:
-            return "连接错误", "opentele库未安装", tdata_name
+            return "connection_error", "opentele库未安装", tdata_name
         
         # 检查是否应使用代理
         proxy_enabled = db.get_proxy_enabled() if db else True
@@ -1739,11 +1739,11 @@ class SpamBotChecker:
             
             # 检查是否为超时错误
             is_timeout = "timeout" in result[1].lower() or "超时" in result[1]
-            if not is_timeout and result[0] == "连接错误":
+            if not is_timeout and result[0] == "connection_error":
                 all_timeout = False  # 有非超时的连接错误
             
             # 如果成功，返回
-            if result[0] != "连接错误":
+            if result[0] != "connection_error":
                 return result
             
             # 如果到达最后一次尝试，跳出循环
@@ -1765,7 +1765,7 @@ class SpamBotChecker:
         if last_result:
             return last_result
         
-        return "连接错误", f"检查失败 (重试{max_proxy_attempts}次): 多次尝试后仍然失败", tdata_name
+        return "connection_error", f"检查失败 (重试{max_proxy_attempts}次): 多次尝试后仍然失败", tdata_name
     
     async def _single_tdata_check_with_proxy(self, tdata_path: str, tdata_name: str, 
                                               proxy_info: Optional[Dict], attempt: int) -> Tuple[str, str, str]:
@@ -1785,7 +1785,7 @@ class SpamBotChecker:
             tdesk = TDesktop(tdata_path)
             
             if not tdesk.isLoaded():
-                return "连接错误", f"{proxy_used} | TData未授权或无效", tdata_name
+                return "connection_error", f"{proxy_used} | TData未授权或无效", tdata_name
             
             # 临时session文件保存在sessions/temp目录
             os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
@@ -1798,7 +1798,7 @@ class SpamBotChecker:
             if proxy_info:
                 proxy_dict = self.create_proxy_dict(proxy_info)
                 if not proxy_dict:
-                    return "连接错误", f"{proxy_used} | 代理配置错误", tdata_name
+                    return "connection_error", f"{proxy_used} | 代理配置错误", tdata_name
             
             # 根据代理类型调整超时时间
             if proxy_info and proxy_info.get('is_residential', False):
@@ -1832,11 +1832,11 @@ class SpamBotChecker:
             try:
                 await asyncio.wait_for(client.connect(), timeout=connect_timeout)
             except asyncio.TimeoutError:
-                return "连接错误", f"{proxy_used} | 连接超时", tdata_name
+                return "connection_error", f"{proxy_used} | 连接超时", tdata_name
             except Exception as e:
                 error_msg = str(e).lower()
                 if "deactivated" in error_msg or "banned" in error_msg:
-                    return "冻结", f"{proxy_used} | 账号已被冻结/停用", tdata_name
+                    return "frozen", f"{proxy_used} | 账号已被冻结/停用", tdata_name
                 
                 if "timeout" in error_msg:
                     error_reason = "timeout"
@@ -1850,24 +1850,24 @@ class SpamBotChecker:
                     error_reason = "network_error"
                 
                 if config.PROXY_SHOW_FAILURE_REASON:
-                    return "连接错误", f"{proxy_used} | {error_reason}", tdata_name
+                    return "connection_error", f"{proxy_used} | {error_reason}", tdata_name
                 else:
-                    return "连接错误", f"{proxy_used} | 连接失败", tdata_name
+                    return "connection_error", f"{proxy_used} | 连接失败", tdata_name
             
             # 3. 检查授权状态（带超时）
             try:
                 is_authorized = await asyncio.wait_for(client.is_user_authorized(), timeout=15)
                 if not is_authorized:
-                    return "封禁", f"{proxy_used} | 账号未授权", tdata_name
+                    return "banned", f"{proxy_used} | 账号未授权", tdata_name
             except asyncio.TimeoutError:
-                return "连接错误", f"{proxy_used} | 授权检查超时", tdata_name
+                return "connection_error", f"{proxy_used} | 授权检查超时", tdata_name
             except Exception as e:
                 error_msg = str(e).lower()
                 if "deactivated" in error_msg or "banned" in error_msg or "deleted" in error_msg:
-                    return "冻结", f"{proxy_used} | 账号已被冻结/删除", tdata_name
+                    return "frozen", f"{proxy_used} | 账号已被冻结/删除", tdata_name
                 if "auth key" in error_msg or "unregistered" in error_msg:
-                    return "封禁", f"{proxy_used} | 会话密钥无效", tdata_name
-                return "连接错误", f"{proxy_used} | 授权检查失败: {str(e)[:30]}", tdata_name
+                    return "banned", f"{proxy_used} | 会话密钥无效", tdata_name
+                return "connection_error", f"{proxy_used} | 授权检查失败: {str(e)[:30]}", tdata_name
             
             # 4. 获取手机号（带超时）
             try:
@@ -1889,7 +1889,7 @@ class SpamBotChecker:
             except Exception as e:
                 error_str = str(e).lower()
                 if 'flood' in error_str:
-                    return "冻结", f"手机号:{phone} | {proxy_used} | 账号冻结", tdata_name
+                    return "frozen", f"手机号:{phone} | {proxy_used} | 账号冻结", tdata_name
             
             # 6. SpamBot检测（带超时）
             # 定义快速模式等待时间为常量
@@ -1910,7 +1910,7 @@ class SpamBotChecker:
                         'some phone numbers may trigger a harsh response',
                         'phone numbers may trigger'
                     ]):
-                        return "无限制", f"手机号:{phone} | {proxy_used} | 正常无限制（地理限制提示）", tdata_name
+                        return "unlimited", f"手机号:{phone} | {proxy_used} | 正常无限制（地理限制提示）", tdata_name
                     
                     # 2. 检查临时限制（垃圾邮件）
                     if any(keyword in english_text for keyword in [
@@ -1921,7 +1921,7 @@ class SpamBotChecker:
                         'you will not be able to send messages',
                         'actions can trigger a harsh response'
                     ]):
-                        return "垃圾邮件", f"手机号:{phone} | {proxy_used} | 垃圾邮件限制", tdata_name
+                        return "spam", f"手机号:{phone} | {proxy_used} | 垃圾邮件限制", tdata_name
                     
                     # 3. 然后检查永久冻结
                     elif any(keyword in english_text for keyword in [
@@ -1930,37 +1930,37 @@ class SpamBotChecker:
                         'blocked for violations', 'terms of service', 'violations of the telegram',
                         'account was blocked', 'banned', 'suspended'
                     ]):
-                        return "冻结", f"手机号:{phone} | {proxy_used} | 账号被冻结/封禁", tdata_name
+                        return "frozen", f"手机号:{phone} | {proxy_used} | 账号被冻结/封禁", tdata_name
                     
                     # 4. 检查无限制状态
                     elif any(keyword in english_text for keyword in [
                         'no limits', 'free as a bird', 'no restrictions', 'good news'
                     ]):
-                        return "无限制", f"手机号:{phone} | {proxy_used} | 正常无限制", tdata_name
+                        return "unlimited", f"手机号:{phone} | {proxy_used} | 正常无限制", tdata_name
                     
                     # 5. 默认返回无限制
                     else:
-                        return "无限制", f"手机号:{phone} | {proxy_used} | 正常无限制", tdata_name
+                        return "unlimited", f"手机号:{phone} | {proxy_used} | 正常无限制", tdata_name
                 
                 # 如果没有消息回复
-                return "封禁", f"手机号:{phone} | {proxy_used} | SpamBot无回复", tdata_name
+                return "banned", f"手机号:{phone} | {proxy_used} | SpamBot无回复", tdata_name
         
             except asyncio.TimeoutError:
-                return "连接错误", f"手机号:{phone} | {proxy_used} | SpamBot检测超时", tdata_name
+                return "connection_error", f"手机号:{phone} | {proxy_used} | SpamBot检测超时", tdata_name
             except Exception as e:
                 error_str = str(e).lower()
                 if any(word in error_str for word in ['restricted', 'banned', 'blocked']):
-                    return "封禁", f"手机号:{phone} | {proxy_used} | 账号受限", tdata_name
-                return "封禁", f"手机号:{phone} | {proxy_used} | SpamBot检测失败: {str(e)[:30]}", tdata_name
+                    return "banned", f"手机号:{phone} | {proxy_used} | 账号受限", tdata_name
+                return "banned", f"手机号:{phone} | {proxy_used} | SpamBot检测失败: {str(e)[:30]}", tdata_name
                 
         except Exception as e:
             error_str = str(e).lower()
             if 'database is locked' in error_str:
-                return "连接错误", f"{proxy_used} | TData文件被占用", tdata_name
+                return "connection_error", f"{proxy_used} | TData文件被占用", tdata_name
             elif 'timeout' in error_str or 'connection' in error_str:
-                return "连接错误", f"{proxy_used} | 连接超时", tdata_name
+                return "connection_error", f"{proxy_used} | 连接超时", tdata_name
             else:
-                return "连接错误", f"{proxy_used} | 连接失败: {str(e)[:30]}", tdata_name
+                return "connection_error", f"{proxy_used} | 连接失败: {str(e)[:30]}", tdata_name
         finally:
             # 清理资源
             if client:
@@ -2943,6 +2943,39 @@ class FileProcessor:
         self.db = db
         self.i18n = i18n
     
+    def translate_status(self, status: str, user_id: int) -> str:
+        """
+        Translate status code to localized string
+        
+        Args:
+            status: Status code (e.g., 'unlimited', 'spam', 'frozen', etc.)
+            user_id: User ID for language selection
+            
+        Returns:
+            Localized status string
+        """
+        # Map status codes to translation keys
+        status_key_map = {
+            'unlimited': 'check_status.unlimited',
+            'spam': 'check_status.spam',
+            'frozen': 'check_status.frozen',
+            'banned': 'check_status.banned',
+            'connection_error': 'check_status.connection_error',
+            'deactivated': 'check_status.deactivated',
+            'invalid': 'check_status.invalid',
+            'restricted': 'check_status.restricted',
+            'limited': 'check_status.limited',
+            'normal': 'check_status.normal',
+        }
+        
+        # Get translation key or fall back to status code
+        translation_key = status_key_map.get(status, None)
+        if translation_key:
+            return self.i18n.get(user_id, translation_key)
+        else:
+            # Return status as-is if not in map
+            return status
+    
     async def convert_tdata_and_check(self, tdata_path: str, tdata_name: str) -> Tuple[str, str, str]:
         """
         将TData转换为临时Session并使用Session检查方法（带代理支持）
@@ -2950,7 +2983,7 @@ class FileProcessor:
         所有操作都会先通过代理连接
         """
         if not OPENTELE_AVAILABLE:
-            return "连接错误", "opentele库未安装，无法转换TData", tdata_name
+            return "connection_error", "opentele库未安装，无法转换TData", tdata_name
         
         temp_session_path = None
         temp_client = None
@@ -2960,7 +2993,7 @@ class FileProcessor:
             tdesk = TDesktop(tdata_path)
             
             if not tdesk.isLoaded():
-                return "连接错误", "TData未授权或无效", tdata_name
+                return "connection_error", "TData未授权或无效", tdata_name
             
             # 2. 创建临时Session文件
             os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
@@ -2984,7 +3017,7 @@ class FileProcessor:
                 # 检查Session文件是否生成
                 session_file = f"{temp_session_path}.session"
                 if not os.path.exists(session_file):
-                    return "连接错误", "Session转换失败：文件未生成", tdata_name
+                    return "connection_error", "Session转换失败：文件未生成", tdata_name
                 
                 # 获取代理配置
                 proxy_enabled = self.db.get_proxy_enabled() if self.db else True
@@ -3025,7 +3058,7 @@ class FileProcessor:
                     print(f"ℹ️ [{tdata_name}] 代理未启用或无可用代理，使用本地连接")
                     
             except Exception as e:
-                return "连接错误", f"TData转换失败: {str(e)[:50]}", tdata_name
+                return "connection_error", f"TData转换失败: {str(e)[:50]}", tdata_name
             
             # 4. 使用Session检查方法（带代理支持）
             # 这里会自动使用代理进行完整的账号检查
@@ -3038,9 +3071,9 @@ class FileProcessor:
         except Exception as e:
             error_msg = str(e)
             if 'database is locked' in error_msg.lower():
-                return "连接错误", "TData文件被占用", tdata_name
+                return "connection_error", "TData文件被占用", tdata_name
             else:
-                return "连接错误", f"TData处理失败: {error_msg[:50]}", tdata_name
+                return "connection_error", f"TData处理失败: {error_msg[:50]}", tdata_name
         finally:
             # 清理临时客户端连接
             if temp_client:
@@ -3354,11 +3387,11 @@ class FileProcessor:
     async def check_accounts_with_realtime_updates(self, files: List[Tuple[str, str]], file_type: str, update_callback) -> Dict[str, List[Tuple[str, str, str]]]:
         """实时更新检查"""
         results = {
-            "无限制": [],
-            "垃圾邮件": [],
-            "冻结": [],
-            "封禁": [],
-            "连接错误": []
+            "unlimited": [],
+            "spam": [],
+            "frozen": [],
+            "banned": [],
+            "connection_error": []
         }
         
         # 状态映射：将各种限制状态映射到正确的分类
@@ -3366,9 +3399,9 @@ class FileProcessor:
         # 等待验证是账号需要验证，归类为封禁
         # 无响应是网络问题，归类为连接错误
         status_mapping = {
-            "临时限制": "垃圾邮件",
-            "等待验证": "封禁",
-            "无响应": "连接错误",
+            "临时限制": "spam",
+            "等待验证": "banned",
+            "无响应": "connection_error",
         }
         
         total = len(files)
@@ -3397,7 +3430,7 @@ class FileProcessor:
                 # 如果状态不在结果字典中，记录警告并归类为连接错误
                 if mapped_status not in results:
                     print(f"⚠️ 未知状态 '{mapped_status}'，归类为连接错误: {file_name}")
-                    mapped_status = "连接错误"
+                    mapped_status = "connection_error"
                 
                 results[mapped_status].append((file_path, file_name, info))
                 processed += 1
@@ -3419,7 +3452,7 @@ class FileProcessor:
                         last_update_time = current_time
                 
             except Exception as e:
-                results["连接错误"].append((file_path, file_name, f"异常: {str(e)[:20]}"))
+                results["connection_error"].append((file_path, file_name, f"异常: {str(e)[:20]}"))
                 processed += 1
                 print(f"❌ 检测失败 {processed}/{total}: {file_name} -> {str(e)}")
         
@@ -3439,16 +3472,16 @@ class FileProcessor:
             maps_path = os.path.join(d877_path, "maps")
             
             if not os.path.exists(maps_path):
-                return "连接错误", "TData结构无效", tdata_name
+                return "connection_error", "TData结构无效", tdata_name
             
             maps_size = os.path.getsize(maps_path)
             if maps_size < 30:
-                return "连接错误", "TData数据不完整", tdata_name
+                return "connection_error", "TData数据不完整", tdata_name
             
-            return "无限制", f"TData有效 | {maps_size}字节", tdata_name
+            return "unlimited", f"TData有效 | {maps_size}字节", tdata_name
             
         except Exception as e:
-            return "连接错误", f"TData检查失败", tdata_name
+            return "connection_error", f"TData检查失败", tdata_name
     
     def translate_spambot_reply(self, text: str) -> str:
         """智能翻译SpamBot回复"""
@@ -8786,7 +8819,7 @@ class EnhancedBot:
             query: Telegram callback query 对象
             text: 要编辑的消息文本
             parse_mode: 解析模式（如 'HTML'）
-            reply_markup: 回复键盘标记
+            reply_markup: self.i18n.get(user_id, 'common.reply_markup_desc')
             max_retries: 最大重试次数（默认使用 MESSAGE_RETRY_MAX）
             
         Returns:
@@ -8858,7 +8891,7 @@ class EnhancedBot:
             message: Telegram message 对象
             text: 要编辑的消息文本
             parse_mode: 解析模式（如 'HTML'）
-            reply_markup: 回复键盘标记
+            reply_markup: self.i18n.get(user_id, 'common.reply_markup_desc')
             max_retries: 最大重试次数（默认使用 MESSAGE_RETRY_MAX）
             
         Returns:
@@ -8988,11 +9021,11 @@ class EnhancedBot:
         buttons = []
         
         status_info = [
-            ("无限制", "🟢", len(results['无限制'])),
-            ("垃圾邮件", "🟡", len(results['垃圾邮件'])),
-            ("冻结", "🔴", len(results['冻结'])),
-            ("封禁", "🟠", len(results['封禁'])),
-            ("连接错误", "⚫", len(results['连接错误']))
+            ("unlimited", "🟢", len(results['unlimited'])),
+            ("spam", "🟡", len(results['spam'])),
+            ("frozen", "🔴", len(results['frozen'])),
+            ("banned", "🟠", len(results['banned'])),
+            ("connection_error", "⚫", len(results['connection_error']))
         ]
         
         # 每一行显示：状态名称 | 数量
@@ -9185,7 +9218,7 @@ class EnhancedBot:
         """
 
         buttons = [
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back_to_main'), callback_data="back_to_main")]
         ]
 
         keyboard = InlineKeyboardMarkup(buttons)
@@ -9282,7 +9315,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back_to_main'), callback_data="back_to_main")]
         ])
         
         if update.callback_query:
@@ -9367,10 +9400,10 @@ class EnhancedBot:
         )
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💬 统一简介", callback_data=f'custom_bio_single_{user_id}')],
-            [InlineKeyboardButton("⬜ 设置为空", callback_data=f'custom_bio_empty_{user_id}')],
-            [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_bio_skip_{user_id}')],
-            [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'batch.unified_bio'), callback_data=f'custom_bio_single_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'batch.set_empty'), callback_data=f'custom_bio_empty_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'batch.skip_no_modify'), callback_data=f'custom_bio_skip_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data='back_to_main')]
         ])
         
         self.safe_send_message(update, text, 'HTML', reply_markup=keyboard)
@@ -9484,24 +9517,24 @@ class EnhancedBot:
             self.safe_send_message(update, self.i18n.get(user_id, "admin.no_admins"))
             return
         
-        admin_text = "<b>👑 管理员列表</b>\n\n"
+        admin_text = f"{self.i18n.get(user_id, 'admin.list_header')}\n\n"
         
         for i, (admin_id, username, first_name, added_time) in enumerate(admins, 1):
             admin_text += f"<b>{i}.</b> "
             if admin_id in config.ADMIN_IDS:
-                admin_text += f"👑 <code>{admin_id}</code> (超级管理员)\n"
+                admin_text += f"{self.i18n.get(user_id, 'admin.super_admin', id=admin_id)}\n"
             else:
-                admin_text += f"🔧 <code>{admin_id}</code>\n"
+                admin_text += f"{self.i18n.get(user_id, 'admin.regular_admin', id=admin_id)}\n"
             
-            if username and username != "配置文件管理员":
+            if username and username != self.i18n.get(user_id, 'admin.config_file_admin'):
                 admin_text += f"   📝 @{username}\n"
             if first_name and first_name != "":
                 admin_text += f"   🏷️ {first_name}\n"
-            if added_time != "系统内置":
+            if added_time != self.i18n.get(user_id, 'admin.system_built_in'):
                 admin_text += f"   ⏰ {added_time}\n"
             admin_text += "\n"
         
-        admin_text += f"<b>📊 总计: {len(admins)} 个管理员</b>"
+        admin_text += self.i18n.get(user_id, 'admin.total_admins', count=len(admins))
         
         self.safe_send_message(update, admin_text, 'HTML')
     
@@ -9546,21 +9579,21 @@ class EnhancedBot:
         
         # 代理开关控制按钮
         if proxy_enabled_db:
-            buttons.append([InlineKeyboardButton("🔴 关闭代理", callback_data="proxy_disable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'proxy.disable_proxy'), callback_data="proxy_disable")])
         else:
-            buttons.append([InlineKeyboardButton("🟢 开启代理", callback_data="proxy_enable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'proxy.enable_proxy'), callback_data="proxy_enable")])
         
         # 其他操作按钮
         buttons.extend([
             [
-                InlineKeyboardButton("🔄 刷新代理列表", callback_data="proxy_reload"),
-                InlineKeyboardButton("📊 查看代理状态", callback_data="proxy_status")
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.refresh_proxy_list'), callback_data="proxy_reload"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.view_proxy_status'), callback_data="proxy_status")
             ],
             [
-                InlineKeyboardButton("🧪 测试代理", callback_data="proxy_test"),
-                InlineKeyboardButton("📈 代理统计", callback_data="proxy_stats")
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.test_proxy'), callback_data="proxy_test"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.proxy_statistics'), callback_data="proxy_stats")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ])
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -9622,12 +9655,13 @@ class EnhancedBot:
         thread = threading.Thread(target=process_test)
         thread.start()
         
+        mode_text = self.i18n.get(user_id, 'proxy.fast_mode_on' if config.PROXY_FAST_MODE else 'proxy.fast_mode_off')
         self.safe_send_message(
             update, 
-            f"🧪 开始测试 {len(self.proxy_manager.proxies)} 个代理...\n"
-            f"⚡ 快速模式: {'开启' if config.PROXY_FAST_MODE else '关闭'}\n"
-            f"🚀 并发数: {config.PROXY_CHECK_CONCURRENT}\n\n"
-            "请稍等，测试结果将自动发送..."
+            self.i18n.get(user_id, 'proxy.test_start_message', 
+                         count=len(self.proxy_manager.proxies),
+                         mode=mode_text,
+                         concurrent=config.PROXY_CHECK_CONCURRENT)
         )
     
     async def process_proxy_test(self, update, context):
@@ -9636,7 +9670,7 @@ class EnhancedBot:
             # 发送进度消息
             progress_msg = self.safe_send_message(
                 update,
-                "🧪 <b>代理测试中...</b>\n\n📊 正在初始化测试环境...",
+                self.i18n.get(user_id, 'proxy.test_in_progress'),
                 'HTML'
             )
             
@@ -9676,7 +9710,7 @@ class EnhancedBot:
             test_speed = stats['total'] / total_time if total_time > 0 else 0
             
             final_text = f"""
-✅ <b>代理测试完成！</b>
+{self.i18n.get(user_id, 'proxy.test_complete')}
 
 📊 <b>测试结果</b>
 • 总计代理: {stats['total']} 个
@@ -9740,10 +9774,10 @@ class EnhancedBot:
             
             buttons = [
                 [
-                    InlineKeyboardButton("✅ 确认清理", callback_data="confirm_proxy_cleanup"),
-                    InlineKeyboardButton("❌ 取消", callback_data="cancel_proxy_cleanup")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'proxy.confirm_cleanup'), callback_data="confirm_proxy_cleanup"),
+                    InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="cancel_proxy_cleanup")
                 ],
-                [InlineKeyboardButton("🧪 仅测试不清理", callback_data="test_only_proxy")]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.test_only'), callback_data="test_only_proxy")]
             ]
             
             keyboard = InlineKeyboardMarkup(buttons)
@@ -9791,7 +9825,7 @@ class EnhancedBot:
                 if progress_msg:
                     try:
                         progress_msg.edit_text(
-                            f"🎉 <b>代理清理成功！</b>\n\n{result_msg}",
+                            f"{self.i18n.get(user_id, 'proxy.cleanup_success')}\n\n{result_msg}",
                             parse_mode='HTML'
                         )
                     except:
@@ -9820,7 +9854,7 @@ class EnhancedBot:
                 if progress_msg:
                     try:
                         progress_msg.edit_text(
-                            f"❌ <b>代理清理失败</b>\n\n{result_msg}",
+                            f"{self.i18n.get(user_id, 'proxy.cleanup_failed')}\n\n{result_msg}",
                             parse_mode='HTML'
                         )
                     except:
@@ -9868,7 +9902,7 @@ class EnhancedBot:
         buttons = [
             [InlineKeyboardButton("📤 Tdata → Session", callback_data="convert_tdata_to_session")],
             [InlineKeyboardButton("📥 Session → Tdata", callback_data="convert_session_to_tdata")],
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back_to_main'), callback_data="back_to_main")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -9879,24 +9913,24 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可以操作")
+            query.answer(self.i18n.get(user_id, 'proxy.admin_only'))
             return
         
         if data == "proxy_enable":
             # 启用代理
             if self.db.set_proxy_enabled(True, user_id):
-                query.answer("✅ 代理已启用")
+                query.answer(self.i18n.get(user_id, 'proxy.enabled'))
                 self.refresh_proxy_panel(query)
             else:
-                query.answer("❌ 启用失败")
+                query.answer(self.i18n.get(user_id, 'proxy.enable_failed'))
         
         elif data == "proxy_disable":
             # 禁用代理
             if self.db.set_proxy_enabled(False, user_id):
-                query.answer("✅ 代理已禁用")
+                query.answer(self.i18n.get(user_id, 'proxy.disabled'))
                 self.refresh_proxy_panel(query)
             else:
-                query.answer("❌ 禁用失败")
+                query.answer(self.i18n.get(user_id, 'proxy.disable_failed'))
         
         elif data == "proxy_reload":
             # 重新加载代理列表
@@ -9904,7 +9938,7 @@ class EnhancedBot:
             self.proxy_manager.load_proxies()
             new_count = len(self.proxy_manager.proxies)
             
-            query.answer(f"✅ 重新加载完成: {old_count}→{new_count}个代理")
+            query.answer(self.i18n.get(user_id, 'proxy.reload_complete', old=old_count, new=new_count))
             self.refresh_proxy_panel(query)
         
         elif data == "proxy_status":
@@ -9961,21 +9995,21 @@ class EnhancedBot:
         
         # 代理开关控制按钮
         if proxy_enabled_db:
-            buttons.append([InlineKeyboardButton("🔴 关闭代理", callback_data="proxy_disable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'proxy.disable_proxy'), callback_data="proxy_disable")])
         else:
-            buttons.append([InlineKeyboardButton("🟢 开启代理", callback_data="proxy_enable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'proxy.enable_proxy'), callback_data="proxy_enable")])
         
         # 其他操作按钮
         buttons.extend([
             [
-                InlineKeyboardButton("🔄 刷新代理列表", callback_data="proxy_reload"),
-                InlineKeyboardButton("📊 查看代理状态", callback_data="proxy_status")
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.refresh_proxy_list'), callback_data="proxy_reload"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.view_proxy_status'), callback_data="proxy_status")
             ],
             [
-                InlineKeyboardButton("🧪 测试代理", callback_data="proxy_test"),
-                InlineKeyboardButton("📈 代理统计", callback_data="proxy_stats")
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.test_proxy'), callback_data="proxy_test"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.proxy_statistics'), callback_data="proxy_stats")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ])
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10003,15 +10037,15 @@ class EnhancedBot:
         proxy = self.proxy_manager.get_next_proxy()
         if proxy:
             # 隐藏代理详细地址
-            query.answer(f"🧪 测试代理: {proxy['type'].upper()}代理", show_alert=True)
+            query.answer(self.i18n.get(user_id, 'common.proxy_type_test', type=proxy['type'].upper()), show_alert=True)
         else:
-            query.answer("❌ 获取测试代理失败", show_alert=True)
+            query.answer(self.i18n.get(user_id, 'proxy.get_test_proxy_failed'), show_alert=True)
     
     def show_proxy_statistics(self, query):
         """显示代理统计信息"""
         proxies = self.proxy_manager.proxies
         if not proxies:
-            query.answer("❌ 没有代理数据", show_alert=True)
+            query.answer(self.i18n.get(user_id, 'proxy.no_proxy_data'), show_alert=True)
             return
         
         # 统计代理类型
@@ -10051,8 +10085,8 @@ class EnhancedBot:
         
         buttons = [
             [
-                InlineKeyboardButton("✅ 确认清理", callback_data="confirm_proxy_cleanup"),
-                InlineKeyboardButton("❌ 取消", callback_data="proxy_panel")
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.confirm_cleanup'), callback_data="confirm_proxy_cleanup"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="proxy_panel")
             ]
         ]
         
@@ -10094,7 +10128,7 @@ class EnhancedBot:
         """
         
         buttons = [
-            [InlineKeyboardButton("🔙 返回代理面板", callback_data="proxy_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_proxy_panel'), callback_data="proxy_panel")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10106,7 +10140,7 @@ class EnhancedBot:
         
         # 权限检查（仅管理员可访问）
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可以访问代理管理面板")
+            query.answer(self.i18n.get(user_id, 'admin.admin_panel_only'))
             return
         
         query.answer()
@@ -10152,25 +10186,25 @@ class EnhancedBot:
         
         # 代理开关控制按钮
         if proxy_enabled_db:
-            buttons.append([InlineKeyboardButton("🔴 禁用代理", callback_data="proxy_disable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'admin.disable_proxy_btn'), callback_data="proxy_disable")])
         else:
-            buttons.append([InlineKeyboardButton("🟢 启用代理", callback_data="proxy_enable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'admin.enable_proxy_btn'), callback_data="proxy_enable")])
         
         # 代理管理操作按钮
         buttons.extend([
             [
-                InlineKeyboardButton("🔄 重新加载代理", callback_data="proxy_reload"),
-                InlineKeyboardButton("📊 代理状态", callback_data="proxy_status")
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.reload_proxy'), callback_data="proxy_reload"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.proxy_status'), callback_data="proxy_status")
             ],
             [
-                InlineKeyboardButton("🧪 测试代理", callback_data="proxy_test"),
-                InlineKeyboardButton("📈 代理统计", callback_data="proxy_stats")
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.test_proxy'), callback_data="proxy_test"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.proxy_statistics'), callback_data="proxy_stats")
             ],
             [
-                InlineKeyboardButton("🧹 清理失效代理", callback_data="proxy_cleanup"),
-                InlineKeyboardButton("⚡ 速度优化", callback_data="proxy_optimize")
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.cleanup_failed_proxies'), callback_data="proxy_cleanup"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'proxy.speed_optimization'), callback_data="proxy_optimize")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ])
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10212,7 +10246,7 @@ class EnhancedBot:
                 else:
                     query.answer(self.i18n.get(user_id, "common.operation_mismatch"))
             else:
-                query.answer("❌ 没有待处理的任务")
+                query.answer(self.i18n.get(user_id, 'common.no_pending_task'))
         elif data == "remove_2fa_manual":
             # 手动输入密码
             query.answer()
@@ -10225,12 +10259,10 @@ class EnhancedBot:
                         progress_msg = task_info['progress_msg']
                         total_files = len(task_info['files'])
                         progress_msg.edit_text(
-                            f"📁 <b>已找到 {total_files} 个账号文件</b>\n\n"
-                            f"🔐 <b>请输入当前的2FA密码：</b>\n\n"
-                            f"• 输入您当前使用的2FA密码\n"
-                            f"• 系统将验证密码并删除2FA\n"
-                            f"• 请在5分钟内发送密码...\n\n"
-                            f"💡 如需取消，请点击 /start 返回主菜单",
+                            f"{self.i18n.get(user_id, 'check.found_accounts', count=total_files)}\n\n"
+                            f"{self.i18n.get(user_id, 'twofa_remove.enter_current_2fa')}\n\n"
+                            f"{self.i18n.get(user_id, 'twofa_remove.enter_2fa_instructions')}\n\n"
+                            f"💡 {self.i18n.get(user_id, 'common.cancel_return_start')}",
                             parse_mode='HTML'
                         )
                         # 设置用户状态为等待输入密码
@@ -10238,11 +10270,11 @@ class EnhancedBot:
                                         query.from_user.first_name or "", "waiting_remove_2fa_input")
                     except Exception as e:
                         print(f"❌ 更新消息失败: {e}")
-                        query.answer("❌ 操作失败")
+                        query.answer(self.i18n.get(user_id, 'common.operation_failed'))
                 else:
                     query.answer(self.i18n.get(user_id, "common.operation_mismatch"))
             else:
-                query.answer("❌ 没有待处理的任务")
+                query.answer(self.i18n.get(user_id, 'common.no_pending_task'))
         elif data == "convert_tdata_to_session":
             self.handle_convert_tdata_to_session(query)
         elif data == "convert_session_to_tdata":
@@ -10380,9 +10412,9 @@ class EnhancedBot:
         elif data.startswith("broadcast_alert_"):
             # 处理广播按钮回调 - 显示提示信息
             # 注意：实际的alert文本需要从按钮配置中获取，这里只是示例
-            query.answer("✨ 感谢您的关注！", show_alert=True)
+            query.answer(self.i18n.get(user_id, 'common.thanks_attention'), show_alert=True)
         elif data.startswith("status_") or data.startswith("count_"):
-            query.answer("ℹ️ 这是状态信息")
+            query.answer(self.i18n.get(user_id, 'common.status_info'))
     
     def handle_start_check(self, query):
         """处理开始检测"""
@@ -10795,7 +10827,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -10837,14 +10869,14 @@ class EnhancedBot:
         
         buttons = [
             [
-                InlineKeyboardButton("🔍 搜索用户", callback_data="admin_search"),
-                InlineKeyboardButton("📋 最近注册", callback_data="admin_recent")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.search_user'), callback_data="admin_search"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.recent_registrations'), callback_data="admin_recent")
             ],
             [
-                InlineKeyboardButton("📊 用户统计", callback_data="admin_stats"),
-                InlineKeyboardButton("🔄 刷新列表", callback_data="admin_users")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.user_statistics'), callback_data="admin_stats"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.refresh_list'), callback_data="admin_users")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10855,7 +10887,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -10891,10 +10923,10 @@ class EnhancedBot:
         
         buttons = [
             [
-                InlineKeyboardButton("👥 用户管理", callback_data="admin_users"),
-                InlineKeyboardButton("🔄 刷新统计", callback_data="admin_stats")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.user_management'), callback_data="admin_users"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.refresh_statistics'), callback_data="admin_stats")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10905,7 +10937,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -10936,7 +10968,7 @@ class EnhancedBot:
         text += f"\n<b>💡 说明</b>\n• 超级管理员来自配置文件\n• 普通管理员可通过命令添加"
         
         buttons = [
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10947,7 +10979,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -10977,7 +11009,7 @@ class EnhancedBot:
         )
         
         buttons = [
-            [InlineKeyboardButton("❌ 取消搜索", callback_data="admin_users")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'admin.cancel_search'), callback_data="admin_users")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10988,7 +11020,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -11030,10 +11062,10 @@ class EnhancedBot:
         
         buttons = [
             [
-                InlineKeyboardButton("👥 用户管理", callback_data="admin_users"),
-                InlineKeyboardButton("🔄 刷新列表", callback_data="admin_recent")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.user_management'), callback_data="admin_users"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.refresh_list'), callback_data="admin_recent")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -11044,7 +11076,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -11116,14 +11148,14 @@ class EnhancedBot:
         """
         
         buttons = [
-            [InlineKeyboardButton("🎁 授予体验会员", callback_data=f"grant_membership_{target_user_id}")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'admin.grant_trial_vip'), callback_data=f"grant_membership_{target_user_id}")]
         ]
         
         # 如果不是管理员，显示设为管理员按钮
         if not is_admin:
-            buttons.append([InlineKeyboardButton("👑 设为管理员", callback_data=f"make_admin_{target_user_id}")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'admin.set_as_admin'), callback_data=f"make_admin_{target_user_id}")])
         
-        buttons.append([InlineKeyboardButton("🔙 返回", callback_data="admin_users")])
+        buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="admin_users")])
         
         keyboard = InlineKeyboardMarkup(buttons)
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -11133,37 +11165,37 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         # 检查用户是否存在
         user_info = self.db.get_user_membership_info(target_user_id)
         if not user_info:
-            query.answer("❌ 用户不存在")
+            query.answer(self.i18n.get(user_id, 'admin.user_not_found'))
             return
         
         # 授予体验会员
         success = self.db.save_membership(target_user_id, "体验会员")
         
         if success:
-            query.answer("✅ 体验会员授予成功")
+            query.answer(self.i18n.get(user_id, 'admin.vip_granted'))
             # 刷新用户详情页面
             self.handle_user_detail(query, target_user_id)
         else:
-            query.answer("❌ 授予失败")
+            query.answer(self.i18n.get(user_id, 'admin.grant_failed'))
 
     def handle_make_admin(self, query, target_user_id: int):
         """设置用户为管理员"""
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         # 检查用户是否存在
         user_info = self.db.get_user_membership_info(target_user_id)
         if not user_info:
-            query.answer("❌ 用户不存在")
+            query.answer(self.i18n.get(user_id, 'admin.user_not_found'))
             return
         
         username = user_info.get('username', '')
@@ -11173,17 +11205,17 @@ class EnhancedBot:
         success = self.db.add_admin(target_user_id, username, first_name, user_id)
         
         if success:
-            query.answer("✅ 管理员设置成功")
+            query.answer(self.i18n.get(user_id, 'admin.admin_set'))
             # 刷新用户详情页面
             self.handle_user_detail(query, target_user_id)
         else:
-            query.answer("❌ 设置失败")
+            query.answer(self.i18n.get(user_id, 'admin.set_failed'))
     def handle_proxy_panel(self, query):
         """代理面板"""
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         # 直接调用刷新代理面板
@@ -11486,15 +11518,15 @@ class EnhancedBot:
                 self.pending_modify_tasks[user_id]['custom_state'] = 'config_name'
                 
                 text = (
-                    f"✅ <b>已接收 {total_files} 个账号</b>\n\n"
-                    f"步骤 2/5: 配置姓名\n\n"
-                    f"请选择姓名配置方式："
+                    f"{self.i18n.get(user_id, 'file_ops.received_files', count=total_files)}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.step_2_of_5')}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.select_name_config')}"
                 )
                 
                 keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📝 统一姓名", callback_data=f'custom_name_single_{user_id}')],
-                    [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_name_skip_{user_id}')],
-                    [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+                    [InlineKeyboardButton(self.i18n.get(user_id, 'batch.unified_name'), callback_data=f'custom_name_single_{user_id}')],
+                    [InlineKeyboardButton(self.i18n.get(user_id, 'batch.skip_no_modify'), callback_data=f'custom_name_skip_{user_id}')],
+                    [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data='back_to_main')]
                 ])
                 
                 try:
@@ -11514,8 +11546,8 @@ class EnhancedBot:
             )
             
             keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🚀 开始处理", callback_data=f'exec_modify_{user_id}'),
-                InlineKeyboardButton("❌ 取消", callback_data='back_to_main')
+                InlineKeyboardButton(self.i18n.get(user_id, 'batch.start_processing'), callback_data=f'exec_modify_{user_id}'),
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data='back_to_main')
             ]])
             
             try:
@@ -11526,7 +11558,7 @@ class EnhancedBot:
         except Exception as e:
             logger.error(f"处理修改资料文件失败: {e}")
             try:
-                progress_msg.edit_text(f"❌ <b>处理失败</b>\n\n{str(e)}", parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'error.processing_failed_with_error', error=str(e)), parse_mode='HTML')
             except:
                 pass
 
@@ -11557,12 +11589,12 @@ class EnhancedBot:
             total_files = len(files)
             try:
                 progress_msg.edit_text(
-                    f"✅ <b>已找到 {total_files} 个账号文件</b>\n"
-                    f"📊 类型: {file_type.upper()}\n\n"
-                    f"🔐 请输入将在网页上显示的 2FA 密码：\n"
-                    f"• 直接发送 2FA 密码，例如: <code>My2FA@2024</code>\n"
-                    f"• 或回复 <code>跳过</code> 使用自动识别\n\n"
-                    f"⏰ 5分钟超时",
+                    f"{self.i18n.get(user_id, 'check.found_accounts', count=total_files)}\n"
+                    f"📊 {self.i18n.get(user_id, 'common.type_label')}: {file_type.upper()}\n\n"
+                    f"{self.i18n.get(user_id, 'modify.enter_web_2fa_prompt')}\n"
+                    f"{self.i18n.get(user_id, 'modify.enter_2fa_example')}\n"
+                    f"{self.i18n.get(user_id, 'modify.or_skip_auto')}\n\n"
+                    f"{self.i18n.get(user_id, 'common.timeout_5min')}",
                     parse_mode='HTML'
                 )
             except:
@@ -11581,7 +11613,7 @@ class EnhancedBot:
         except Exception as e:
             print(f"❌ API阶段1失败: {e}")
             try:
-                progress_msg.edit_text(f"❌ 失败: {str(e)}", parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'error.failed_with_error', error=str(e)), parse_mode='HTML')
             except:
                 pass
             if temp_zip and os.path.exists(temp_zip):
@@ -11609,11 +11641,11 @@ class EnhancedBot:
 
         # 更新提示
         try:
-            tip = "🔄 <b>开始转换为API格式...</b>\n\n"
+            tip = f"{self.i18n.get(user_id, 'api.start_conversion_to_api')}\n\n"
             if override_two_fa:
-                tip += f"🔐 网页2FA: <code>{override_two_fa}</code>\n"
+                tip += f"{self.i18n.get(user_id, 'twofa.web_2fa_label', password=override_two_fa)}\n"
             else:
-                tip += "🔐 网页2FA: 自动识别\n"
+                tip += f"{self.i18n.get(user_id, 'api.web_2fa_auto')}\n"
             progress_msg.edit_text(tip, parse_mode='HTML')
         except:
             pass
@@ -11635,12 +11667,12 @@ class EnhancedBot:
             # =================== 进度提示 ===================
             try:
                 progress_msg.edit_text(
-                    f"🔄 <b>开始API转换...</b>\n\n"
-                    f"📊 总文件: {total_files} 个\n"
-                    f"📁 类型: {file_type.upper()}\n"
-                    f"🔐 2FA设置: {'自定义' if override_two_fa else '自动检测'}\n"
-                    f"🚀 并发数: {max_concurrent} | 批次: {batch_size}\n\n"
-                    f"正在处理...",
+                    f"{self.i18n.get(user_id, 'api.start_conversion')}\n\n"
+                    f"📊 {self.i18n.get(user_id, 'api.total_files', count=total_files)}\n"
+                    f"📁 {self.i18n.get(user_id, 'common.type_label')}: {file_type.upper()}\n"
+                    f"🔐 {self.i18n.get(user_id, 'api.twofa_setting')}: {self.i18n.get(user_id, 'api.custom' if override_two_fa else 'api.auto_detect')}\n"
+                    f"🚀 {self.i18n.get(user_id, 'api.concurrent_batch', concurrent=max_concurrent, batch=batch_size)}\n\n"
+                    f"{self.i18n.get(user_id, 'api.processing')}",
                     parse_mode='HTML'
                 )
             except:
@@ -11666,19 +11698,19 @@ class EnhancedBot:
                             failure_stats += f"• {reason}: {count}个\n"
                     
                     progress_text = f"""
-🔄 <b>API转换进行中...</b>
+🔄 <b>{self.i18n.get(user_id, 'api.converting_in_progress')}</b>
 
-📊 <b>转换进度</b>
-• 进度: {progress}% ({processed}/{total_files})
-• ✅ 成功: {len(api_accounts)} 个
-• ❌ 失败: {len(failed_accounts)} 个
-• 平均速度: {speed:.1f} 个/秒
-• 预计剩余: {remaining/60:.1f} 分钟
+{self.i18n.get(user_id, 'api.conversion_progress_header')}
+{self.i18n.get(user_id, 'api.progress_percent', progress=progress, processed=processed, total=total_files)}
+{self.i18n.get(user_id, 'api.success_count', count=len(api_accounts))}
+{self.i18n.get(user_id, 'api.failed_count', count=len(failed_accounts))}
+{self.i18n.get(user_id, 'api.avg_speed', speed=speed)}
+{self.i18n.get(user_id, 'api.remaining_time', minutes=remaining/60)}
 
-⚡ <b>处理状态</b>
-• 文件类型: {file_type.upper()}
-• 2FA模式: {'自定义' if override_two_fa else '自动检测'}
-• 已用时: {elapsed:.1f} 秒{failure_stats}
+{self.i18n.get(user_id, 'api.processing_status_header')}
+{self.i18n.get(user_id, 'api.file_type_display', type=file_type.upper())}
+• {self.i18n.get(user_id, 'api.twofa_setting')}: {self.i18n.get(user_id, 'api.custom' if override_two_fa else 'api.auto_detect')}
+{self.i18n.get(user_id, 'api.time_elapsed', time=elapsed)}{failure_stats}
                     """
                     
                     progress_msg.edit_text(progress_text, parse_mode='HTML')
@@ -11790,7 +11822,7 @@ class EnhancedBot:
         except Exception as e:
             print(f"❌ API阶段2失败: {e}")
             try:
-                progress_msg.edit_text(f"❌ 失败: {str(e)}", parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'error.failed_with_error', error=str(e)), parse_mode='HTML')
             except:
                 pass
         finally:
@@ -11846,7 +11878,7 @@ class EnhancedBot:
         # 安全发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            "📥 <b>正在处理您的文件...</b>",
+            self.i18n.get(user_id, 'common.processing_file'),
             'HTML'
         )
         
@@ -11870,11 +11902,11 @@ class EnhancedBot:
             if not files:
                 try:
                     progress_msg.edit_text(
-                        "❌ <b>未找到有效的账号文件</b>\n\n"
-                        "请确保ZIP文件包含:\n"
-                        "• Session 文件 (.session)\n"
-                        "• Session+JSON 文件 (.session + .json)\n"
-                        "• TData 文件夹",
+                        f"{self.i18n.get(user_id, 'check.no_valid_files')}\n\n"
+                        f"{self.i18n.get(user_id, 'check.ensure_zip_contains')}\n"
+                        f"{self.i18n.get(user_id, 'check.session_file_types')}\n"
+                        f"{self.i18n.get(user_id, 'check.session_json_files')}\n"
+                        f"{self.i18n.get(user_id, 'check.tdata_folders')}",
                         parse_mode='HTML'
                     )
                 except:
@@ -11888,11 +11920,11 @@ class EnhancedBot:
             # 开始检测提示
             try:
                 progress_msg.edit_text(
-                    f"🔍 <b>开始检测 {total_accounts} 个账号...</b>\n\n"
-                    f"📊 文件类型: {file_type.upper()}\n"
+                    f"{self.i18n.get(user_id, 'check.start_checking', count=total_accounts)}\n\n"
+                    f"{self.i18n.get(user_id, 'check.file_type_label', type=file_type.upper())}\n"
                     f"{proxy_status}\n"
-                    f"⚡ 并发线程: {config.MAX_CONCURRENT_CHECKS}个\n\n"
-                    f"请稍等，实时显示检测进度...",
+                    f"{self.i18n.get(user_id, 'check.concurrent_threads', count=config.MAX_CONCURRENT_CHECKS)}\n\n"
+                    f"{self.i18n.get(user_id, 'check.please_wait')}",
                     parse_mode='HTML'
                 )
             except:
@@ -11985,11 +12017,11 @@ class EnhancedBot:
 
 {self.i18n.get(user_id, 'check.final_result_header')}
 {self.i18n.get(user_id, 'check.total_accounts', count=total_accounts)}
-{self.i18n.get(user_id, 'check.unrestricted', count=len(results['无限制']))}
-{self.i18n.get(user_id, 'check.spam', count=len(results['垃圾邮件']))}
-{self.i18n.get(user_id, 'check.frozen', count=len(results['冻结']))}
-{self.i18n.get(user_id, 'check.banned', count=len(results['封禁']))}
-{self.i18n.get(user_id, 'check.connection_error', count=len(results['连接错误']))}{proxy_stats}
+{self.i18n.get(user_id, 'check.unrestricted', count=len(results['unlimited']))}
+{self.i18n.get(user_id, 'check.spam', count=len(results['spam']))}
+{self.i18n.get(user_id, 'check.frozen', count=len(results['frozen']))}
+{self.i18n.get(user_id, 'check.banned', count=len(results['banned']))}
+{self.i18n.get(user_id, 'check.connection_error', count=len(results['connection_error']))}{proxy_stats}
 
 {self.i18n.get(user_id, 'check.performance_stats')}
 {self.i18n.get(user_id, 'check.detection_time', seconds=int(total_time), minutes=f'{total_time/60:.1f}')}
@@ -12016,13 +12048,14 @@ class EnhancedBot:
                         # 检查实际的代理模式状态
                         actual_proxy_mode = self.proxy_manager.is_proxy_mode_active(self.db)
                         with open(file_path, 'rb') as f:
+                            mode_text = self.i18n.get(user_id, 'check_result.mode_proxy' if actual_proxy_mode else 'check_result.mode_local')
                             context.bot.send_document(
                                 chat_id=update.effective_chat.id,
                                 document=f,
                                 filename=f"{status}_{count}个.zip",
-                                caption=f"📋 <b>{status}</b> - {count}个账号\n\n"
-                                       f"⏰ 检测时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n"
-                                       f"🔧 检测模式: {'代理模式' if actual_proxy_mode else '本地模式'}",
+                                caption=f"{self.i18n.get(user_id, 'file_ops.status_with_count', status=status, count=count)}\n\n"
+                                       f"{self.i18n.get(user_id, 'check_result.checking_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}\n"
+                                       f"🔧 {self.i18n.get(user_id, 'check_result.detection_mode', mode=mode_text)}",
                                 parse_mode='HTML'
                             )
                         
@@ -12042,7 +12075,7 @@ class EnhancedBot:
                                     chat_id=update.effective_chat.id,
                                     document=f,
                                     filename=f"{status}_{count}个.zip",
-                                    caption=f"📋 <b>{status}</b> - {count}个账号",
+                                    caption=self.i18n.get(user_id, 'file_ops.status_with_count', status=status, count=count),
                                     parse_mode='HTML'
                                 )
                             sent_count += 1
@@ -12056,14 +12089,14 @@ class EnhancedBot:
                 # 检查实际的代理模式状态
                 actual_proxy_mode = self.proxy_manager.is_proxy_mode_active(self.db)
                 summary_text = f"""
-🎉 <b>所有文件发送完成！</b>
+{self.i18n.get(user_id, 'check_result.all_files_sent')}
 
-📋 <b>发送总结</b>
-• 成功发送: {sent_count} 个文件
-• 检测模式: {'📡代理模式' if actual_proxy_mode else '🏠本地模式'}
-• 检测时间: {int(total_time)}秒
+{self.i18n.get(user_id, 'check.send_summary_header')}
+{self.i18n.get(user_id, 'check.success_sent_files', count=sent_count)}
+{self.i18n.get(user_id, 'check.detection_mode_display', mode=self.i18n.get(user_id, 'check.proxy_mode_emoji' if actual_proxy_mode else 'check.local_mode_emoji'))}
+{self.i18n.get(user_id, 'check.detection_time_seconds', seconds=int(total_time))}
 
-感谢使用增强版机器人！如需再次检测，请点击 /start
+{self.i18n.get(user_id, 'check.thanks_restart')}
                 """
                 
                 try:
@@ -12078,7 +12111,7 @@ class EnhancedBot:
                 try:
                     context.bot.send_message(
                         chat_id=update.effective_chat.id,
-                        text="❌ 没有文件可以发送"
+                        text=self.i18n.get(user_id, 'check.no_files_to_send')
                     )
                 except:
                     pass
@@ -12088,7 +12121,7 @@ class EnhancedBot:
         except Exception as e:
             print(f"❌ 处理失败: {e}")
             try:
-                progress_msg.edit_text(f"❌ 处理失败: {str(e)}")
+                progress_msg.edit_text(self.i18n.get(user_id, 'error.processing_failed_with_error', error=str(e)))
             except:
                 pass
         finally:
@@ -12112,7 +12145,7 @@ class EnhancedBot:
         # 发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            "📥 <b>正在处理您的文件...</b>",
+            self.i18n.get(user_id, 'common.processing_file'),
             'HTML'
         )
         
@@ -12183,12 +12216,12 @@ class EnhancedBot:
 🔄 <b>格式转换进行中...</b>
 
 📊 <b>当前进度</b>
-• 已处理: {processed}/{total}
-• 速度: {speed:.1f} 个/秒
-• 用时: {int(elapsed)} 秒
+{self.i18n.get(user_id, 'common.processed_count', processed=processed, total=total)}
+{self.i18n.get(user_id, 'common.speed_per_sec', speed=speed)}
+{self.i18n.get(user_id, 'common.time_elapsed_sec', seconds=int(elapsed))}
 
-✅ <b>转换成功</b>: {success_count}
-❌ <b>转换错误</b>: {error_count}
+{self.i18n.get(user_id, 'convert.conversion_success', count=success_count)}
+{self.i18n.get(user_id, 'convert.conversion_error', count=error_count)}
 
 ⏱️ 预计剩余: {int((total - processed) / speed) if speed > 0 else 0} 秒
                     """
@@ -12240,7 +12273,7 @@ class EnhancedBot:
                     # 1. 发送 ZIP 文件
                     if os.path.exists(zip_path):
                         with open(zip_path, 'rb') as f:
-                            caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
+                            caption = f"📦 <b>{status}</b> ({self.i18n.get(user_id, 'statistics.accounts_count', count=count)})\n\n{self.i18n.get(user_id, 'twofa_result.processing_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}"
                             update.message.reply_document(
                                 document=f,
                                 filename=os.path.basename(zip_path),
@@ -12253,7 +12286,7 @@ class EnhancedBot:
                     # 2. 发送 TXT 报告
                     if os.path.exists(txt_path):
                         with open(txt_path, 'rb') as f:
-                            caption = f"📋 <b>{status} 详细报告</b>\n\n包含 {count} 个账号的详细信息"
+                            caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status, count=count)
                             update.message.reply_document(
                                 document=f,
                                 filename=os.path.basename(txt_path),
@@ -12270,17 +12303,17 @@ class EnhancedBot:
             success_rate = (success_count / total_files * 100) if total_files > 0 else 0
             
             final_text = f"""
-✅ <b>转换任务完成！</b>
+{self.i18n.get(user_id, 'convert.task_complete')}
 
-📊 <b>转换统计</b>
-• 总计: {total_files}个
-• ✅ 成功: {success_count}个 ({success_rate:.1f}%)
-• ❌ 失败: {error_count}个 ({100-success_rate:.1f}%)
-• ⏱️ 总用时: {int(elapsed_time)}秒 ({elapsed_time/60:.1f}分钟)
-• 🚀 平均速度: {total_files/elapsed_time:.2f}个/秒
+{self.i18n.get(user_id, 'convert.statistics_header')}
+{self.i18n.get(user_id, 'convert.total_count', count=total_files)}
+{self.i18n.get(user_id, 'convert.success_with_rate', count=success_count, rate=success_rate)}
+{self.i18n.get(user_id, 'convert.failed_with_rate', count=error_count, rate=100-success_rate)}
+{self.i18n.get(user_id, 'convert.total_time', seconds=int(elapsed_time), minutes=elapsed_time/60)}
+{self.i18n.get(user_id, 'convert.avg_speed_per_sec', speed=total_files/elapsed_time)}
 
 
-📥 {'所有结果文件已发送！'}
+📥 {self.i18n.get(user_id, 'convert.all_results_sent')}
             """
             
             self.safe_send_message(update, final_text, 'HTML')
@@ -12339,7 +12372,7 @@ class EnhancedBot:
         # 发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            "📥 <b>正在处理您的文件...</b>",
+            self.i18n.get(user_id, 'common.processing_file'),
             'HTML'
         )
         
@@ -12385,20 +12418,20 @@ class EnhancedBot:
             # 请求用户输入密码
             try:
                 progress_msg.edit_text(
-                    f"📁 <b>已找到 {total_files} 个账号文件</b>\n\n"
-                    f"📊 文件类型: {file_type.upper()}\n\n"
-                    f"🔐 <b>请输入密码信息：</b>\n\n"
-                    f"<b>格式1（推荐）：</b> 仅新密码\n"
-                    f"<code>NewPassword123</code>\n"
-                    f"<i>系统会自动检测旧密码</i>\n\n"
-                    f"<b>格式2：</b> 旧密码 新密码\n"
-                    f"<code>OldPass456 NewPassword123</code>\n"
-                    f"<i>如果自动检测失败，将使用您提供的旧密码</i>\n\n"
-                    f"💡 <b>提示：</b>\n"
-                    f"• 推荐使用格式1，让系统自动检测\n"
-                    f"• 密码可包含字母、数字、特殊字符\n"
-                    f"• 两个密码之间用空格分隔\n\n"
-                    f"⏰ 请在5分钟内发送密码...",
+                    f"{self.i18n.get(user_id, 'check.found_accounts', count=total_files)}\n\n"
+                    f"{self.i18n.get(user_id, 'check.file_type_label', type=file_type.upper())}\n\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.enter_password_prompt')}\n\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.format1_recommended')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.format1_example')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.auto_detect_old')}\n\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.format2_label')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.format2_example')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.use_provided_old')}\n\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.tips_header')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.tip_recommend_format1')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.tip_password_chars')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.tip_space_separator')}\n\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.send_within_5min')}",
                     parse_mode='HTML'
                 )
             except:
@@ -12469,12 +12502,12 @@ class EnhancedBot:
 🔐 <b>2FA密码修改进行中...</b>
 
 📊 <b>当前进度</b>
-• 已处理: {processed}/{total}
-• 速度: {speed:.1f} 个/秒
-• 用时: {int(elapsed)} 秒
+{self.i18n.get(user_id, 'common.processed_count', processed=processed, total=total)}
+{self.i18n.get(user_id, 'common.speed_per_sec', speed=speed)}
+{self.i18n.get(user_id, 'common.time_elapsed_sec', seconds=int(elapsed))}
 
-✅ <b>修改成功</b>: {success_count}
-❌ <b>修改失败</b>: {fail_count}
+{self.i18n.get(user_id, 'modify.modify_success', count=success_count)}
+{self.i18n.get(user_id, 'modify.modify_failed', count=fail_count)}
 
 ⏱️ 预计剩余: {int((total - processed) / speed) if speed > 0 else 0} 秒
                     """
@@ -12531,7 +12564,7 @@ class EnhancedBot:
                     if os.path.exists(zip_path):
                         try:
                             with open(zip_path, 'rb') as f:
-                                caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
+                                caption = f"📦 <b>{status}</b> ({self.i18n.get(user_id, 'statistics.accounts_count', count=count)})\n\n{self.i18n.get(user_id, 'twofa_result.processing_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}"
                                 context.bot.send_document(
                                     chat_id=update.effective_chat.id,
                                     document=f,
@@ -12549,7 +12582,7 @@ class EnhancedBot:
                     if os.path.exists(txt_path):
                         try:
                             with open(txt_path, 'rb') as f:
-                                caption = f"📋 <b>{status} 详细报告</b>\n\n包含 {count} 个账号的详细信息"
+                                caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status, count=count)
                                 context.bot.send_document(
                                     chat_id=update.effective_chat.id,
                                     document=f,
@@ -12604,7 +12637,7 @@ class EnhancedBot:
                 try:
                     context.bot.send_message(
                         chat_id=update.effective_chat.id,
-                        text="❌ 没有文件可以发送"
+                        text=self.i18n.get(user_id, 'check.no_files_to_send')
                     )
                 except Exception as e:
                     print(f"❌ 发送消息失败: {type(e).__name__}: {e}")
@@ -12743,28 +12776,28 @@ class EnhancedBot:
         keyboard = InlineKeyboardMarkup([
             # 第一行：媒体操作
             [
-                InlineKeyboardButton("📸 媒体", callback_data="broadcast_media"),
-                InlineKeyboardButton("👁️ 查看", callback_data="broadcast_media_view"),
-                InlineKeyboardButton("🗑️ 清除", callback_data="broadcast_media_clear")
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.media'), callback_data="broadcast_media"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.view'), callback_data="broadcast_media_view"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.clear'), callback_data="broadcast_media_clear")
             ],
             # 第二行：文本操作
             [
-                InlineKeyboardButton("📝 文本", callback_data="broadcast_text"),
-                InlineKeyboardButton("👁️ 查看", callback_data="broadcast_text_view")
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.text'), callback_data="broadcast_text"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.view'), callback_data="broadcast_text_view")
             ],
             # 第三行：按钮操作
             [
-                InlineKeyboardButton("🔘 按钮", callback_data="broadcast_buttons"),
-                InlineKeyboardButton("👁️ 查看", callback_data="broadcast_buttons_view"),
-                InlineKeyboardButton("🗑️ 清除", callback_data="broadcast_buttons_clear")
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.button'), callback_data="broadcast_buttons"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.view'), callback_data="broadcast_buttons_view"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.clear'), callback_data="broadcast_buttons_clear")
             ],
             # 第四行：预览和导航
             [
-                InlineKeyboardButton("🔍 完整预览", callback_data="broadcast_preview")
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.full_preview'), callback_data="broadcast_preview")
             ],
             [
-                InlineKeyboardButton("🔙 返回", callback_data="broadcast_cancel"),
-                InlineKeyboardButton("➡️ 下一步", callback_data="broadcast_next")
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="broadcast_cancel"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.next_step'), callback_data="broadcast_next")
             ]
         ])
         
@@ -13024,9 +13057,9 @@ class EnhancedBot:
                 display_name = first_name or username or f"用户{uid}"
                 if len(display_name) > 15:
                     display_name = display_name[:15] + "..."
-                buttons.append([InlineKeyboardButton(f"📋 {display_name} 详情", callback_data=f"user_detail_{uid}")])
+                buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'common.user_details_name', name=display_name), callback_data=f"user_detail_{uid}")])
             
-            buttons.append([InlineKeyboardButton("🔙 返回用户管理", callback_data="admin_users")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'admin.back_to_user_mgmt'), callback_data="admin_users")])
             
             keyboard = InlineKeyboardMarkup(buttons)
             self.safe_send_message(update, result_text, 'HTML', keyboard)
@@ -13131,17 +13164,17 @@ class EnhancedBot:
     def _classify_buttons_split_type(self) -> InlineKeyboardMarkup:
         """生成拆分方式选择按钮"""
         return InlineKeyboardMarkup([
-            [InlineKeyboardButton("🌍 按国家拆分", callback_data="classify_split_country")],
-            [InlineKeyboardButton("🔢 按数量拆分", callback_data="classify_split_quantity")],
-            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.by_country'), callback_data="classify_split_country")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.by_quantity'), callback_data="classify_split_quantity")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="back_to_main")]
         ])
     
     def _classify_buttons_qty_mode(self) -> InlineKeyboardMarkup:
         """生成数量模式选择按钮"""
         return InlineKeyboardMarkup([
-            [InlineKeyboardButton("1️⃣ 单个数量", callback_data="classify_qty_single")],
-            [InlineKeyboardButton("🔢 多个数量", callback_data="classify_qty_multi")],
-            [InlineKeyboardButton("◀️ 返回", callback_data="classify_menu")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.single_quantity'), callback_data="classify_qty_single")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.multiple_quantity'), callback_data="classify_qty_multi")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="classify_menu")]
         ])
     
     def handle_add_2fa_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
@@ -13310,7 +13343,7 @@ class EnhancedBot:
             
             # 完成消息
             completion_text = f"""
-✅ <b>忘记2FA处理完成！</b>
+{self.i18n.get(user_id, 'twofa_forget.process_complete')}
 
 <b>📊 处理结果</b>
 • 总账号数: {total_files} 个
@@ -13356,7 +13389,7 @@ class EnhancedBot:
                             context.bot.send_document(
                                 chat_id=user_id,
                                 document=f,
-                                caption=f"📝 详细报告 - {status_name}",
+                                caption=self.i18n.get(user_id, 'common.detail_report_status', status=status_name),
                                 filename=os.path.basename(txt_path)
                             )
                         os.remove(txt_path)
@@ -13427,7 +13460,7 @@ class EnhancedBot:
             
             # 提示用户输入2FA密码
             text = f"""
-✅ <b>文件扫描完成！</b>
+{self.i18n.get(user_id, 'check.scan_complete')}
 
 📊 <b>统计信息</b>
 • 总账号数: {total_files} 个
@@ -13522,7 +13555,7 @@ class EnhancedBot:
             elapsed = time.time() - task_info['start_time']
             
             summary_text = f"""
-✅ <b>添加2FA完成！</b>
+{self.i18n.get(user_id, 'twofa_add.process_complete')}
 
 📊 <b>处理结果</b>
 • 成功: {success_count} 个
@@ -13544,7 +13577,7 @@ class EnhancedBot:
                     context.bot.send_document(
                         chat_id=user_id,
                         document=f,
-                        caption=f"📦 添加2FA结果 - 成功 {success_count} 个",
+                        caption=self.i18n.get(user_id, 'common.twofa_result_success_count', count=success_count),
                         filename=os.path.basename(result_zip_path)
                     )
             
@@ -13727,7 +13760,7 @@ class EnhancedBot:
         # 发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            "📥 <b>正在处理您的文件...</b>",
+            self.i18n.get(user_id, 'common.processing_file'),
             'HTML'
         )
         
@@ -13773,9 +13806,9 @@ class EnhancedBot:
             
             # 请求用户选择密码输入方式
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔍 自动识别密码", callback_data="remove_2fa_auto")],
-                [InlineKeyboardButton("✏️ 手动输入密码", callback_data="remove_2fa_manual")],
-                [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.auto_detect_password'), callback_data="remove_2fa_auto")],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.manual_input_password'), callback_data="remove_2fa_manual")],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="back_to_main")]
             ])
             
             try:
@@ -13867,9 +13900,9 @@ class EnhancedBot:
 🗑️ <b>删除2FA密码进行中...</b>
 
 📊 <b>当前进度</b>
-• 已处理: {processed}/{total}
-• 速度: {speed:.1f} 个/秒
-• 用时: {int(elapsed)} 秒
+{self.i18n.get(user_id, 'common.processed_count', processed=processed, total=total)}
+{self.i18n.get(user_id, 'common.speed_per_sec', speed=speed)}
+{self.i18n.get(user_id, 'common.time_elapsed_sec', seconds=int(elapsed))}
 
 ✅ <b>删除成功</b>: {success_count}
 ❌ <b>删除失败</b>: {fail_count}
@@ -14127,7 +14160,7 @@ class EnhancedBot:
             
             # 提示选择拆分方式
             text = f"""
-✅ <b>文件扫描完成！</b>
+{self.i18n.get(user_id, 'check.scan_complete')}
 
 📊 <b>统计信息</b>
 • 总账号数: {total_count} 个
@@ -14152,7 +14185,7 @@ class EnhancedBot:
             import traceback
             traceback.print_exc()
             try:
-                progress_msg.edit_text(f"❌ 处理失败: {str(e)}", parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'error.processing_failed_with_error', error=str(e)), parse_mode='HTML')
             except:
                 pass
             if temp_zip and os.path.exists(temp_zip):
@@ -14245,7 +14278,7 @@ class EnhancedBot:
             
             # 发送结果
             try:
-                progress_msg.edit_text("📤 <b>正在发送结果...</b>", parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'file_ops.sending_results_bold'), parse_mode='HTML')
             except:
                 pass
             
@@ -14317,7 +14350,7 @@ class EnhancedBot:
             
             # 发送结果
             try:
-                progress_msg.edit_text("📤 <b>正在发送结果...</b>", parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'file_ops.sending_results_bold'), parse_mode='HTML')
             except:
                 pass
             
@@ -14382,7 +14415,7 @@ class EnhancedBot:
         elif data == "classify_split_country":
             # 按国家拆分
             if user_id not in self.pending_classify_tasks:
-                query.answer("❌ 任务已过期")
+                query.answer(self.i18n.get(user_id, 'common.task_expired'))
                 return
             
             task = self.pending_classify_tasks[user_id]
@@ -14479,7 +14512,7 @@ class EnhancedBot:
             
             # 发送结果
             try:
-                progress_msg.edit_text("📤 <b>正在发送结果...</b>", parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'file_ops.sending_results_bold'), parse_mode='HTML')
             except:
                 pass
             
@@ -14616,7 +14649,7 @@ class EnhancedBot:
             """
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'common.back_to_main'), callback_data="back_to_main")]
             ])
             
             self.safe_send_message(update, text, 'HTML', keyboard)
@@ -14630,8 +14663,8 @@ class EnhancedBot:
             """
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔄 重新兑换", callback_data="vip_redeem")],
-                [InlineKeyboardButton("🔙 返回会员中心", callback_data="vip_menu")]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'vip.redeem_again'), callback_data="vip_redeem")],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'vip.back_to_vip_center'), callback_data="vip_menu")]
             ])
             
             self.safe_send_message(update, text, 'HTML', keyboard)
@@ -14641,7 +14674,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -14661,18 +14694,18 @@ class EnhancedBot:
         
         keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("1天", callback_data="admin_card_days_1"),
-                InlineKeyboardButton("7天", callback_data="admin_card_days_7")
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_1'), callback_data="admin_card_days_1"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_7'), callback_data="admin_card_days_7")
             ],
             [
-                InlineKeyboardButton("30天", callback_data="admin_card_days_30"),
-                InlineKeyboardButton("60天", callback_data="admin_card_days_60")
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_30'), callback_data="admin_card_days_30"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_60'), callback_data="admin_card_days_60")
             ],
             [
-                InlineKeyboardButton("90天", callback_data="admin_card_days_90"),
-                InlineKeyboardButton("360天", callback_data="admin_card_days_360")
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_90'), callback_data="admin_card_days_90"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_360'), callback_data="admin_card_days_360")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -14682,7 +14715,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -14713,8 +14746,8 @@ class EnhancedBot:
             """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 继续生成", callback_data="admin_card_menu")],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'vip.continue_generate'), callback_data="admin_card_menu")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -14724,7 +14757,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -14755,7 +14788,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -14831,18 +14864,18 @@ class EnhancedBot:
         
         keyboard = InlineKeyboardMarkup([
             [
-                InlineKeyboardButton("1天", callback_data="admin_manual_days_1"),
-                InlineKeyboardButton("7天", callback_data="admin_manual_days_7")
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_1'), callback_data="admin_manual_days_1"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_7'), callback_data="admin_manual_days_7")
             ],
             [
-                InlineKeyboardButton("30天", callback_data="admin_manual_days_30"),
-                InlineKeyboardButton("60天", callback_data="admin_manual_days_60")
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_30'), callback_data="admin_manual_days_30"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_60'), callback_data="admin_manual_days_60")
             ],
             [
-                InlineKeyboardButton("90天", callback_data="admin_manual_days_90"),
-                InlineKeyboardButton("360天", callback_data="admin_manual_days_360")
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_90'), callback_data="admin_manual_days_90"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.days_360'), callback_data="admin_manual_days_360")
             ],
-            [InlineKeyboardButton("❌ 取消", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="admin_panel")]
         ])
         
         self.safe_send_message(update, text, 'HTML', keyboard)
@@ -14852,12 +14885,12 @@ class EnhancedBot:
         admin_id = query.from_user.id
         
         if not self.db.is_admin(admin_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         # 检查是否有待处理的用户
         if admin_id not in self.pending_manual_open:
-            query.answer("❌ 没有待处理的用户")
+            query.answer(self.i18n.get(user_id, 'error.no_pending_users'))
             return
         
         target_user_id = self.pending_manual_open[admin_id]
@@ -14888,7 +14921,7 @@ class EnhancedBot:
 • 到期时间: {expiry}
             """
             
-            query.answer("✅ 开通成功")
+            query.answer(self.i18n.get(user_id, 'common.activation_success'))
             
             # 尝试通知用户
             try:
@@ -14911,15 +14944,15 @@ class EnhancedBot:
                 pass
         else:
             text = "❌ <b>开通失败</b>\n\n请稍后重试"
-            query.answer("❌ 开通失败")
+            query.answer(self.i18n.get(user_id, 'error.activation_failed'))
         
         # 清理待处理任务
         if admin_id in self.pending_manual_open:
             del self.pending_manual_open[admin_id]
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 继续开通", callback_data="admin_manual_menu")],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.continue_activation'), callback_data="admin_manual_menu")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -14933,7 +14966,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -14963,7 +14996,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15035,8 +15068,8 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 确认撤销", callback_data=f"admin_revoke_confirm_{target_user_id}")],
-            [InlineKeyboardButton("❌ 取消", callback_data="admin_revoke_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.confirm_revoke'), callback_data=f"admin_revoke_confirm_{target_user_id}")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="admin_revoke_cancel")]
         ])
         
         self.safe_send_message(update, text, 'HTML', keyboard)
@@ -15046,7 +15079,7 @@ class EnhancedBot:
         admin_id = query.from_user.id
         
         if not self.db.is_admin(admin_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_access_only'))
             return
         
         query.answer()
@@ -15094,8 +15127,8 @@ class EnhancedBot:
             text = "❌ <b>撤销失败</b>\n\n该用户可能没有会员权限，或撤销操作失败。"
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 继续撤销", callback_data="admin_revoke_menu")],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.continue_revoke'), callback_data="admin_revoke_menu")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15106,7 +15139,7 @@ class EnhancedBot:
         
         text = "❌ <b>已取消撤销操作</b>"
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15133,7 +15166,7 @@ class EnhancedBot:
         # 权限检查
         if not self.db.is_admin(user_id):
             try:
-                query.answer("❌ 仅管理员可访问广播功能", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.admin_only_feature'), show_alert=True)
             except:
                 pass
             return
@@ -15196,7 +15229,7 @@ class EnhancedBot:
             else:
                 print(f"⚠️ 未识别的广播回调: {data}")
                 try:
-                    query.answer("⚠️ 未识别的操作", show_alert=True)
+                    query.answer(self.i18n.get(user_id, 'broadcast.unrecognized_action'), show_alert=True)
                 except:
                     pass
         except Exception as e:
@@ -15218,7 +15251,7 @@ class EnhancedBot:
         # 权限检查
         if not self.db.is_admin(user_id):
             try:
-                query.answer("❌ 仅管理员可访问广播功能", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.admin_only_feature'), show_alert=True)
             except:
                 pass
             return
@@ -15266,9 +15299,9 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📝 创建群发", callback_data="broadcast_create")],
-            [InlineKeyboardButton("📜 历史记录", callback_data="broadcast_history")],
-            [InlineKeyboardButton("🔙 返回", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.create_broadcast'), callback_data="broadcast_create")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.history_records'), callback_data="broadcast_history")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15308,7 +15341,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="broadcast_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="broadcast_cancel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15325,7 +15358,7 @@ class EnhancedBot:
         
         if 'media_file_id' not in task or not task['media_file_id']:
             try:
-                query.answer("⚠️ 尚未设置媒体", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.no_media_set'), show_alert=True)
             except:
                 pass
             return
@@ -15335,15 +15368,15 @@ class EnhancedBot:
             context.bot.send_photo(
                 chat_id=user_id,
                 photo=task['media_file_id'],
-                caption="📸 当前广播媒体预览"
+                caption=self.i18n.get(user_id, 'broadcast.media_preview')
             )
             try:
-                query.answer("✅ 已发送媒体预览")
+                query.answer(self.i18n.get(user_id, 'broadcast.sent_media_preview'))
             except:
                 pass
         except Exception as e:
             try:
-                query.answer(f"❌ 预览失败: {str(e)[:50]}", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.preview_failed', error=str(e)[:50]), show_alert=True)
             except:
                 pass
     
@@ -15360,7 +15393,7 @@ class EnhancedBot:
         task['media_type'] = None
         
         try:
-            query.answer("✅ 已清除媒体设置")
+            query.answer(self.i18n.get(user_id, 'broadcast.media_cleared'))
         except:
             pass
         
@@ -15400,7 +15433,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="broadcast_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="broadcast_cancel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15417,7 +15450,7 @@ class EnhancedBot:
         
         if not task.get('content'):
             try:
-                query.answer("⚠️ 尚未设置文本内容", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.no_text_content'), show_alert=True)
             except:
                 pass
             return
@@ -15437,7 +15470,7 @@ class EnhancedBot:
         
         self.safe_edit_message(query, text, 'HTML')
         try:
-            query.answer("✅ 已显示文本预览")
+            query.answer(self.i18n.get(user_id, 'broadcast.text_preview_shown'))
         except:
             pass
     
@@ -15477,7 +15510,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="broadcast_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="broadcast_cancel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15494,7 +15527,7 @@ class EnhancedBot:
         
         if not task.get('buttons'):
             try:
-                query.answer("⚠️ 尚未设置按钮", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.no_buttons_set'), show_alert=True)
             except:
                 pass
             return
@@ -15509,7 +15542,7 @@ class EnhancedBot:
         
         self.safe_edit_message(query, text, 'HTML')
         try:
-            query.answer(f"✅ 共 {len(task['buttons'])} 个按钮")
+            query.answer(self.i18n.get(user_id, 'common.total_buttons_bracket', count=len(task['buttons'])))
         except:
             pass
     
@@ -15525,7 +15558,7 @@ class EnhancedBot:
         task['buttons'] = []
         
         try:
-            query.answer("✅ 已清除所有按钮")
+            query.answer(self.i18n.get(user_id, 'broadcast.all_buttons_cleared'))
         except:
             pass
         
@@ -15545,7 +15578,7 @@ class EnhancedBot:
         # 检查必填项
         if not task.get('content'):
             try:
-                query.answer("⚠️ 请先设置文本内容", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.set_text_first'), show_alert=True)
             except:
                 pass
             return
@@ -15581,12 +15614,12 @@ class EnhancedBot:
                 )
             
             try:
-                query.answer("✅ 已发送预览")
+                query.answer(self.i18n.get(user_id, 'broadcast.sent_preview'))
             except:
                 pass
         except Exception as e:
             try:
-                query.answer(f"❌ 预览失败: {str(e)[:50]}", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.preview_failed', error=str(e)[:50]), show_alert=True)
             except:
                 pass
     
@@ -15614,7 +15647,7 @@ class EnhancedBot:
         # 检查必填项
         if not task.get('content'):
             try:
-                query.answer("⚠️ 请先设置文本内容", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.set_text_first'), show_alert=True)
             except:
                 pass
             return
@@ -15627,7 +15660,7 @@ class EnhancedBot:
         # 从广播任务中查找对应的提示信息
         # 这里简化处理，直接显示通用提示
         try:
-            query.answer("✨ 感谢您的关注！", show_alert=True)
+            query.answer(self.i18n.get(user_id, 'common.thanks_attention'), show_alert=True)
         except:
             pass
     
@@ -15664,28 +15697,28 @@ class EnhancedBot:
         keyboard = InlineKeyboardMarkup([
             # 第一行：媒体操作
             [
-                InlineKeyboardButton("📸 媒体", callback_data="broadcast_media"),
-                InlineKeyboardButton("👁️ 查看", callback_data="broadcast_media_view"),
-                InlineKeyboardButton("🗑️ 清除", callback_data="broadcast_media_clear")
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.media'), callback_data="broadcast_media"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.view'), callback_data="broadcast_media_view"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.clear'), callback_data="broadcast_media_clear")
             ],
             # 第二行：文本操作
             [
-                InlineKeyboardButton("📝 文本", callback_data="broadcast_text"),
-                InlineKeyboardButton("👁️ 查看", callback_data="broadcast_text_view")
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.text'), callback_data="broadcast_text"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.view'), callback_data="broadcast_text_view")
             ],
             # 第三行：按钮操作
             [
-                InlineKeyboardButton("🔘 按钮", callback_data="broadcast_buttons"),
-                InlineKeyboardButton("👁️ 查看", callback_data="broadcast_buttons_view"),
-                InlineKeyboardButton("🗑️ 清除", callback_data="broadcast_buttons_clear")
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.button'), callback_data="broadcast_buttons"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.view'), callback_data="broadcast_buttons_view"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.clear'), callback_data="broadcast_buttons_clear")
             ],
             # 第四行：预览和导航
             [
-                InlineKeyboardButton("🔍 完整预览", callback_data="broadcast_preview")
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.full_preview'), callback_data="broadcast_preview")
             ],
             [
-                InlineKeyboardButton("🔙 返回", callback_data="broadcast_cancel"),
-                InlineKeyboardButton("➡️ 下一步", callback_data="broadcast_next")
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="broadcast_cancel"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.next_step'), callback_data="broadcast_next")
             ]
         ])
         
@@ -15907,11 +15940,11 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"👥 全部用户 ({all_users})", callback_data="broadcast_target_all")],
-            [InlineKeyboardButton(f"💎 仅会员 ({members})", callback_data="broadcast_target_members")],
-            [InlineKeyboardButton(f"🔥 活跃用户(7天) ({active_7d})", callback_data="broadcast_target_active_7d")],
-            [InlineKeyboardButton(f"🆕 新用户(7天) ({new_7d})", callback_data="broadcast_target_new_7d")],
-            [InlineKeyboardButton("❌ 取消", callback_data="broadcast_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.all_users_bracket', count=all_users), callback_data="broadcast_target_all")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.members_only_bracket', count=members), callback_data="broadcast_target_members")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.active_7days_bracket', count=active_7d), callback_data="broadcast_target_active_7d")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.new_7days_bracket', count=new_7d), callback_data="broadcast_target_new_7d")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="broadcast_cancel")]
         ])
         
         self.safe_send_message(update, text, 'HTML', keyboard)
@@ -15968,9 +16001,9 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 开始发送", callback_data="broadcast_confirm_send")],
-            [InlineKeyboardButton("✏️ 返回修改", callback_data="broadcast_edit")],
-            [InlineKeyboardButton("❌ 取消", callback_data="broadcast_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'batch.start_send'), callback_data="broadcast_confirm_send")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'modify.return_modify'), callback_data="broadcast_edit")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="broadcast_cancel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16026,7 +16059,7 @@ class EnhancedBot:
         if total == 0:
             context.bot.send_message(
                 chat_id=admin_id,
-                text="❌ 未找到符合条件的用户",
+                text=self.i18n.get(user_id, 'error.no_matching_users'),
                 parse_mode='HTML'
             )
             del self.pending_broadcasts[admin_id]
@@ -16055,7 +16088,7 @@ class EnhancedBot:
             # 发送进度消息
             progress_msg = context.bot.send_message(
                 chat_id=admin_id,
-                text=f"📤 <b>广播发送中...</b>\n\n• 目标: {total} 人\n• 进度: 0/{total}\n• 成功: 0\n• 失败: 0",
+                text=self.i18n.get(user_id, 'broadcast.sending_progress', total=total, current=0, success=0, failed=0),
                 parse_mode='HTML'
             )
             
@@ -16165,7 +16198,7 @@ class EnhancedBot:
             
             context.bot.send_message(
                 chat_id=admin_id,
-                text=f"❌ <b>广播发送失败</b>\n\n错误: {str(e)}",
+                text=self.i18n.get(user_id, 'error.broadcast_failed', error=str(e)),
                 parse_mode='HTML'
             )
         
@@ -16187,7 +16220,7 @@ class EnhancedBot:
 暂无广播记录
             """
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 返回", callback_data="broadcast_menu")]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="broadcast_menu")]
             ])
             self.safe_edit_message(query, text, 'HTML', keyboard)
             return
@@ -16225,7 +16258,7 @@ class EnhancedBot:
                 )
             ])
         
-        buttons.append([InlineKeyboardButton("🔙 返回", callback_data="broadcast_menu")])
+        buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="broadcast_menu")])
         keyboard = InlineKeyboardMarkup(buttons)
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16294,7 +16327,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回历史", callback_data="broadcast_history")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.back_to_history'), callback_data="broadcast_history")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16310,7 +16343,7 @@ class EnhancedBot:
         
         text = "❌ <b>已取消创建广播</b>"
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回", callback_data="broadcast_menu")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="broadcast_menu")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16553,9 +16586,9 @@ class EnhancedBot:
             
             # 创建即时操作按钮
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("➕ 继续上传文件", callback_data="merge_continue")],
-                [InlineKeyboardButton("✅ 完成合并", callback_data="merge_finish")],
-                [InlineKeyboardButton("❌ 取消", callback_data="merge_cancel")]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'merge.continue_upload'), callback_data="merge_continue")],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'common.complete_merge'), callback_data="merge_finish")],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="merge_cancel")]
             ])
             
             self.safe_send_message(
@@ -16573,7 +16606,7 @@ class EnhancedBot:
     
     def handle_merge_continue(self, query):
         """处理继续上传文件"""
-        query.answer("✅ 请继续上传ZIP文件")
+        query.answer(self.i18n.get(user_id, 'batch.continue_upload_zip'))
         user_id = query.from_user.id
         
         if user_id not in self.pending_merge:
@@ -16594,8 +16627,8 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 完成合并", callback_data="merge_finish")],
-            [InlineKeyboardButton("❌ 取消", callback_data="merge_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.complete_merge'), callback_data="merge_finish")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="merge_cancel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -17052,8 +17085,8 @@ class EnhancedBot:
                     parse_mode='HTML',
                     reply_markup=InlineKeyboardMarkup([
                         [
-                            InlineKeyboardButton("✅ 确认清理", callback_data="cleanup_confirm"),
-                            InlineKeyboardButton("❌ 取消", callback_data="cleanup_cancel")
+                            InlineKeyboardButton(self.i18n.get(user_id, 'proxy.confirm_cleanup'), callback_data="cleanup_confirm"),
+                            InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="cleanup_cancel")
                         ]
                     ])
                 )
@@ -17970,7 +18003,7 @@ class EnhancedBot:
                     context.bot.send_document(
                         chat_id=user_id,
                         document=f,
-                        caption=f"📋 清理汇总报告",
+                        caption=fself.i18n.get(user_id, 'cleanup.summary_report'),
                         filename=os.path.basename(summary_report_path)
                     )
             except Exception as e:
@@ -17997,7 +18030,7 @@ class EnhancedBot:
             
             context.bot.send_message(
                 chat_id=user_id,
-                text=f"❌ <b>清理失败</b>\n\n错误: {str(e)}",
+                text=self.i18n.get(user_id, 'error.cleanup_failed_with_error', error=str(e)),
                 parse_mode='HTML'
             )
         
@@ -18073,7 +18106,7 @@ class EnhancedBot:
         """处理批量创建文件上传"""
         user_id = update.effective_user.id
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, 'file_ops.processing_file_bold'), 'HTML')
         if not progress_msg:
             return
         
@@ -18182,10 +18215,10 @@ class EnhancedBot:
             
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("📱 创建群组", callback_data="batch_create_type_group"),
-                    InlineKeyboardButton("📢 创建频道", callback_data="batch_create_type_channel")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'batch.create_group'), callback_data="batch_create_type_group"),
+                    InlineKeyboardButton(self.i18n.get(user_id, 'batch.create_channel'), callback_data="batch_create_type_channel")
                 ],
-                [InlineKeyboardButton("❌ 取消", callback_data="batch_create_cancel")]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="batch_create_cancel")]
             ])
             
             self.safe_edit_message_text(progress_msg, text, parse_mode='HTML', reply_markup=keyboard)
@@ -18222,8 +18255,8 @@ class EnhancedBot:
                 query,
                 "⚠️ 批量创建功能需要会员权限\n\n请先开通会员",
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
-                    InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'vip.activate_membership'), callback_data="vip_menu"),
+                    InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="back_to_main")
                 ]])
             )
             return
@@ -18257,7 +18290,7 @@ class EnhancedBot:
 """.format(config.BATCH_CREATE_DAILY_LIMIT)
         
         keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+            InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="back_to_main")
         ]])
         
         self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -18271,7 +18304,7 @@ class EnhancedBot:
         
         if data == "batch_create_noop":
             # 这是进度按钮的空操作回调
-            query.answer("实时进度更新中...")
+            query.answer(self.i18n.get(user_id, 'common.realtime_progress'))
             return
         elif data == "batch_create_type_group":
             self.handle_batch_create_select_type(query, user_id, "group")
@@ -18304,7 +18337,7 @@ game_lovers_group</code>
 💡 <i>如用户名已存在将自动跳过</i>
 """
                 keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("◀️ 返回", callback_data="batch_create_cancel")]
+                    [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]
                 ])
                 query.edit_message_text(text, parse_mode='HTML', reply_markup=keyboard)
                 self.db.save_user(user_id, "", "", "batch_create_usernames")
@@ -18328,7 +18361,7 @@ game_lovers_group</code>
         query.answer()
         
         if user_id not in self.pending_batch_create:
-            self.safe_edit_message(query, "❌ 会话已过期，请重新开始")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -18352,7 +18385,7 @@ game_lovers_group</code>
 """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("◀️ 返回", callback_data="batch_create_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]
         ])
         
         self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -18361,7 +18394,7 @@ game_lovers_group</code>
     def handle_batch_create_count_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理每账号创建数量输入"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -18369,7 +18402,7 @@ game_lovers_group</code>
         try:
             count = int(text.strip())
             if count < 1 or count > 10:
-                self.safe_send_message(update, "❌ 数量必须在1-10之间，请重新输入")
+                self.safe_send_message(update, self.i18n.get(user_id, 'error.quantity_range'))
                 return
             
             task['count_per_account'] = count
@@ -18398,20 +18431,20 @@ admin3</code>
 """
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("⏭️ 跳过", callback_data="batch_create_skip_admin")],
-                [InlineKeyboardButton("◀️ 返回", callback_data="batch_create_cancel")]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.skip_short'), callback_data="batch_create_skip_admin")],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]
             ])
             
             self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
             self.db.save_user(user_id, "", "", "batch_create_admin")
             
         except ValueError:
-            self.safe_send_message(update, "❌ 请输入有效的数字（1-10）")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.invalid_number'))
     
     def handle_batch_create_admin_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理管理员用户名输入（支持多个管理员，每行一个）"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -18480,7 +18513,7 @@ admin3</code>
 """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("◀️ 返回", callback_data="batch_create_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]
         ])
         
         self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
@@ -18489,7 +18522,7 @@ admin3</code>
     def handle_batch_create_names_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理群组名称和简介输入"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -18517,7 +18550,7 @@ admin3</code>
                     group_descriptions.append(desc)
             
             if not group_names:
-                self.safe_send_message(update, "❌ 未找到有效的名称，请重新输入")
+                self.safe_send_message(update, self.i18n.get(user_id, 'error.no_valid_names'))
                 return
             
             task['group_names'] = group_names
@@ -18540,20 +18573,20 @@ admin3</code>
 """
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📝 自定义上传", callback_data="batch_create_username_custom")],
-                [InlineKeyboardButton("🎲 自动生成", callback_data="batch_create_username_auto")],
-                [InlineKeyboardButton("◀️ 返回", callback_data="batch_create_cancel")]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.custom_upload'), callback_data="batch_create_username_custom")],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.auto_generate'), callback_data="batch_create_username_auto")],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]
             ])
             
             self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
             
         except Exception as e:
-            self.safe_send_message(update, f"❌ 解析失败：{str(e)}")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.parse_failed', error=str(e)))
     
     def handle_batch_create_usernames_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理自定义用户名输入"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -18573,7 +18606,7 @@ admin3</code>
                     custom_usernames.append(username)
             
             if not custom_usernames:
-                self.safe_send_message(update, "❌ 未找到有效的用户名，请重新输入")
+                self.safe_send_message(update, self.i18n.get(user_id, 'error.no_valid_usernames'))
                 return
             
             task['custom_usernames'] = custom_usernames
@@ -18582,7 +18615,7 @@ admin3</code>
             self._show_batch_create_confirm(update, user_id)
             
         except Exception as e:
-            self.safe_send_message(update, f"❌ 解析失败：{str(e)}")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.parse_failed', error=str(e)))
     
     def _show_batch_create_confirm(self, update: Update, user_id: int):
         """显示最终确认信息"""
@@ -18631,8 +18664,8 @@ admin3</code>
 """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 确认创建", callback_data="batch_create_confirm")],
-            [InlineKeyboardButton("❌ 取消", callback_data="batch_create_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'batch.confirm_create'), callback_data="batch_create_confirm")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="batch_create_cancel")]
         ])
         
         self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
@@ -18640,7 +18673,7 @@ admin3</code>
     def process_batch_create_names_file(self, update: Update, context: CallbackContext, document, user_id: int):
         """处理群组名称文件上传"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         try:
@@ -18663,12 +18696,12 @@ admin3</code>
             
         except Exception as e:
             logger.error(f"处理名称文件失败: {e}")
-            self.safe_send_message(update, f"❌ 文件处理失败：{str(e)}")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.file_processing_failed', error=str(e)))
     
     def process_batch_create_usernames_file(self, update: Update, context: CallbackContext, document, user_id: int):
         """处理用户名文件上传"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         try:
@@ -18691,13 +18724,13 @@ admin3</code>
             
         except Exception as e:
             logger.error(f"处理用户名文件失败: {e}")
-            self.safe_send_message(update, f"❌ 文件处理失败：{str(e)}")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.file_processing_failed', error=str(e)))
     
 
     
     def handle_batch_create_execute(self, update: Update, context: CallbackContext, query, user_id: int):
         """执行批量创建"""
-        query.answer("⏳ 开始创建...")
+        query.answer(self.i18n.get(user_id, 'batch.start_creating'))
         
         if user_id not in self.pending_batch_create:
             self.safe_edit_message(query, "❌ 会话已过期")
@@ -18715,7 +18748,7 @@ admin3</code>
                 traceback.print_exc()
                 context.bot.send_message(
                     chat_id=user_id,
-                    text=f"❌ <b>创建失败</b>\n\n错误: {str(e)}",
+                    text=self.i18n.get(user_id, 'error.create_failed_with_error', error=str(e)),
                     parse_mode='HTML'
                 )
             finally:
@@ -18755,12 +18788,12 @@ admin3</code>
         total_to_create = task['valid_accounts'] * task['count_per_account']
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📊 查看日志", callback_data="batch_create_noop")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'batch.view_log'), callback_data="batch_create_noop")]
         ])
         
         progress_msg = context.bot.send_message(
             chat_id=user_id,
-            text=f"🚀 <b>开始批量创建</b>\n\n进度: 0/{total_to_create} (0%)\n状态: 准备中...",
+            text=self.i18n.get(user_id, 'batch.start_batch_create', total=total_to_create),
             parse_mode='HTML',
             reply_markup=keyboard
         )
@@ -18778,7 +18811,7 @@ admin3</code>
                 try:
                     progress = int(current / total * 100)
                     keyboard = InlineKeyboardMarkup([
-                        [InlineKeyboardButton("📊 实时进度", callback_data="batch_create_noop")]
+                        [InlineKeyboardButton(self.i18n.get(user_id, 'batch.realtime_progress'), callback_data="batch_create_noop")]
                     ])
                     logger.info(f"📊 更新进度: {current}/{total} ({progress}%)")
                     print(f"📊 更新进度: {current}/{total} ({progress}%)", flush=True)
@@ -18786,7 +18819,7 @@ admin3</code>
                     context.bot.edit_message_text(
                         chat_id=user_id,
                         message_id=progress_msg.message_id,
-                        text=f"🚀 <b>批量创建中</b>\n\n进度: {current}/{total} ({progress}%)\n状态: {message}",
+                        text=self.i18n.get(user_id, 'batch.creating_progress', current=current, total=total, progress=progress, message=message),
                         parse_mode='HTML',
                         reply_markup=keyboard
                     )
@@ -18962,7 +18995,7 @@ admin3</code>
                     chat_id=user_id,
                     document=f,
                     filename=report_filename,
-                    caption="📊 批量创建详细报告"
+                    caption=self.i18n.get(user_id, 'batch.detail_report')
                 )
             
             # 生成成功列表文件
@@ -18995,7 +19028,7 @@ admin3</code>
                         chat_id=user_id,
                         document=f,
                         filename=success_filename,
-                        caption="✅ 成功创建列表"
+                        caption=self.i18n.get(user_id, 'common.create_list_success')
                     )
             
             # 生成失败列表文件
@@ -19026,7 +19059,7 @@ admin3</code>
                         chat_id=user_id,
                         document=f,
                         filename=failure_filename,
-                        caption="❌ 失败详情列表"
+                        caption=self.i18n.get(user_id, 'error.failed_details_list')
                     )
         
         finally:
@@ -19204,10 +19237,10 @@ admin3</code>
             )
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📷 上传图片", callback_data=f'custom_avatar_photo_{user_id}')],
-                [InlineKeyboardButton("🚫 删除头像", callback_data=f'custom_avatar_delete_{user_id}')],
-                [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_avatar_skip_{user_id}')],
-                [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'modify.upload_photo'), callback_data=f'custom_avatar_photo_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'modify.delete_avatar'), callback_data=f'custom_avatar_delete_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.skip_no_modify'), callback_data=f'custom_avatar_skip_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data='back_to_main')]
             ])
             
             self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -19265,10 +19298,10 @@ admin3</code>
             )
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💬 统一简介", callback_data=f'custom_bio_single_{user_id}')],
-                [InlineKeyboardButton("⬜ 设置为空", callback_data=f'custom_bio_empty_{user_id}')],
-                [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_bio_skip_{user_id}')],
-                [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.unified_bio'), callback_data=f'custom_bio_single_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.set_empty'), callback_data=f'custom_bio_empty_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.skip_no_modify'), callback_data=f'custom_bio_skip_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data='back_to_main')]
             ])
             
             self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -19286,10 +19319,10 @@ admin3</code>
             )
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💬 统一简介", callback_data=f'custom_bio_single_{user_id}')],
-                [InlineKeyboardButton("⬜ 设置为空", callback_data=f'custom_bio_empty_{user_id}')],
-                [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_bio_skip_{user_id}')],
-                [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.unified_bio'), callback_data=f'custom_bio_single_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.set_empty'), callback_data=f'custom_bio_empty_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'batch.skip_no_modify'), callback_data=f'custom_bio_skip_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data='back_to_main')]
             ])
             
             self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -19364,8 +19397,8 @@ admin3</code>
         )
         
         keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🚀 开始处理", callback_data=f'exec_modify_{user_id}'),
-            InlineKeyboardButton("❌ 取消", callback_data='back_to_main')
+            InlineKeyboardButton(self.i18n.get(user_id, 'batch.start_processing'), callback_data=f'exec_modify_{user_id}'),
+            InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data='back_to_main')
         ]])
         
         self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -19401,7 +19434,7 @@ admin3</code>
         # 解析姓名
         name_text = text.strip()
         if not name_text:
-            self.safe_send_message(update, "❌ 姓名不能为空，请重新输入")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.name_empty'))
             return
         
         parts = name_text.split(maxsplit=1)
@@ -19432,10 +19465,10 @@ admin3</code>
         )
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📷 上传图片", callback_data=f'custom_avatar_photo_{user_id}')],
-            [InlineKeyboardButton("🚫 删除头像", callback_data=f'custom_avatar_delete_{user_id}')],
-            [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_avatar_skip_{user_id}')],
-            [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'modify.upload_photo'), callback_data=f'custom_avatar_photo_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'modify.delete_avatar'), callback_data=f'custom_avatar_delete_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'batch.skip_no_modify'), callback_data=f'custom_avatar_skip_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data='back_to_main')]
         ])
         
         self.safe_send_message(update, text, 'HTML', reply_markup=keyboard)
@@ -19514,8 +19547,8 @@ admin3</code>
         )
         
         keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🚀 开始处理", callback_data=f'exec_modify_{user_id}'),
-            InlineKeyboardButton("❌ 取消", callback_data='back_to_main')
+            InlineKeyboardButton(self.i18n.get(user_id, 'batch.start_processing'), callback_data=f'exec_modify_{user_id}'),
+            InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data='back_to_main')
         ]])
         
         self.safe_send_message(update, text, 'HTML', reply_markup=keyboard)
@@ -19721,7 +19754,7 @@ admin3</code>
                         chat_id=chat_id,
                         document=f,
                         filename=f"modify_report_{timestamp}.txt",
-                        caption="📊 详细修改报告"
+                        caption=self.i18n.get(user_id, 'modify.detail_modify_report')
                     )
             except Exception as e:
                 logger.error(f"发送报告失败: {e}")
@@ -19751,7 +19784,7 @@ admin3</code>
                     chat_id=chat_id,
                     document=f,
                     filename=f"modified_success_{timestamp}.zip",
-                    caption=f"✅ 修改成功 ({len(results['success'])} 个账号)"
+                    caption=self.i18n.get(user_id, 'common.modify_success_bracket', count=len(results['success']))
                 )
         
         # 生成失败报告
@@ -19776,7 +19809,7 @@ admin3</code>
                     chat_id=chat_id,
                     document=f,
                     filename=f"modified_failed_{timestamp}.txt",
-                    caption=f"❌ 失败详情 ({len(results['failed'])} 个账号)"
+                    caption=self.i18n.get(user_id, 'common.failed_details_bracket', count=len(results['failed']))
                 )
         
         # 发送汇总
@@ -19794,7 +19827,7 @@ admin3</code>
             text=summary,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.back_to_main'), callback_data="back_to_main")
             ]])
         )
         
@@ -20089,7 +20122,7 @@ admin3</code>
         """处理重新授权文件上传"""
         user_id = update.effective_user.id
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, 'file_ops.processing_file_bold'), 'HTML')
         if not progress_msg:
             return
         
@@ -20139,10 +20172,10 @@ admin3</code>
             
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("🔍 自动识别2FA", callback_data="reauth_auto_detect"),
-                    InlineKeyboardButton("✍️ 手动输入2FA", callback_data="reauth_manual_input")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.auto_detect_2fa'), callback_data="reauth_auto_detect"),
+                    InlineKeyboardButton(self.i18n.get(user_id, 'twofa.manual_input_2fa'), callback_data="reauth_manual_input")
                 ],
-                [InlineKeyboardButton("❌ 取消", callback_data="reauthorize_cancel")]
+                [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="reauthorize_cancel")]
             ])
             
             self.safe_edit_message_text(
@@ -20245,7 +20278,7 @@ admin3</code>
     def handle_reauthorize_old_password_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理旧密码输入（手动模式）"""
         if user_id not in self.pending_reauthorize:
-            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_reauthorize[user_id]
@@ -20270,7 +20303,7 @@ admin3</code>
     def handle_reauthorize_new_password_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理新密码输入"""
         if user_id not in self.pending_reauthorize:
-            self.safe_send_message(update, "❌ 会话已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_reauthorize[user_id]
@@ -20314,15 +20347,15 @@ admin3</code>
 """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 确认开始", callback_data="reauthorize_confirm")],
-            [InlineKeyboardButton("❌ 取消", callback_data="reauthorize_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'batch.confirm_start'), callback_data="reauthorize_confirm")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="reauthorize_cancel")]
         ])
         
         self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
     
     def handle_reauthorize_execute(self, update: Update, context: CallbackContext, query, user_id: int):
         """执行重新授权"""
-        query.answer("⏳ 开始重新授权...")
+        query.answer(self.i18n.get(user_id, 'reauthorize.start_reauth'))
         
         if user_id not in self.pending_reauthorize:
             self.safe_edit_message(query, "❌ 会话已过期")
@@ -20340,7 +20373,7 @@ admin3</code>
                 traceback.print_exc()
                 context.bot.send_message(
                     chat_id=user_id,
-                    text=f"❌ <b>重新授权失败</b>\n\n错误: {str(e)}",
+                    text=self.i18n.get(user_id, 'reauthorize.reauth_failed', error=str(e)),
                     parse_mode='HTML'
                 )
             finally:
@@ -20360,27 +20393,27 @@ admin3</code>
         """创建重新授权进度按钮 - 6行2列布局"""
         return InlineKeyboardMarkup([
             [
-                InlineKeyboardButton(f"📊 账户数量", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(fself.i18n.get(user_id, 'batch.account_quantity'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{total}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"✅ 授权成功", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(fself.i18n.get(user_id, 'common.auth_success'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{success}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"❄️ 冻结账户", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(fself.i18n.get(user_id, 'check_status.frozen_account'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{frozen}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"🚫 封禁账户", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(fself.i18n.get(user_id, 'reauthorize.banned_account'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{banned}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"🔐 2FA错误", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(fself.i18n.get(user_id, 'reauthorize.twofa_error'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{wrong_pwd}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"⚠️ 网络错误", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(fself.i18n.get(user_id, 'broadcast.network_error'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{network_error}", callback_data="reauthorize_noop")
             ]
         ])
@@ -20404,7 +20437,7 @@ admin3</code>
         
         progress_msg = context.bot.send_message(
             chat_id=user_id,
-            text=f"🚀 <b>开始重新授权</b>\n\n进度：0/{total_files} (0%)",
+            text=self.i18n.get(user_id, 'reauthorize.start_reauth_progress', total=total_files),
             parse_mode='HTML',
             reply_markup=keyboard
         )
@@ -20451,7 +20484,7 @@ admin3</code>
                     context.bot.edit_message_text(
                         chat_id=user_id,
                         message_id=progress_msg.message_id,
-                        text=f"🚀 <b>重新授权中</b>\n\n进度：{current}/{total} ({progress}%)",
+                        text=self.i18n.get(user_id, 'reauthorize.reauth_in_progress', current=current, total=total, progress=progress),
                         parse_mode='HTML',
                         reply_markup=keyboard
                     )
@@ -20556,7 +20589,7 @@ admin3</code>
                     success_count = len(results['success'])
                     context.bot.send_message(
                         chat_id=user_id,
-                        text=f"⚠️ 报告生成出现问题，但处理完成\n\n总数: {total}\n成功: {success_count}",
+                        text=self.i18n.get(user_id, 'error.report_issue_but_complete', total=total, success=success_count),
                         parse_mode='HTML'
                     )
                 except:
@@ -20569,7 +20602,7 @@ admin3</code>
             try:
                 context.bot.send_message(
                     chat_id=user_id,
-                    text=f"❌ 重新授权出现严重错误: {str(e)}\n\n已处理账号可能未完全保存",
+                    text=self.i18n.get(user_id, 'reauthorize.serious_error', error=str(e)),
                     parse_mode='HTML'
                 )
             except:
@@ -21675,7 +21708,7 @@ admin3</code>
             try:
                 context.bot.send_message(
                     chat_id=user_id,
-                    text="⚠️ 所有结果文件发送失败，请联系管理员检查日志",
+                    text=self.i18n.get(user_id, 'error.all_files_send_failed'),
                     parse_mode='HTML'
                 )
             except:
@@ -21775,7 +21808,7 @@ admin3</code>
         """处理查询注册时间文件上传"""
         user_id = update.effective_user.id
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, 'file_ops.processing_file_bold'), 'HTML')
         if not progress_msg:
             return
         
@@ -21831,8 +21864,8 @@ admin3</code>
             
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("✅ 开始查询", callback_data="check_reg_execute"),
-                    InlineKeyboardButton("❌ 取消", callback_data="check_reg_cancel")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'batch.start_query'), callback_data="check_reg_execute"),
+                    InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="check_reg_cancel")
                 ]
             ])
             
@@ -22892,7 +22925,7 @@ admin3</code>
                         chat_id=user_id,
                         document=f,
                         filename=report_filename,
-                        caption="📊 注册时间查询详细报告",
+                        caption=self.i18n.get(user_id, 'registration.query_detail_report'),
                         timeout=60
                     )
                 logger.info("✅ 报告文件已发送")
