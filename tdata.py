@@ -20484,7 +20484,7 @@ admin3</code>
                     context.bot.edit_message_text(
                         chat_id=user_id,
                         message_id=progress_msg.message_id,
-                        text=f"🚀 <b>重新授权中</b>\n\n进度：{current}/{total} ({progress}%)",
+                        text=self.i18n.get(user_id, 'reauthorize.reauth_in_progress', current=current, total=total, progress=progress),
                         parse_mode='HTML',
                         reply_markup=keyboard
                     )
@@ -20589,7 +20589,7 @@ admin3</code>
                     success_count = len(results['success'])
                     context.bot.send_message(
                         chat_id=user_id,
-                        text=f"⚠️ 报告生成出现问题，但处理完成\n\n总数: {total}\n成功: {success_count}",
+                        text=self.i18n.get(user_id, 'error.report_issue_but_complete', total=total, success=success_count),
                         parse_mode='HTML'
                     )
                 except:
@@ -20602,7 +20602,7 @@ admin3</code>
             try:
                 context.bot.send_message(
                     chat_id=user_id,
-                    text=f"❌ 重新授权出现严重错误: {str(e)}\n\n已处理账号可能未完全保存",
+                    text=self.i18n.get(user_id, 'reauthorize.serious_error', error=str(e)),
                     parse_mode='HTML'
                 )
             except:
@@ -21708,7 +21708,7 @@ admin3</code>
             try:
                 context.bot.send_message(
                     chat_id=user_id,
-                    text="⚠️ 所有结果文件发送失败，请联系管理员检查日志",
+                    text=self.i18n.get(user_id, 'error.all_files_send_failed'),
                     parse_mode='HTML'
                 )
             except:
