@@ -2943,6 +2943,24 @@ class FileProcessor:
         self.db = db
         self.i18n = i18n
     
+    @staticmethod
+    def unpack_file_item(item):
+        """
+        安全地解包文件项，支持2元组和3元组格式
+        
+        Args:
+            item: 文件项，可以是 (path, name) 或 (path, name, type)
+            
+        Returns:
+            tuple: (path, name) 如果成功，否则返回 (None, None)
+        """
+        if len(item) == 2:
+            return item[0], item[1]
+        elif len(item) == 3:
+            return item[0], item[1]
+        else:
+            return None, None
+    
     def translate_status(self, status: str, user_id: int) -> str:
         """
         Translate status code to localized string
@@ -9477,14 +9495,14 @@ class EnhancedBot:
             target = target.replace("@", "")
             user_info = self.db.get_user_by_username(target)
             if not user_info:
-                self.safe_send_message(update, fself.i18n.get(user_id, "admin.user_not_found_target"))
+                self.safe_send_message(update, self.i18n.get(user_id, "admin.user_not_found_target"))
                 return
             
             target_user_id, target_username, target_first_name = user_info
         
         # 检查是否已经是管理员
         if self.db.is_admin(target_user_id):
-            self.safe_send_message(update, fself.i18n.get(user_id, "admin.already_admin"))
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.already_admin"))
             return
         
         # 添加管理员
@@ -9533,11 +9551,11 @@ class EnhancedBot:
             return
         
         if not self.db.is_admin(target_user_id):
-            self.safe_send_message(update, fself.i18n.get(user_id, "admin.not_admin"))
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.not_admin"))
             return
         
         if self.db.remove_admin(target_user_id):
-            self.safe_send_message(update, fself.i18n.get(user_id, "admin.removed_success"))
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.removed_success"))
         else:
             self.safe_send_message(update, self.i18n.get(user_id, "admin.remove_failed"))
     
@@ -9639,7 +9657,7 @@ class EnhancedBot:
         if context.args:
             if context.args[0] == "reload":
                 self.proxy_manager.load_proxies()
-                self.safe_send_message(update, fself.i18n.get(user_id, "proxy.reloaded_count"))
+                self.safe_send_message(update, self.i18n.get(user_id, "proxy.reloaded_count"))
                 return
             elif context.args[0] == "status":
                 self.show_proxy_detailed_status(update)
@@ -9768,7 +9786,7 @@ class EnhancedBot:
                     pass
             
         except Exception as e:
-            self.safe_send_message(update, fself.i18n.get(user_id, "proxy.test_failed_error"))
+            self.safe_send_message(update, self.i18n.get(user_id, "proxy.test_failed_error"))
     
     def clean_proxy_command(self, update: Update, context: CallbackContext):
         """清理代理命令"""
@@ -18050,7 +18068,7 @@ class EnhancedBot:
                     context.bot.send_document(
                         chat_id=user_id,
                         document=f,
-                        caption=fself.i18n.get(user_id, 'cleanup.summary_report'),
+                        caption=self.i18n.get(user_id, 'cleanup.summary_report'),
                         filename=os.path.basename(summary_report_path)
                     )
             except Exception as e:
@@ -19566,7 +19584,7 @@ admin3</code>
             
         except Exception as e:
             logger.error(f"处理头像上传失败: {e}")
-            self.safe_send_message(update, fself.i18n.get(user_id, "file.upload_failed_error"))
+            self.safe_send_message(update, self.i18n.get(user_id, "file.upload_failed_error"))
     
     def handle_custom_bio_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理自定义简介输入"""
@@ -20448,27 +20466,27 @@ admin3</code>
         """创建重新授权进度按钮 - 6行2列布局"""
         return InlineKeyboardMarkup([
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'batch.account_quantity'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'batch.account_quantity'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{total}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'common.auth_success'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.auth_success'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{success}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'check_status.frozen_account'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'check_status.frozen_account'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{frozen}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'reauthorize.banned_account'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.banned_account'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{banned}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'reauthorize.twofa_error'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.twofa_error'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{wrong_pwd}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'broadcast.network_error'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.network_error'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{network_error}", callback_data="reauthorize_noop")
             ]
         ])
