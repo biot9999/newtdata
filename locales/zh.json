@@ -636,5 +636,46 @@
   "language": {
     "select": "🌐 请选择语言 / Select Language\n\n当前语言标记为 ✅",
     "changed": "✅ 语言已切换为 {lang}"
+  },
+  "twofa_change": {
+    "intro_title": "🔐 <b>批量修改2FA密码功能</b>",
+    "intro_features": "<b>✨ 核心功能</b>",
+    "intro_auto_detect": "• 🔍 <b>密码自动识别</b>\n  - TData格式：自动识别 2fa.txt、twofa.txt、password.txt\n  - Session格式：自动识别 JSON 中的密码字段（支持 twofa、twoFA、2fa、password 等）\n  - 智能备选：识别失败时使用手动输入的备选密码",
+    "intro_interactive": "• ✏️ <b>交互式密码输入</b>\n  - 上传文件后系统提示输入密码\n  - 支持两种格式：仅新密码（推荐）或 旧密码+新密码\n  - 系统优先自动检测旧密码，无需手动输入\n  - 5分钟输入超时保护",
+    "intro_auto_update": "• 🔄 <b>自动更新密码文件</b>\n  - Session格式：统一使用 twofa 字段，删除其他密码字段\n  - TData格式：自动更新2fa.txt等密码文件\n  - 修改成功后文件立即同步更新\n  - 无需手动编辑配置文件",
+    "intro_notes": "<b>⚠️ 注意事项</b>\n• 系统会首先尝试自动识别现有密码\n• 推荐使用仅新密码格式，让系统自动检测旧密码\n• 如果自动识别失败，将使用您输入的旧密码\n• 请在5分钟内输入密码，否则任务将自动取消\n• 请确保账号已登录且session文件有效\n• 修改成功后密码文件将自动更新并包含在结果ZIP中",
+    "upload_prompt": "🚀请上传您的ZIP文件..."
+  },
+  "twofa_forget": {
+    "intro_title": "🔓 <b>忘记二级验证密码</b>",
+    "intro_important": "⚠️ <b>重要说明：</b>",
+    "intro_details": "• 将启动 Telegram 官方密码重置流程\n• 需要等待 <b>7 天冷却期</b>后密码才会被移除\n• 优先使用代理连接（防风控）\n• 代理失败后自动回退本地连接\n• 账号间自动随机延迟处理（5-15秒）",
+    "proxy_warning": "\n⚠️ <b>警告：代理数量不足！当前仅有 {count} 个，建议至少 10 个以上</b>\n",
+    "proxy_status_title": "<b>📡 当前代理状态</b>",
+    "proxy_status_mode": "• 代理模式: {mode}",
+    "proxy_status_count": "• 可用代理: {count} 个",
+    "upload_section_title": "<b>📤 请上传账号文件：</b>",
+    "upload_section_details": "• 支持 .zip 压缩包（Tdata/Session）\n• 自动识别文件格式",
+    "result_section_title": "<b>📊 结果分类：</b>",
+    "result_section_details": "• ✅ 已请求重置 - 成功请求密码重置（需等待7天）\n• ⚠️ 无需重置 - 账号没有设置2FA密码\n• ⏳ 冷却期中 - 已在冷却期内\n• ❌ 失败 - 连接失败/其他错误"
+  },
+  "twofa_add": {
+    "intro_title": "➕ <b>添加2FA密码</b>",
+    "intro_description": "<b>📋 功能说明：</b>",
+    "intro_description_details": "• 为 Session 文件自动创建 JSON 配置文件\n• 为 TData 目录自动创建 2fa.txt 密码文件\n• 您可以自定义2FA密码内容",
+    "supported_formats": "<b>📤 支持的文件格式：</b>",
+    "supported_formats_details": "• ZIP 压缩包（包含 Session 或 TData）\n• 自动识别文件类型并添加对应的2FA配置",
+    "processing_rules": "<b>⚙️ 处理规则：</b>",
+    "processing_rules_details": "• Session 文件 → 创建同名 JSON 文件（包含 twofa 字段）\n• TData 目录 → 创建 2fa.txt 文件（与 tdata 同级）",
+    "upload_prompt": "<b>📤 请上传您的账号文件</b>"
+  },
+  "twofa_remove": {
+    "intro_title": "❌ <b>批量删除2FA密码功能</b>",
+    "intro_features": "<b>✨ 核心功能</b>",
+    "intro_auto_detect": "• 🔍 <b>密码自动识别</b>\n  - TData格式：自动识别 2fa.txt、twofa.txt、password.txt\n  - Session格式：自动识别 JSON 中的密码字段（支持 twofa、twoFA、2fa、password 等）\n  - 智能备选：识别失败时使用手动输入的备选密码",
+    "intro_interactive": "• ✏️ <b>交互式密码输入</b>\n  - 上传文件后可选择自动识别或手动输入密码\n  - 自动识别：从文件中读取当前密码\n  - 手动输入：用户输入当前的2FA密码\n  - 5分钟输入超时保护",
+    "intro_auto_update": "• 🔄 <b>自动更新密码文件</b>\n  - Session格式：统一使用 twofa 字段并清空，删除其他密码字段\n  - TData格式：自动删除或清空2fa.txt等密码文件\n  - 删除成功后文件立即同步更新\n  - 无需手动编辑配置文件",
+    "intro_notes": "<b>⚠️ 注意事项</b>\n• 删除2FA后账号将不再需要二次验证密码\n• 系统优先尝试自动识别现有密码\n• 如果自动识别失败，请选择手动输入模式\n• 请在5分钟内完成操作，否则任务将自动取消\n• 请确保账号已登录且session文件有效\n• 删除成功后密码文件将自动更新并包含在结果ZIP中",
+    "upload_prompt": "🚀请上传您的ZIP文件..."
   }
 }

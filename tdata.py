@@ -10475,36 +10475,19 @@ class EnhancedBot:
             self.safe_edit_message(query, self.i18n.get(user_id, "twofa.unavailable_telethon"))
             return
         
-        text = """
-🔐 <b>批量修改2FA密码功能</b>
+        # Build intro text using translations
+        text = f"""{self.i18n.get(user_id, 'twofa_change.intro_title')}
 
-<b>✨ 核心功能</b>
-• 🔍 <b>密码自动识别</b>
-  - TData格式：自动识别 2fa.txt、twofa.txt、password.txt
-  - Session格式：自动识别 JSON 中的密码字段（支持 twofa、twoFA、2fa、password 等）
-  - 智能备选：识别失败时使用手动输入的备选密码
+{self.i18n.get(user_id, 'twofa_change.intro_features')}
+{self.i18n.get(user_id, 'twofa_change.intro_auto_detect')}
 
-• ✏️ <b>交互式密码输入</b>
-  - 上传文件后系统提示输入密码
-  - 支持两种格式：仅新密码（推荐）或 旧密码+新密码
-  - 系统优先自动检测旧密码，无需手动输入
-  - 5分钟输入超时保护
+{self.i18n.get(user_id, 'twofa_change.intro_interactive')}
 
-• 🔄 <b>自动更新密码文件</b>
-  - Session格式：统一使用 twofa 字段，删除其他密码字段
-  - TData格式：自动更新2fa.txt等密码文件
-  - 修改成功后文件立即同步更新
-  - 无需手动编辑配置文件
+{self.i18n.get(user_id, 'twofa_change.intro_auto_update')}
 
-<b>⚠️ 注意事项</b>
-• 系统会首先尝试自动识别现有密码
-• 推荐使用"仅新密码"格式，让系统自动检测旧密码
-• 如果自动识别失败，将使用您输入的旧密码
-• 请在5分钟内输入密码，否则任务将自动取消
-• 请确保账号已登录且session文件有效
-• 修改成功后密码文件将自动更新并包含在结果ZIP中
+{self.i18n.get(user_id, 'twofa_change.intro_notes')}
 
-🚀请上传您的ZIP文件...
+{self.i18n.get(user_id, 'twofa_change.upload_prompt')}
         """
         
         self.safe_edit_message(query, text, 'HTML')
@@ -10533,35 +10516,30 @@ class EnhancedBot:
         proxy_count = len(self.proxy_manager.proxies)
         proxy_warning = ""
         if proxy_count < 3:
-            proxy_warning = f"\n⚠️ <b>警告：代理数量不足！当前仅有 {proxy_count} 个，建议至少 10 个以上</b>\n"
+            proxy_warning = self.i18n.get(user_id, 'twofa_forget.proxy_warning', count=proxy_count)
         
-        text = f"""
-🔓 <b>忘记二级验证密码</b>
+        # Get proxy mode text
+        proxy_mode = self.i18n.get(user_id, 'start.proxy_enabled') if self.proxy_manager.is_proxy_mode_active(self.db) else self.i18n.get(user_id, 'start.proxy_local')
+        
+        # Build intro text using translations
+        text = f"""{self.i18n.get(user_id, 'twofa_forget.intro_title')}
 
-⚠️ <b>重要说明：</b>
-• 将启动 Telegram 官方密码重置流程
-• 需要等待 <b>7 天冷却期</b>后密码才会被移除
-• 优先使用代理连接（防风控）
-• 代理失败后自动回退本地连接
-• 账号间自动随机延迟处理（5-15秒）
+{self.i18n.get(user_id, 'twofa_forget.intro_important')}
+{self.i18n.get(user_id, 'twofa_forget.intro_details')}
 {proxy_warning}
-<b>📡 当前代理状态</b>
-• 代理模式: {'🟢启用' if self.proxy_manager.is_proxy_mode_active(self.db) else '🔴本地连接'}
-• 可用代理: {proxy_count} 个
+{self.i18n.get(user_id, 'twofa_forget.proxy_status_title')}
+{self.i18n.get(user_id, 'twofa_forget.proxy_status_mode', mode=proxy_mode)}
+{self.i18n.get(user_id, 'twofa_forget.proxy_status_count', count=proxy_count)}
 
-<b>📤 请上传账号文件：</b>
-• 支持 .zip 压缩包（Tdata/Session）
-• 自动识别文件格式
+{self.i18n.get(user_id, 'twofa_forget.upload_section_title')}
+{self.i18n.get(user_id, 'twofa_forget.upload_section_details')}
 
-<b>📊 结果分类：</b>
-• ✅ 已请求重置 - 成功请求密码重置（需等待7天）
-• ⚠️ 无需重置 - 账号没有设置2FA密码
-• ⏳ 冷却期中 - 已在冷却期内
-• ❌ 失败 - 连接失败/其他错误
+{self.i18n.get(user_id, 'twofa_forget.result_section_title')}
+{self.i18n.get(user_id, 'twofa_forget.result_section_details')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back_main'), callback_data="back_to_main")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -10581,27 +10559,23 @@ class EnhancedBot:
             self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_1308857d"))
             return
         
-        text = """
-➕ <b>添加2FA密码</b>
+        # Build intro text using translations
+        text = f"""{self.i18n.get(user_id, 'twofa_add.intro_title')}
 
-<b>📋 功能说明：</b>
-• 为 Session 文件自动创建 JSON 配置文件
-• 为 TData 目录自动创建 2fa.txt 密码文件
-• 您可以自定义2FA密码内容
+{self.i18n.get(user_id, 'twofa_add.intro_description')}
+{self.i18n.get(user_id, 'twofa_add.intro_description_details')}
 
-<b>📤 支持的文件格式：</b>
-• ZIP 压缩包（包含 Session 或 TData）
-• 自动识别文件类型并添加对应的2FA配置
+{self.i18n.get(user_id, 'twofa_add.supported_formats')}
+{self.i18n.get(user_id, 'twofa_add.supported_formats_details')}
 
-<b>⚙️ 处理规则：</b>
-• Session 文件 → 创建同名 JSON 文件（包含 twofa 字段）
-• TData 目录 → 创建 2fa.txt 文件（与 tdata 同级）
+{self.i18n.get(user_id, 'twofa_add.processing_rules')}
+{self.i18n.get(user_id, 'twofa_add.processing_rules_details')}
 
-<b>📤 请上传您的账号文件</b>
+{self.i18n.get(user_id, 'twofa_add.upload_prompt')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back_main'), callback_data="back_to_main")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -10625,36 +10599,19 @@ class EnhancedBot:
             self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_1e42173b"))
             return
         
-        text = """
-❌ <b>批量删除2FA密码功能</b>
+        # Build intro text using translations
+        text = f"""{self.i18n.get(user_id, 'twofa_remove.intro_title')}
 
-<b>✨ 核心功能</b>
-• 🔍 <b>密码自动识别</b>
-  - TData格式：自动识别 2fa.txt、twofa.txt、password.txt
-  - Session格式：自动识别 JSON 中的密码字段（支持 twofa、twoFA、2fa、password 等）
-  - 智能备选：识别失败时使用手动输入的备选密码
+{self.i18n.get(user_id, 'twofa_remove.intro_features')}
+{self.i18n.get(user_id, 'twofa_remove.intro_auto_detect')}
 
-• ✏️ <b>交互式密码输入</b>
-  - 上传文件后可选择自动识别或手动输入密码
-  - 自动识别：从文件中读取当前密码
-  - 手动输入：用户输入当前的2FA密码
-  - 5分钟输入超时保护
+{self.i18n.get(user_id, 'twofa_remove.intro_interactive')}
 
-• 🔄 <b>自动更新密码文件</b>
-  - Session格式：统一使用 twofa 字段并清空，删除其他密码字段
-  - TData格式：自动删除或清空2fa.txt等密码文件
-  - 删除成功后文件立即同步更新
-  - 无需手动编辑配置文件
+{self.i18n.get(user_id, 'twofa_remove.intro_auto_update')}
 
-<b>⚠️ 注意事项</b>
-• 删除2FA后账号将不再需要二次验证密码
-• 系统会首先尝试自动识别现有密码
-• 如果自动识别失败，您可以手动输入当前密码
-• 请在5分钟内完成操作，否则任务将自动取消
-• 请确保账号已登录且session文件有效
-• 删除成功后密码文件将自动更新并包含在结果ZIP中
+{self.i18n.get(user_id, 'twofa_remove.intro_notes')}
 
-🚀请上传您的ZIP文件...
+{self.i18n.get(user_id, 'twofa_remove.upload_prompt')}
         """
         
         self.safe_edit_message(query, text, 'HTML')
