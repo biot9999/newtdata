@@ -10732,58 +10732,60 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_only_access'))
             return
         
         # 获取统计信息
         stats = self.db.get_user_statistics()
         admin_count = len(self.db.get_all_admins()) if self.db.get_all_admins() else 0
         
-        admin_text = f"""
-<b>👑 管理员控制面板</b>
+        # 判断权限类型
+        permission = self.i18n.get(user_id, 'admin.super_admin') if user_id in config.ADMIN_IDS else self.i18n.get(user_id, 'admin.normal_admin')
+        
+        admin_text = f"""{self.i18n.get(user_id, 'admin.panel_title')}
 
-<b>📊 系统统计</b>
-• 总用户数: {stats.get('total_users', 0)}
-• 今日活跃: {stats.get('today_active', 0)}
-• 本周活跃: {stats.get('week_active', 0)}
-• 有效会员: {stats.get('active_members', 0)}
-• 体验会员: {stats.get('trial_members', 0)}
-• 近期新用户: {stats.get('recent_users', 0)}
+{self.i18n.get(user_id, 'admin.system_stats')}
+{self.i18n.get(user_id, 'admin.total_users', count=stats.get('total_users', 0))}
+{self.i18n.get(user_id, 'admin.today_active', count=stats.get('today_active', 0))}
+{self.i18n.get(user_id, 'admin.week_active', count=stats.get('week_active', 0))}
+{self.i18n.get(user_id, 'admin.active_members', count=stats.get('active_members', 0))}
+{self.i18n.get(user_id, 'admin.trial_members', count=stats.get('trial_members', 0))}
+{self.i18n.get(user_id, 'admin.recent_users', count=stats.get('recent_users', 0))}
 
-<b>👑 管理员信息</b>
-• 管理员数量: {admin_count}个
-• 您的权限: {'👑 超级管理员' if user_id in config.ADMIN_IDS else '🔧 普通管理员'}
-• 系统时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}
+{self.i18n.get(user_id, 'admin.admin_info')}
+{self.i18n.get(user_id, 'admin.admin_count', count=admin_count)}
+{self.i18n.get(user_id, 'admin.your_permission', permission=permission)}
+{self.i18n.get(user_id, 'admin.system_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}
 
-<b>🔧 快速操作</b>
-点击下方按钮进行管理操作
+{self.i18n.get(user_id, 'admin.quick_actions')}
+{self.i18n.get(user_id, 'admin.quick_actions_prompt')}
         """
         
         # 创建管理按钮
         buttons = [
             [
-                InlineKeyboardButton("👥 用户管理", callback_data="admin_users"),
-                InlineKeyboardButton("📊 用户统计", callback_data="admin_stats")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_user_manage'), callback_data="admin_users"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_user_stats'), callback_data="admin_stats")
             ],
             [
-                InlineKeyboardButton("📡 代理管理", callback_data="proxy_panel"),
-                InlineKeyboardButton("👑 管理员管理", callback_data="admin_manage")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_proxy_manage'), callback_data="proxy_panel"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_admin_manage'), callback_data="admin_manage")
             ],
             [
-                InlineKeyboardButton("🔍 搜索用户", callback_data="admin_search"),
-                InlineKeyboardButton("📋 最近用户", callback_data="admin_recent")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_search_user'), callback_data="admin_search"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_recent_users'), callback_data="admin_recent")
             ],
             [
-                InlineKeyboardButton("💳 卡密开通", callback_data="admin_card_menu"),
-                InlineKeyboardButton("👤 人工开通", callback_data="admin_manual_menu")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_card_activation'), callback_data="admin_card_menu"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_manual_activation'), callback_data="admin_manual_menu")
             ],
             [
-                InlineKeyboardButton("撤销会员", callback_data="admin_revoke_menu")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_revoke_member'), callback_data="admin_revoke_menu")
             ],
             [
-                InlineKeyboardButton("📢 群发通知", callback_data="broadcast_menu")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_broadcast'), callback_data="broadcast_menu")
             ],
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_back_main'), callback_data="back_to_main")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -14522,30 +14524,29 @@ class EnhancedBot:
         is_member, level, expiry = self.db.check_membership(user_id)
         
         if self.db.is_admin(user_id):
-            member_status = "👑 管理员（永久有效）"
+            member_status = self.i18n.get(user_id, 'vip.status_admin')
         elif is_member:
-            member_status = f"💎 {level}\n• 到期时间: {expiry}"
+            member_status = self.i18n.get(user_id, 'vip.status_member', level=level, expiry=expiry)
         else:
-            member_status = "❌ 暂无会员"
+            member_status = self.i18n.get(user_id, 'vip.status_no_member')
         
-        text = f"""
-<b>💳 会员中心</b>
+        text = f"""{self.i18n.get(user_id, 'vip.center_title')}
 
-<b>📊 当前状态</b>
+{self.i18n.get(user_id, 'vip.current_status_header')}
 {member_status}
 
-<b>💡 功能说明</b>
-• 兑换卡密即可开通会员
-• 会员时长自动累加
-• 支持多次兑换叠加
+{self.i18n.get(user_id, 'vip.features_header')}
+{self.i18n.get(user_id, 'vip.feature_redeem')}
+{self.i18n.get(user_id, 'vip.feature_accumulate')}
+{self.i18n.get(user_id, 'vip.feature_multiple')}
 
-<b>🎯 操作选项</b>
-请选择您要执行的操作
+{self.i18n.get(user_id, 'vip.operations_header')}
+{self.i18n.get(user_id, 'vip.operations_prompt')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🎟️ 兑换卡密", callback_data="vip_redeem")],
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'vip.button_redeem'), callback_data="vip_redeem")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'vip.button_back_main'), callback_data="back_to_main")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -14563,21 +14564,20 @@ class EnhancedBot:
             "waiting_redeem_code"
         )
         
-        text = """
-<b>🎟️ 兑换卡密</b>
+        text = f"""{self.i18n.get(user_id, 'vip.redeem_title')}
 
-<b>📋 请输入卡密（10位以内）</b>
+{self.i18n.get(user_id, 'vip.redeem_input')}
 
-💡 提示：
-• 请输入您获得的卡密
-• 卡密不区分大小写
-• 兑换成功后时长自动累加
+{self.i18n.get(user_id, 'vip.redeem_hints')}
+{self.i18n.get(user_id, 'vip.hint_enter_code')}
+{self.i18n.get(user_id, 'vip.hint_case_insensitive')}
+{self.i18n.get(user_id, 'vip.hint_accumulate')}
 
-⏰ <i>5分钟内未输入将自动取消</i>
+{self.i18n.get(user_id, 'vip.timeout_5min')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="vip_menu")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'vip.button_cancel'), callback_data="vip_menu")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
