@@ -5863,11 +5863,17 @@ class APIFormatConverter:
         return api_accounts
 
     def create_api_result_files(self, api_accounts: List[dict], task_id: str) -> List[str]:
+        """创建API结果文件，如果没有账号则返回空列表"""
+        # 如果没有账号，不创建文件
+        if not api_accounts or len(api_accounts) == 0:
+            print("⚠️ 没有成功转换的账号，跳过创建TXT文件")
+            return []
+        
         out_dir = os.path.join(os.getcwd(), "api_results")
         os.makedirs(out_dir, exist_ok=True)
         out_txt = os.path.join(out_dir, f"TG_API_{len(api_accounts)}个账号.txt")
         with open(out_txt, "w", encoding="utf-8") as f:
-            for it in (api_accounts or []):
+            for it in api_accounts:
                 f.write("%s\t%s\n" % (it["phone"], it["verification_url"]))
         return [out_txt]
 
@@ -11853,20 +11859,28 @@ class EnhancedBot:
                 pass
 
             for file_path in result_files:
-                if os.path.exists(file_path):
-                    try:
-                        with open(file_path, 'rb') as f:
-                            caption = self.i18n.get(user_id, 'api.api_link_caption')
-                            context.bot.send_document(
-                                chat_id=update.effective_chat.id,
-                                document=f,
-                                filename=os.path.basename(file_path),
-                                caption=caption,
-                                parse_mode='HTML'
-                            )
-                        print(f"📤 已发送TXT: {os.path.basename(file_path)}")
-                        await asyncio.sleep(0.5)
-                    except Exception as e:
+                if not os.path.exists(file_path):
+                    print(f"⚠️ 文件不存在，跳过: {os.path.basename(file_path)}")
+                    continue
+                
+                # 检查文件是否为空
+                if os.path.getsize(file_path) == 0:
+                    print(f"⚠️ 文件为空，跳过发送: {os.path.basename(file_path)}")
+                    continue
+                
+                try:
+                    with open(file_path, 'rb') as f:
+                        caption = self.i18n.get(user_id, 'api.api_link_caption')
+                        context.bot.send_document(
+                            chat_id=update.effective_chat.id,
+                            document=f,
+                            filename=os.path.basename(file_path),
+                            caption=caption,
+                            parse_mode='HTML'
+                        )
+                    print(f"📤 已发送TXT: {os.path.basename(file_path)}")
+                    await asyncio.sleep(0.5)
+                except Exception as e:
                         print(f"❌ 发送TXT失败: {e}")
 
             # 完成提示
