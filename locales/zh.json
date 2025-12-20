@@ -163,7 +163,7 @@
     "mode_country": "1️⃣ <b>按国家区号拆分</b>",
     "mode_country_desc": "• 自动识别手机号→区号→国家\n• 每个国家生成一个ZIP\n• 命名：国家+区号+数量",
     "mode_quantity": "2️⃣ <b>按数量拆分</b>",
-    "mode_quantity_desc": "• 支持单个或多个数量\n• 混合国家命名"混合+000+数量"\n• 全未知命名"未知+000+数量"",
+    "mode_quantity_desc": "• 支持单个或多个数量\n• 混合国家命名'混合+000+数量'\n• 全未知命名'未知+000+数量'",
     "steps_title": "💡 <b>使用步骤</b>",
     "steps_desc": "1. 点击下方按钮开始\n2. 上传包含账号的ZIP文件\n3. 选择拆分方式\n4. 等待处理并接收结果",
     "notes_title": "⚠️ <b>注意事项</b>",
@@ -262,7 +262,7 @@
     "upload_zip": "<b>📤 请上传 ZIP 文件</b>",
     "zip_only": "<b>⚠️ 仅接受 .zip 文件</b>",
     "upload_multiple": "• 可上传多个 ZIP 文件\n• 系统会自动解压并扫描内容",
-    "finish_note": "上传完成后点击"✅ 完成合并"",
+    "finish_note": "上传完成后点击'✅ 完成合并'",
     "button_finish": "✅ 完成合并",
     "button_cancel": "❌ 取消"
   },

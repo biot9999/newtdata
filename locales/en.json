@@ -163,7 +163,7 @@
     "mode_country": "1️⃣ <b>By Country Code</b>",
     "mode_country_desc": "• Auto-identify phone→area code→country\n• Generate one ZIP per country\n• Naming: Country+Code+Count",
     "mode_quantity": "2️⃣ <b>By Quantity</b>",
-    "mode_quantity_desc": "• Support single or multiple quantities\n• Mixed countries: "Mixed+000+Count"\n• All unknown: "Unknown+000+Count"",
+    "mode_quantity_desc": "• Support single or multiple quantities\n• Mixed countries: 'Mixed+000+Count'\n• All unknown: 'Unknown+000+Count'",
     "steps_title": "💡 <b>Steps</b>",
     "steps_desc": "1. Click button below to start\n2. Upload ZIP file with accounts\n3. Select classification method\n4. Wait for processing and receive results",
     "notes_title": "⚠️ <b>Notes</b>",
@@ -262,7 +262,7 @@
     "upload_zip": "<b>📤 Please Upload ZIP File</b>",
     "zip_only": "<b>⚠️ ZIP files only</b>",
     "upload_multiple": "• Can upload multiple ZIP files\n• System auto-extracts and scans content",
-    "finish_note": "Click "✅ Finish Merge" when upload is complete",
+    "finish_note": "Click '✅ Finish Merge' when upload is complete",
     "button_finish": "✅ Finish Merge",
     "button_cancel": "❌ Cancel"
   },
