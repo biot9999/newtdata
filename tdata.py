@@ -9122,10 +9122,9 @@ class EnhancedBot:
                 InlineKeyboardButton(self.i18n.get(user_id, 'start.button_proxy'), callback_data="proxy_panel")
             ])
 
-        # 底部功能按钮（如果已把“帮助”放到第三行左侧，可将这里的帮助去掉或改为“⚙️ 状态”）
+        # 底部功能按钮 - 语言切换
         buttons.append([
-            InlineKeyboardButton(self.i18n.get(user_id, 'start.button_status'), callback_data="status"),
-            InlineKeyboardButton(self.i18n.get(user_id, 'start.button_settings'), callback_data="settings")
+            InlineKeyboardButton(self.i18n.get(user_id, 'start.button_language'), callback_data="language_select")
         ])
 
         
@@ -10299,97 +10298,19 @@ class EnhancedBot:
         elif data.startswith("check_reg_"):
             self.handle_check_registration_callbacks(update, context, query, data)
         elif query.data == "back_to_main" or query.data == "back_main":
-            self.show_main_menu(update, user_id)
-            # 返回主菜单 - 横排2x2布局
+            # Return to main menu using the proper method with user_id
             query.answer()
-            user = query.from_user
-            user_id = user.id
-            first_name = user.first_name or "用户"
-            is_member, level, expiry = self.db.check_membership(user_id)
-            
-            if self.db.is_admin(user_id):
-                member_status = "👑 管理员"
-            elif is_member:
-                member_status = f"🎁 {level}"
-            else:
-                member_status = "❌ 无会员"
-            
-            welcome_text = f"""
-<b>🔍 Telegram账号机器人 V8.0</b>
-
-👤 <b>用户信息</b>
-• 昵称: {first_name}
-• ID: <code>{user_id}</code>
-• 会员: {member_status}
-• 到期: {expiry}
-
-📡 <b>代理状态</b>
-• 代理模式: {'🟢启用' if self.proxy_manager.is_proxy_mode_active(self.db) else '🔴本地连接'}
-• 代理数量: {len(self.proxy_manager.proxies)}个
-• 快速模式: {'🟢开启' if config.PROXY_FAST_MODE else '🔴关闭'}
-• 当前时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}
-            """
-            
-            # 创建横排2x2布局的主菜单按钮
-            buttons = [
-                [
-                    InlineKeyboardButton("🚀 账号检测", callback_data="start_check"),
-                    InlineKeyboardButton("🔄 格式转换", callback_data="format_conversion")
-                ],
-                [
-                    InlineKeyboardButton("👤 修改资料", callback_data="modify_profile"),
-                    InlineKeyboardButton("📦 批量创建", callback_data="batch_create_start")
-                ],
-                [
-                    InlineKeyboardButton("🔐 修改2FA", callback_data="change_2fa"),
-                    InlineKeyboardButton("🔓 忘记2FA", callback_data="forget_2fa")
-                ],
-                [
-                    InlineKeyboardButton("❌ 删除2FA", callback_data="remove_2fa"),
-                    InlineKeyboardButton("➕ 添加2FA", callback_data="add_2fa")
-                ],
-                [
-                    InlineKeyboardButton("📦 账号拆分", callback_data="classify_menu"),
-                    InlineKeyboardButton("🔗 API转换", callback_data="api_conversion")
-                ],
-                [
-                    InlineKeyboardButton("📝 文件重命名", callback_data="rename_start"),
-                    InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
-                ],
-                [
-                    InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start"),
-                    InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start")
-                ],
-                [
-                    InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start"),
-                    InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
-                ]
-            ]
-            
-            # 管理员按钮
-            if self.db.is_admin(user_id):
-                buttons.append([
-                    InlineKeyboardButton("👑 管理员面板", callback_data="admin_panel"),
-                    InlineKeyboardButton("📡 代理管理", callback_data="proxy_panel")
-                ])
-            
-            keyboard = InlineKeyboardMarkup(buttons)
-            query.edit_message_text(
-                text=welcome_text,
-                reply_markup=keyboard,
-                parse_mode='HTML'
-            )
+            self.show_main_menu(update, user_id)
         elif data == "help":
             self.handle_help_callback(query)
-        elif data == "status":
-            self.handle_status_callback(query)
-        elif data == "settings":
-            self.handle_settings(query)
-        elif data == "settings_language":
-            self.handle_language_selection(query)
+        elif data == "language_select":
+            # Direct language selection (skip settings menu)
+            user_id = query.from_user.id
+            self.handle_language_selection(query, user_id)
         elif data.startswith("set_lang_"):
             lang_code = data.replace("set_lang_", "")
-            self.handle_set_language(query, lang_code)
+            user_id = query.from_user.id
+            self.handle_set_language(query, user_id, lang_code)
         elif data == "admin_panel":
             self.handle_admin_panel(query)
         elif data == "proxy_panel":
@@ -10799,45 +10720,50 @@ class EnhancedBot:
         
         self.safe_edit_message(query, text, 'HTML', reply_markup=InlineKeyboardMarkup(keyboard))
     
-    def handle_language_selection(self, query):
-        """语言选择"""
-        user_id = query.from_user.id
+    def handle_language_selection(self, query, user_id: int):
+        """语言选择 - 直接显示语言列表（跳过设置菜单）"""
         query.answer()
         
         available_langs = self.i18n.get_available_languages()
+        current_lang = self.i18n.get_user_language(user_id)
         keyboard = []
         
         for lang_code, lang_name in available_langs.items():
+            # Add ✅ mark for current language
+            if lang_code == current_lang:
+                button_text = f"✅ {lang_name}"
+            else:
+                button_text = lang_name
+            
             keyboard.append([InlineKeyboardButton(
-                lang_name,
+                button_text,
                 callback_data=f'set_lang_{lang_code}'
             )])
         
         keyboard.append([InlineKeyboardButton(
-            self.i18n.get(user_id, 'common.back'),
-            callback_data='settings'
+            self.i18n.get(user_id, 'common.back_main'),
+            callback_data='back_main'
         )])
         
-        text = self.i18n.get(user_id, 'settings.select_language')
+        text = self.i18n.get(user_id, 'language.select')
         
         self.safe_edit_message(query, text, 'HTML', reply_markup=InlineKeyboardMarkup(keyboard))
     
-    def handle_set_language(self, query, lang_code: str):
-        """设置语言"""
-        user_id = query.from_user.id
+    def handle_set_language(self, query, user_id: int, lang_code: str):
+        """设置语言并返回语言选择界面"""
         query.answer()
         
         if self.i18n.set_user_language(user_id, lang_code):
             self.save_user_language(user_id, lang_code)
             
             lang_name = self.i18n.get_available_languages().get(lang_code, lang_code)
-            text = self.i18n.get(user_id, 'settings.language_changed', lang=lang_name)
+            text = self.i18n.get(user_id, 'language.changed', lang=lang_name)
             
             self.safe_edit_message(query, text, 'HTML')
             
-            # 1秒后返回设置菜单
+            # 1秒后刷新语言选择界面（显示新的 ✅）
             time.sleep(1)
-            self.handle_settings(query)
+            self.handle_language_selection(query, user_id)
         else:
             text = self.i18n.get(user_id, 'common.error', error='Invalid language')
             self.safe_edit_message(query, text, 'HTML')

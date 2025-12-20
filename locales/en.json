@@ -27,7 +27,8 @@
     "member_status": "🎁 {level}",
     "no_member": "❌ No Membership",
     "proxy_enabled": "🟢 Enabled",
-    "proxy_local": "🔴 Local Connection"
+    "proxy_local": "🔴 Local Connection",
+    "button_language": "🌐 Language"
   },
   "check": {
     "title": "📱 <b>Account Detection</b>",
@@ -631,5 +632,9 @@
     "msg_e2236276": "[AUTO] ❌ 一键清理功能未启用",
     "msg_3856d8fe": "[AUTO] ❌ 一键清理需要会员权限",
     "msg_2e5fb583": "[AUTO] ❌ 没有待处理的清理任务"
+  },
+  "language": {
+    "select": "🌐 Please Select Language\n\nCurrent language marked with ✅",
+    "changed": "✅ Language changed to {lang}"
   }
 }
