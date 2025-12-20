@@ -27,7 +27,8 @@
     "member_status": "🎁 {level}",
     "no_member": "❌ No Membership",
     "proxy_enabled": "🟢 Enabled",
-    "proxy_local": "🔴 Local Connection"
+    "proxy_local": "🔴 Local Connection",
+    "button_language": "🌐 Language"
   },
   "check": {
     "title": "📱 <b>Account Detection</b>",
@@ -631,5 +632,50 @@
     "msg_e2236276": "[AUTO] ❌ 一键清理功能未启用",
     "msg_3856d8fe": "[AUTO] ❌ 一键清理需要会员权限",
     "msg_2e5fb583": "[AUTO] ❌ 没有待处理的清理任务"
+  },
+  "language": {
+    "select": "🌐 Please Select Language\n\nCurrent language marked with ✅",
+    "changed": "✅ Language changed to {lang}"
+  },
+  "twofa_change": {
+    "intro_title": "🔐 <b>Batch Modify 2FA Password</b>",
+    "intro_features": "<b>✨ Core Features</b>",
+    "intro_auto_detect": "• 🔍 <b>Automatic Password Detection</b>\n  - TData format: Auto-detect 2fa.txt, twofa.txt, password.txt\n  - Session format: Auto-detect JSON password fields (supports twofa, twoFA, 2fa, password, etc.)\n  - Smart fallback: Use manually input backup password when detection fails",
+    "intro_interactive": "• ✏️ <b>Interactive Password Input</b>\n  - System prompts for password after file upload\n  - Supports two formats: New password only (recommended) or Old+New password\n  - System prioritizes auto-detection of old password, no manual input needed\n  - 5-minute input timeout protection",
+    "intro_auto_update": "• 🔄 <b>Automatic Password File Update</b>\n  - Session format: Unified use of twofa field, delete other password fields\n  - TData format: Auto-update 2fa.txt and other password files\n  - Files immediately synced after successful modification\n  - No manual config file editing required",
+    "intro_notes": "<b>⚠️ Important Notes</b>\n• System will first attempt to auto-detect existing password\n• Recommended to use new password only format, let system auto-detect old password\n• If auto-detection fails, will use your input old password\n• Please input password within 5 minutes, otherwise task will be cancelled\n• Ensure account is logged in and session file is valid\n• Password files will be auto-updated and included in result ZIP after successful modification",
+    "upload_prompt": "🚀Please upload your ZIP file..."
+  },
+  "twofa_forget": {
+    "intro_title": "🔓 <b>Forgot 2FA Password</b>",
+    "intro_important": "⚠️ <b>Important Notice:</b>",
+    "intro_details": "• Will initiate Telegram official password reset process\n• Requires waiting for <b>7-day cooling period</b> before password removal\n• Prioritizes proxy connections (prevents risk control)\n• Auto-fallback to local connection if proxy fails\n• Automatic random delays between accounts (5-15 seconds)",
+    "proxy_warning": "\n⚠️ <b>Warning: Insufficient proxies! Currently only {count}, recommend at least 10+</b>\n",
+    "proxy_status_title": "<b>📡 Current Proxy Status</b>",
+    "proxy_status_mode": "• Proxy Mode: {mode}",
+    "proxy_status_count": "• Available Proxies: {count}",
+    "upload_section_title": "<b>📤 Please Upload Account Files:</b>",
+    "upload_section_details": "• Supports .zip archives (Tdata/Session)\n• Auto-detect file format",
+    "result_section_title": "<b>📊 Result Categories:</b>",
+    "result_section_details": "• ✅ Reset Requested - Successfully requested password reset (wait 7 days)\n• ⚠️ No Reset Needed - Account has no 2FA password set\n• ⏳ Cooling Period - Already in cooling period\n• ❌ Failed - Connection failed/other errors"
+  },
+  "twofa_add": {
+    "intro_title": "➕ <b>Add 2FA Password</b>",
+    "intro_description": "<b>📋 Feature Description:</b>",
+    "intro_description_details": "• Auto-create JSON config files for Session files\n• Auto-create 2fa.txt password files for TData directories\n• You can customize 2FA password content",
+    "supported_formats": "<b>📤 Supported File Formats:</b>",
+    "supported_formats_details": "• ZIP archives (containing Session or TData)\n• Auto-detect file types and add corresponding 2FA configs",
+    "processing_rules": "<b>⚙️ Processing Rules:</b>",
+    "processing_rules_details": "• Session files → Create same-name JSON file (with twofa field)\n• TData directories → Create 2fa.txt file (at same level as tdata)",
+    "upload_prompt": "<b>📤 Please Upload Your Account Files</b>"
+  },
+  "twofa_remove": {
+    "intro_title": "❌ <b>Batch Remove 2FA Password</b>",
+    "intro_features": "<b>✨ Core Features</b>",
+    "intro_auto_detect": "• 🔍 <b>Automatic Password Detection</b>\n  - TData format: Auto-detect 2fa.txt, twofa.txt, password.txt\n  - Session format: Auto-detect JSON password fields (supports twofa, twoFA, 2fa, password, etc.)\n  - Smart fallback: Use manually input backup password when detection fails",
+    "intro_interactive": "• ✏️ <b>Interactive Password Input</b>\n  - Choose auto-detection or manual input after file upload\n  - Auto-detection: Read current password from files\n  - Manual input: User enters current 2FA password\n  - 5-minute input timeout protection",
+    "intro_auto_update": "• 🔄 <b>Automatic Password File Update</b>\n  - Session format: Unified use of twofa field and clear it, delete other password fields\n  - TData format: Auto-delete or clear 2fa.txt and other password files\n  - Files immediately synced after successful deletion\n  - No manual config file editing required",
+    "intro_notes": "<b>⚠️ Important Notes</b>\n• After removing 2FA, account will no longer require two-factor verification password\n• System prioritizes auto-detection of existing password\n• If auto-detection fails, please select manual input mode\n• Please complete operation within 5 minutes, otherwise task will be cancelled\n• Ensure account is logged in and session file is valid\n• Password files will be auto-updated and included in result ZIP after successful deletion",
+    "upload_prompt": "🚀Please upload your ZIP file..."
   }
 }
