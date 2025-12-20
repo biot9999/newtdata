@@ -15640,14 +15640,14 @@ class EnhancedBot:
                 context.bot.send_photo(
                     chat_id=user_id,
                     photo=task['media_file_id'],
-                    caption=f"<b>📢 预览</b>\n\n{task['content']}",
+                    caption=f"<b>{self.i18n.get(user_id, 'broadcast.preview_title')}</b>\n\n{task['content']}",
                     parse_mode='HTML',
                     reply_markup=keyboard
                 )
             else:
                 context.bot.send_message(
                     chat_id=user_id,
-                    text=f"<b>📢 预览</b>\n\n{task['content']}",
+                    text=f"<b>{self.i18n.get(user_id, 'broadcast.preview_title')}</b>\n\n{task['content']}",
                     parse_mode='HTML',
                     reply_markup=keyboard
                 )
@@ -17571,7 +17571,8 @@ class EnhancedBot:
         thread = threading.Thread(target=execute_cleanup, daemon=True)
         thread.start()
         
-        self.safe_edit_message(query, "🧹 <b>开始清理...</b>\n\n正在初始化清理服务...", 'HTML')
+        user_id = query.from_user.id
+        self.safe_edit_message(query, self.i18n.get(user_id, 'cleanup.initializing'), 'HTML')
     
     async def _process_single_account_full(self, file_info: tuple, file_type: str, progress_msg, all_files_count: int, completed_count: dict, lock: asyncio.Lock, start_time: float) -> dict:
         """处理单个账户的完整流程（包含连接和清理）"""
@@ -18284,7 +18285,7 @@ class EnhancedBot:
         
         # 检查功能是否启用
         if not config.ENABLE_BATCH_CREATE or self.batch_creator is None:
-            self.safe_edit_message(query, "❌ 批量创建功能未启用")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'batch.feature_disabled'))
             return
         
         # 检查会员权限
@@ -18772,7 +18773,7 @@ admin3</code>
         query.answer(self.i18n.get(user_id, 'batch.start_creating'))
         
         if user_id not in self.pending_batch_create:
-            self.safe_edit_message(query, "❌ 会话已过期")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.task_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -19619,7 +19620,7 @@ admin3</code>
         mode = task.get('mode', 'random')
         
         if not files:
-            self.safe_edit_message(query, "❌ 没有找到文件")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'modify.no_files_found'))
             return
         
         # 启动异步任务
@@ -19628,7 +19629,7 @@ admin3</code>
         
         threading.Thread(target=run_modify_task, daemon=True).start()
         
-        self.safe_edit_message(query, "⏳ 正在初始化，请稍候...")
+        self.safe_edit_message(query, self.i18n.get(user_id, 'modify.initializing'))
     
     async def execute_modify_profile(self, user_id: int, chat_id: int, files: List[Tuple[str, str, str]], mode: str):
         """异步执行资料修改"""
@@ -20244,7 +20245,7 @@ admin3</code>
         query.answer()
         
         if user_id not in self.pending_reauthorize:
-            self.safe_edit_message(query, "❌ 会话已过期")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.task_expired'))
             return
         
         task = self.pending_reauthorize[user_id]
@@ -20296,7 +20297,7 @@ admin3</code>
         query.answer()
         
         if user_id not in self.pending_reauthorize:
-            self.safe_edit_message(query, "❌ 会话已过期")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.task_expired'))
             return
         
         task = self.pending_reauthorize[user_id]
@@ -20397,7 +20398,7 @@ admin3</code>
         query.answer(self.i18n.get(user_id, 'reauthorize.start_reauth'))
         
         if user_id not in self.pending_reauthorize:
-            self.safe_edit_message(query, "❌ 会话已过期")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.task_expired'))
             return
         
         task = self.pending_reauthorize[user_id]
@@ -21935,7 +21936,7 @@ admin3</code>
         query.answer()
         
         if user_id not in self.pending_registration_check:
-            self.safe_edit_message(query, "❌ 会话已过期，请重新上传文件")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.session_expired_reupload'))
             return
         
         task = self.pending_registration_check[user_id]

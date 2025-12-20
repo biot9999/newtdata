@@ -185,7 +185,9 @@
     "return_modify": "✏️ 返回修改",
     "detail_modify_report": "📊 详细修改报告",
     "upload_photo": "📷 上传图片",
-    "delete_avatar": "🚫 删除头像"
+    "delete_avatar": "🚫 删除头像",
+    "no_files_found": "❌ 没有找到文件",
+    "initializing": "⏳ 正在初始化，请稍候..."
   },
   "twofa": {
     "change_title": "🔐 <b>修改2FA密码</b>",
@@ -290,7 +292,8 @@
     "detail_report": "📊 批量创建详细报告",
     "create_group": "📱 创建群组",
     "create_channel": "📢 创建频道",
-    "account_quantity": "📊 账户数量"
+    "account_quantity": "📊 账户数量",
+    "feature_disabled": "❌ 批量创建功能未启用"
   },
   "api": {
     "title": "🔗 <b>API转换功能</b>",
@@ -433,7 +436,8 @@
     "confirm_clear_contacts": "• 清除所有联系人",
     "confirm_archive": "• 归档剩余对话",
     "confirm_irreversible": "<b>🔴 此操作不可逆！</b>",
-    "summary_report": "📋 清理汇总报告"
+    "summary_report": "📋 清理汇总报告",
+    "initializing": "🧹 <b>开始清理...</b>\n\n正在初始化清理服务..."
   },
   "reauthorize": {
     "title": "🔑 <b>重新授权</b>",
@@ -846,7 +850,8 @@
     "accounts_bracket": "{count} 个账号)",
     "modify_success_bracket": "✅ 修改成功 ({count}个)",
     "failed_details_bracket": "❌ 失败详情 ({count}个)",
-    "proxy_type_test": "🧪 测试代理: {type}代理"
+    "proxy_type_test": "🧪 测试代理: {type}代理",
+    "session_expired_reupload": "❌ 会话已过期，请重新上传文件"
   },
   "file": {
     "uploading": "⬆️ 正在上传文件...",
@@ -946,7 +951,8 @@
     "sending_progress": "📤 <b>广播发送中...</b>\n\n• 目标: {total} 人\n• 进度: {current}/{total}\n• 成功: {success}\n• 失败: {failed}",
     "back_to_history": "🔙 返回历史",
     "all_users_count": "👥 全部用户 ({count})",
-    "new_users_7days": "🆕 新用户(7天) ({count})"
+    "new_users_7days": "🆕 新用户(7天) ({count})",
+    "preview_title": "📢 预览"
   },
   "admin_ext": {
     "msg_6": "获取所有管理员",
