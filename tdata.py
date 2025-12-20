@@ -9218,7 +9218,7 @@ class EnhancedBot:
         """
 
         buttons = [
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.back_to_main\'), callback_data="back_to_main")]
         ]
 
         keyboard = InlineKeyboardMarkup(buttons)
@@ -9315,7 +9315,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.back_to_main\'), callback_data="back_to_main")]
         ])
         
         if update.callback_query:
@@ -9400,10 +9400,10 @@ class EnhancedBot:
         )
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💬 统一简介", callback_data=f'custom_bio_single_{user_id}')],
-            [InlineKeyboardButton("⬜ 设置为空", callback_data=f'custom_bio_empty_{user_id}')],
-            [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_bio_skip_{user_id}')],
-            [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'batch.unified_bio\'), callback_data=f'custom_bio_single_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'batch.set_empty\'), callback_data=f'custom_bio_empty_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'batch.skip_no_modify\'), callback_data=f'custom_bio_skip_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')]
         ])
         
         self.safe_send_message(update, text, 'HTML', reply_markup=keyboard)
@@ -9579,21 +9579,21 @@ class EnhancedBot:
         
         # 代理开关控制按钮
         if proxy_enabled_db:
-            buttons.append([InlineKeyboardButton("🔴 关闭代理", callback_data="proxy_disable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, \'proxy.disable_proxy\'), callback_data="proxy_disable")])
         else:
-            buttons.append([InlineKeyboardButton("🟢 开启代理", callback_data="proxy_enable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, \'proxy.enable_proxy\'), callback_data="proxy_enable")])
         
         # 其他操作按钮
         buttons.extend([
             [
-                InlineKeyboardButton("🔄 刷新代理列表", callback_data="proxy_reload"),
-                InlineKeyboardButton("📊 查看代理状态", callback_data="proxy_status")
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.refresh_proxy_list\'), callback_data="proxy_reload"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.view_proxy_status\'), callback_data="proxy_status")
             ],
             [
-                InlineKeyboardButton("🧪 测试代理", callback_data="proxy_test"),
-                InlineKeyboardButton("📈 代理统计", callback_data="proxy_stats")
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.test_proxy\'), callback_data="proxy_test"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.proxy_statistics\'), callback_data="proxy_stats")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ])
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -9774,10 +9774,10 @@ class EnhancedBot:
             
             buttons = [
                 [
-                    InlineKeyboardButton("✅ 确认清理", callback_data="confirm_proxy_cleanup"),
-                    InlineKeyboardButton("❌ 取消", callback_data="cancel_proxy_cleanup")
+                    InlineKeyboardButton(self.i18n.get(user_id, \'proxy.confirm_cleanup\'), callback_data="confirm_proxy_cleanup"),
+                    InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="cancel_proxy_cleanup")
                 ],
-                [InlineKeyboardButton("🧪 仅测试不清理", callback_data="test_only_proxy")]
+                [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.test_only\'), callback_data="test_only_proxy")]
             ]
             
             keyboard = InlineKeyboardMarkup(buttons)
@@ -9902,7 +9902,7 @@ class EnhancedBot:
         buttons = [
             [InlineKeyboardButton("📤 Tdata → Session", callback_data="convert_tdata_to_session")],
             [InlineKeyboardButton("📥 Session → Tdata", callback_data="convert_session_to_tdata")],
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.back_to_main\'), callback_data="back_to_main")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -9913,24 +9913,24 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可以操作")
+            query.answer(self.i18n.get(user_id, \'proxy.admin_only\'))
             return
         
         if data == "proxy_enable":
             # 启用代理
             if self.db.set_proxy_enabled(True, user_id):
-                query.answer("✅ 代理已启用")
+                query.answer(self.i18n.get(user_id, \'proxy.enabled\'))
                 self.refresh_proxy_panel(query)
             else:
-                query.answer("❌ 启用失败")
+                query.answer(self.i18n.get(user_id, \'proxy.enable_failed\'))
         
         elif data == "proxy_disable":
             # 禁用代理
             if self.db.set_proxy_enabled(False, user_id):
-                query.answer("✅ 代理已禁用")
+                query.answer(self.i18n.get(user_id, \'proxy.disabled\'))
                 self.refresh_proxy_panel(query)
             else:
-                query.answer("❌ 禁用失败")
+                query.answer(self.i18n.get(user_id, \'proxy.disable_failed\'))
         
         elif data == "proxy_reload":
             # 重新加载代理列表
@@ -9995,21 +9995,21 @@ class EnhancedBot:
         
         # 代理开关控制按钮
         if proxy_enabled_db:
-            buttons.append([InlineKeyboardButton("🔴 关闭代理", callback_data="proxy_disable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, \'proxy.disable_proxy\'), callback_data="proxy_disable")])
         else:
-            buttons.append([InlineKeyboardButton("🟢 开启代理", callback_data="proxy_enable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, \'proxy.enable_proxy\'), callback_data="proxy_enable")])
         
         # 其他操作按钮
         buttons.extend([
             [
-                InlineKeyboardButton("🔄 刷新代理列表", callback_data="proxy_reload"),
-                InlineKeyboardButton("📊 查看代理状态", callback_data="proxy_status")
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.refresh_proxy_list\'), callback_data="proxy_reload"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.view_proxy_status\'), callback_data="proxy_status")
             ],
             [
-                InlineKeyboardButton("🧪 测试代理", callback_data="proxy_test"),
-                InlineKeyboardButton("📈 代理统计", callback_data="proxy_stats")
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.test_proxy\'), callback_data="proxy_test"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.proxy_statistics\'), callback_data="proxy_stats")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ])
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10039,13 +10039,13 @@ class EnhancedBot:
             # 隐藏代理详细地址
             query.answer(f"🧪 测试代理: {proxy['type'].upper()}代理", show_alert=True)
         else:
-            query.answer("❌ 获取测试代理失败", show_alert=True)
+            query.answer(self.i18n.get(user_id, \'proxy.get_test_proxy_failed\'), show_alert=True)
     
     def show_proxy_statistics(self, query):
         """显示代理统计信息"""
         proxies = self.proxy_manager.proxies
         if not proxies:
-            query.answer("❌ 没有代理数据", show_alert=True)
+            query.answer(self.i18n.get(user_id, \'proxy.no_proxy_data\'), show_alert=True)
             return
         
         # 统计代理类型
@@ -10085,8 +10085,8 @@ class EnhancedBot:
         
         buttons = [
             [
-                InlineKeyboardButton("✅ 确认清理", callback_data="confirm_proxy_cleanup"),
-                InlineKeyboardButton("❌ 取消", callback_data="proxy_panel")
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.confirm_cleanup\'), callback_data="confirm_proxy_cleanup"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="proxy_panel")
             ]
         ]
         
@@ -10128,7 +10128,7 @@ class EnhancedBot:
         """
         
         buttons = [
-            [InlineKeyboardButton("🔙 返回代理面板", callback_data="proxy_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_proxy_panel\'), callback_data="proxy_panel")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10140,7 +10140,7 @@ class EnhancedBot:
         
         # 权限检查（仅管理员可访问）
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可以访问代理管理面板")
+            query.answer(self.i18n.get(user_id, \'admin.admin_panel_only\'))
             return
         
         query.answer()
@@ -10186,25 +10186,25 @@ class EnhancedBot:
         
         # 代理开关控制按钮
         if proxy_enabled_db:
-            buttons.append([InlineKeyboardButton("🔴 禁用代理", callback_data="proxy_disable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, \'admin.disable_proxy_btn\'), callback_data="proxy_disable")])
         else:
-            buttons.append([InlineKeyboardButton("🟢 启用代理", callback_data="proxy_enable")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, \'admin.enable_proxy_btn\'), callback_data="proxy_enable")])
         
         # 代理管理操作按钮
         buttons.extend([
             [
-                InlineKeyboardButton("🔄 重新加载代理", callback_data="proxy_reload"),
-                InlineKeyboardButton("📊 代理状态", callback_data="proxy_status")
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.reload_proxy\'), callback_data="proxy_reload"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.proxy_status\'), callback_data="proxy_status")
             ],
             [
-                InlineKeyboardButton("🧪 测试代理", callback_data="proxy_test"),
-                InlineKeyboardButton("📈 代理统计", callback_data="proxy_stats")
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.test_proxy\'), callback_data="proxy_test"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.proxy_statistics\'), callback_data="proxy_stats")
             ],
             [
-                InlineKeyboardButton("🧹 清理失效代理", callback_data="proxy_cleanup"),
-                InlineKeyboardButton("⚡ 速度优化", callback_data="proxy_optimize")
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.cleanup_failed_proxies\'), callback_data="proxy_cleanup"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'proxy.speed_optimization\'), callback_data="proxy_optimize")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ])
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10246,7 +10246,7 @@ class EnhancedBot:
                 else:
                     query.answer(self.i18n.get(user_id, "common.operation_mismatch"))
             else:
-                query.answer("❌ 没有待处理的任务")
+                query.answer(self.i18n.get(user_id, \'common.no_pending_task\'))
         elif data == "remove_2fa_manual":
             # 手动输入密码
             query.answer()
@@ -10270,11 +10270,11 @@ class EnhancedBot:
                                         query.from_user.first_name or "", "waiting_remove_2fa_input")
                     except Exception as e:
                         print(f"❌ 更新消息失败: {e}")
-                        query.answer("❌ 操作失败")
+                        query.answer(self.i18n.get(user_id, \'common.operation_failed\'))
                 else:
                     query.answer(self.i18n.get(user_id, "common.operation_mismatch"))
             else:
-                query.answer("❌ 没有待处理的任务")
+                query.answer(self.i18n.get(user_id, \'common.no_pending_task\'))
         elif data == "convert_tdata_to_session":
             self.handle_convert_tdata_to_session(query)
         elif data == "convert_session_to_tdata":
@@ -10412,9 +10412,9 @@ class EnhancedBot:
         elif data.startswith("broadcast_alert_"):
             # 处理广播按钮回调 - 显示提示信息
             # 注意：实际的alert文本需要从按钮配置中获取，这里只是示例
-            query.answer("✨ 感谢您的关注！", show_alert=True)
+            query.answer(self.i18n.get(user_id, \'common.thanks_attention\'), show_alert=True)
         elif data.startswith("status_") or data.startswith("count_"):
-            query.answer("ℹ️ 这是状态信息")
+            query.answer(self.i18n.get(user_id, \'common.status_info\'))
     
     def handle_start_check(self, query):
         """处理开始检测"""
@@ -10827,7 +10827,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -10869,14 +10869,14 @@ class EnhancedBot:
         
         buttons = [
             [
-                InlineKeyboardButton("🔍 搜索用户", callback_data="admin_search"),
-                InlineKeyboardButton("📋 最近注册", callback_data="admin_recent")
+                InlineKeyboardButton(self.i18n.get(user_id, \'admin.search_user\'), callback_data="admin_search"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'admin.recent_registrations\'), callback_data="admin_recent")
             ],
             [
-                InlineKeyboardButton("📊 用户统计", callback_data="admin_stats"),
-                InlineKeyboardButton("🔄 刷新列表", callback_data="admin_users")
+                InlineKeyboardButton(self.i18n.get(user_id, \'admin.user_statistics\'), callback_data="admin_stats"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'admin.refresh_list\'), callback_data="admin_users")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10887,7 +10887,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -10923,10 +10923,10 @@ class EnhancedBot:
         
         buttons = [
             [
-                InlineKeyboardButton("👥 用户管理", callback_data="admin_users"),
-                InlineKeyboardButton("🔄 刷新统计", callback_data="admin_stats")
+                InlineKeyboardButton(self.i18n.get(user_id, \'admin.user_management\'), callback_data="admin_users"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'admin.refresh_statistics\'), callback_data="admin_stats")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10937,7 +10937,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -10968,7 +10968,7 @@ class EnhancedBot:
         text += f"\n<b>💡 说明</b>\n• 超级管理员来自配置文件\n• 普通管理员可通过命令添加"
         
         buttons = [
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10979,7 +10979,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -11009,7 +11009,7 @@ class EnhancedBot:
         )
         
         buttons = [
-            [InlineKeyboardButton("❌ 取消搜索", callback_data="admin_users")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'admin.cancel_search\'), callback_data="admin_users")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -11020,7 +11020,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -11062,10 +11062,10 @@ class EnhancedBot:
         
         buttons = [
             [
-                InlineKeyboardButton("👥 用户管理", callback_data="admin_users"),
-                InlineKeyboardButton("🔄 刷新列表", callback_data="admin_recent")
+                InlineKeyboardButton(self.i18n.get(user_id, \'admin.user_management\'), callback_data="admin_users"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'admin.refresh_list\'), callback_data="admin_recent")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -11076,7 +11076,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -11148,14 +11148,14 @@ class EnhancedBot:
         """
         
         buttons = [
-            [InlineKeyboardButton("🎁 授予体验会员", callback_data=f"grant_membership_{target_user_id}")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'admin.grant_trial_vip\'), callback_data=f"grant_membership_{target_user_id}")]
         ]
         
         # 如果不是管理员，显示设为管理员按钮
         if not is_admin:
-            buttons.append([InlineKeyboardButton("👑 设为管理员", callback_data=f"make_admin_{target_user_id}")])
+            buttons.append([InlineKeyboardButton(self.i18n.get(user_id, \'admin.set_as_admin\'), callback_data=f"make_admin_{target_user_id}")])
         
-        buttons.append([InlineKeyboardButton("🔙 返回", callback_data="admin_users")])
+        buttons.append([InlineKeyboardButton(self.i18n.get(user_id, \'common.back\'), callback_data="admin_users")])
         
         keyboard = InlineKeyboardMarkup(buttons)
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -11165,13 +11165,13 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         # 检查用户是否存在
         user_info = self.db.get_user_membership_info(target_user_id)
         if not user_info:
-            query.answer("❌ 用户不存在")
+            query.answer(self.i18n.get(user_id, \'admin.user_not_found\'))
             return
         
         # 授予体验会员
@@ -11182,20 +11182,20 @@ class EnhancedBot:
             # 刷新用户详情页面
             self.handle_user_detail(query, target_user_id)
         else:
-            query.answer("❌ 授予失败")
+            query.answer(self.i18n.get(user_id, \'admin.grant_failed\'))
 
     def handle_make_admin(self, query, target_user_id: int):
         """设置用户为管理员"""
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         # 检查用户是否存在
         user_info = self.db.get_user_membership_info(target_user_id)
         if not user_info:
-            query.answer("❌ 用户不存在")
+            query.answer(self.i18n.get(user_id, \'admin.user_not_found\'))
             return
         
         username = user_info.get('username', '')
@@ -11215,7 +11215,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         # 直接调用刷新代理面板
@@ -11525,8 +11525,8 @@ class EnhancedBot:
                 
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton("📝 统一姓名", callback_data=f'custom_name_single_{user_id}')],
-                    [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_name_skip_{user_id}')],
-                    [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+                    [InlineKeyboardButton(self.i18n.get(user_id, \'batch.skip_no_modify\'), callback_data=f'custom_name_skip_{user_id}')],
+                    [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')]
                 ])
                 
                 try:
@@ -11547,7 +11547,7 @@ class EnhancedBot:
             
             keyboard = InlineKeyboardMarkup([[
                 InlineKeyboardButton("🚀 开始处理", callback_data=f'exec_modify_{user_id}'),
-                InlineKeyboardButton("❌ 取消", callback_data='back_to_main')
+                InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')
             ]])
             
             try:
@@ -12796,7 +12796,7 @@ class EnhancedBot:
                 InlineKeyboardButton("🔍 完整预览", callback_data="broadcast_preview")
             ],
             [
-                InlineKeyboardButton("🔙 返回", callback_data="broadcast_cancel"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'common.back\'), callback_data="broadcast_cancel"),
                 InlineKeyboardButton("➡️ 下一步", callback_data="broadcast_next")
             ]
         ])
@@ -13166,7 +13166,7 @@ class EnhancedBot:
         return InlineKeyboardMarkup([
             [InlineKeyboardButton("🌍 按国家拆分", callback_data="classify_split_country")],
             [InlineKeyboardButton("🔢 按数量拆分", callback_data="classify_split_quantity")],
-            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="back_to_main")]
         ])
     
     def _classify_buttons_qty_mode(self) -> InlineKeyboardMarkup:
@@ -13808,7 +13808,7 @@ class EnhancedBot:
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔍 自动识别密码", callback_data="remove_2fa_auto")],
                 [InlineKeyboardButton("✏️ 手动输入密码", callback_data="remove_2fa_manual")],
-                [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+                [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="back_to_main")]
             ])
             
             try:
@@ -14649,7 +14649,7 @@ class EnhancedBot:
             """
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+                [InlineKeyboardButton(self.i18n.get(user_id, \'common.back_to_main\'), callback_data="back_to_main")]
             ])
             
             self.safe_send_message(update, text, 'HTML', keyboard)
@@ -14674,7 +14674,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -14705,7 +14705,7 @@ class EnhancedBot:
                 InlineKeyboardButton("90天", callback_data="admin_card_days_90"),
                 InlineKeyboardButton("360天", callback_data="admin_card_days_360")
             ],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -14715,7 +14715,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -14747,7 +14747,7 @@ class EnhancedBot:
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔄 继续生成", callback_data="admin_card_menu")],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -14757,7 +14757,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -14788,7 +14788,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -14875,7 +14875,7 @@ class EnhancedBot:
                 InlineKeyboardButton("90天", callback_data="admin_manual_days_90"),
                 InlineKeyboardButton("360天", callback_data="admin_manual_days_360")
             ],
-            [InlineKeyboardButton("❌ 取消", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="admin_panel")]
         ])
         
         self.safe_send_message(update, text, 'HTML', keyboard)
@@ -14885,7 +14885,7 @@ class EnhancedBot:
         admin_id = query.from_user.id
         
         if not self.db.is_admin(admin_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         # 检查是否有待处理的用户
@@ -14921,7 +14921,7 @@ class EnhancedBot:
 • 到期时间: {expiry}
             """
             
-            query.answer("✅ 开通成功")
+            query.answer(self.i18n.get(user_id, \'common.activation_success\'))
             
             # 尝试通知用户
             try:
@@ -14952,7 +14952,7 @@ class EnhancedBot:
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔄 继续开通", callback_data="admin_manual_menu")],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -14966,7 +14966,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -14996,7 +14996,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15068,8 +15068,8 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 确认撤销", callback_data=f"admin_revoke_confirm_{target_user_id}")],
-            [InlineKeyboardButton("❌ 取消", callback_data="admin_revoke_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.confirm_revoke\'), callback_data=f"admin_revoke_confirm_{target_user_id}")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="admin_revoke_cancel")]
         ])
         
         self.safe_send_message(update, text, 'HTML', keyboard)
@@ -15079,7 +15079,7 @@ class EnhancedBot:
         admin_id = query.from_user.id
         
         if not self.db.is_admin(admin_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, \'admin.admin_access_only\'))
             return
         
         query.answer()
@@ -15128,7 +15128,7 @@ class EnhancedBot:
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔄 继续撤销", callback_data="admin_revoke_menu")],
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15139,7 +15139,7 @@ class EnhancedBot:
         
         text = "❌ <b>已取消撤销操作</b>"
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回管理面板", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15301,7 +15301,7 @@ class EnhancedBot:
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📝 创建群发", callback_data="broadcast_create")],
             [InlineKeyboardButton("📜 历史记录", callback_data="broadcast_history")],
-            [InlineKeyboardButton("🔙 返回", callback_data="admin_panel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.back\'), callback_data="admin_panel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15341,7 +15341,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="broadcast_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="broadcast_cancel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15371,7 +15371,7 @@ class EnhancedBot:
                 caption="📸 当前广播媒体预览"
             )
             try:
-                query.answer("✅ 已发送媒体预览")
+                query.answer(self.i18n.get(user_id, \'broadcast.sent_media_preview\'))
             except:
                 pass
         except Exception as e:
@@ -15393,7 +15393,7 @@ class EnhancedBot:
         task['media_type'] = None
         
         try:
-            query.answer("✅ 已清除媒体设置")
+            query.answer(self.i18n.get(user_id, \'broadcast.media_cleared\'))
         except:
             pass
         
@@ -15433,7 +15433,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="broadcast_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="broadcast_cancel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15450,7 +15450,7 @@ class EnhancedBot:
         
         if not task.get('content'):
             try:
-                query.answer("⚠️ 尚未设置文本内容", show_alert=True)
+                query.answer(self.i18n.get(user_id, \'broadcast.no_text_content\'), show_alert=True)
             except:
                 pass
             return
@@ -15470,7 +15470,7 @@ class EnhancedBot:
         
         self.safe_edit_message(query, text, 'HTML')
         try:
-            query.answer("✅ 已显示文本预览")
+            query.answer(self.i18n.get(user_id, \'broadcast.text_preview_shown\'))
         except:
             pass
     
@@ -15510,7 +15510,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="broadcast_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="broadcast_cancel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -15558,7 +15558,7 @@ class EnhancedBot:
         task['buttons'] = []
         
         try:
-            query.answer("✅ 已清除所有按钮")
+            query.answer(self.i18n.get(user_id, \'broadcast.all_buttons_cleared\'))
         except:
             pass
         
@@ -15578,7 +15578,7 @@ class EnhancedBot:
         # 检查必填项
         if not task.get('content'):
             try:
-                query.answer("⚠️ 请先设置文本内容", show_alert=True)
+                query.answer(self.i18n.get(user_id, \'broadcast.set_text_first\'), show_alert=True)
             except:
                 pass
             return
@@ -15614,7 +15614,7 @@ class EnhancedBot:
                 )
             
             try:
-                query.answer("✅ 已发送预览")
+                query.answer(self.i18n.get(user_id, \'broadcast.sent_preview\'))
             except:
                 pass
         except Exception as e:
@@ -15647,7 +15647,7 @@ class EnhancedBot:
         # 检查必填项
         if not task.get('content'):
             try:
-                query.answer("⚠️ 请先设置文本内容", show_alert=True)
+                query.answer(self.i18n.get(user_id, \'broadcast.set_text_first\'), show_alert=True)
             except:
                 pass
             return
@@ -15660,7 +15660,7 @@ class EnhancedBot:
         # 从广播任务中查找对应的提示信息
         # 这里简化处理，直接显示通用提示
         try:
-            query.answer("✨ 感谢您的关注！", show_alert=True)
+            query.answer(self.i18n.get(user_id, \'common.thanks_attention\'), show_alert=True)
         except:
             pass
     
@@ -15717,7 +15717,7 @@ class EnhancedBot:
                 InlineKeyboardButton("🔍 完整预览", callback_data="broadcast_preview")
             ],
             [
-                InlineKeyboardButton("🔙 返回", callback_data="broadcast_cancel"),
+                InlineKeyboardButton(self.i18n.get(user_id, \'common.back\'), callback_data="broadcast_cancel"),
                 InlineKeyboardButton("➡️ 下一步", callback_data="broadcast_next")
             ]
         ])
@@ -15944,7 +15944,7 @@ class EnhancedBot:
             [InlineKeyboardButton(f"💎 仅会员 ({members})", callback_data="broadcast_target_members")],
             [InlineKeyboardButton(f"🔥 活跃用户(7天) ({active_7d})", callback_data="broadcast_target_active_7d")],
             [InlineKeyboardButton(f"🆕 新用户(7天) ({new_7d})", callback_data="broadcast_target_new_7d")],
-            [InlineKeyboardButton("❌ 取消", callback_data="broadcast_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="broadcast_cancel")]
         ])
         
         self.safe_send_message(update, text, 'HTML', keyboard)
@@ -16001,9 +16001,9 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 开始发送", callback_data="broadcast_confirm_send")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'batch.start_send\'), callback_data="broadcast_confirm_send")],
             [InlineKeyboardButton("✏️ 返回修改", callback_data="broadcast_edit")],
-            [InlineKeyboardButton("❌ 取消", callback_data="broadcast_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="broadcast_cancel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16220,7 +16220,7 @@ class EnhancedBot:
 暂无广播记录
             """
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 返回", callback_data="broadcast_menu")]
+                [InlineKeyboardButton(self.i18n.get(user_id, \'common.back\'), callback_data="broadcast_menu")]
             ])
             self.safe_edit_message(query, text, 'HTML', keyboard)
             return
@@ -16258,7 +16258,7 @@ class EnhancedBot:
                 )
             ])
         
-        buttons.append([InlineKeyboardButton("🔙 返回", callback_data="broadcast_menu")])
+        buttons.append([InlineKeyboardButton(self.i18n.get(user_id, \'common.back\'), callback_data="broadcast_menu")])
         keyboard = InlineKeyboardMarkup(buttons)
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16343,7 +16343,7 @@ class EnhancedBot:
         
         text = "❌ <b>已取消创建广播</b>"
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回", callback_data="broadcast_menu")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.back\'), callback_data="broadcast_menu")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16587,8 +16587,8 @@ class EnhancedBot:
             # 创建即时操作按钮
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("➕ 继续上传文件", callback_data="merge_continue")],
-                [InlineKeyboardButton("✅ 完成合并", callback_data="merge_finish")],
-                [InlineKeyboardButton("❌ 取消", callback_data="merge_cancel")]
+                [InlineKeyboardButton(self.i18n.get(user_id, \'common.complete_merge\'), callback_data="merge_finish")],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="merge_cancel")]
             ])
             
             self.safe_send_message(
@@ -16606,7 +16606,7 @@ class EnhancedBot:
     
     def handle_merge_continue(self, query):
         """处理继续上传文件"""
-        query.answer("✅ 请继续上传ZIP文件")
+        query.answer(self.i18n.get(user_id, \'batch.continue_upload_zip\'))
         user_id = query.from_user.id
         
         if user_id not in self.pending_merge:
@@ -16627,8 +16627,8 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 完成合并", callback_data="merge_finish")],
-            [InlineKeyboardButton("❌ 取消", callback_data="merge_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.complete_merge\'), callback_data="merge_finish")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="merge_cancel")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -17085,8 +17085,8 @@ class EnhancedBot:
                     parse_mode='HTML',
                     reply_markup=InlineKeyboardMarkup([
                         [
-                            InlineKeyboardButton("✅ 确认清理", callback_data="cleanup_confirm"),
-                            InlineKeyboardButton("❌ 取消", callback_data="cleanup_cancel")
+                            InlineKeyboardButton(self.i18n.get(user_id, \'proxy.confirm_cleanup\'), callback_data="cleanup_confirm"),
+                            InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="cleanup_cancel")
                         ]
                     ])
                 )
@@ -18218,7 +18218,7 @@ class EnhancedBot:
                     InlineKeyboardButton("📱 创建群组", callback_data="batch_create_type_group"),
                     InlineKeyboardButton("📢 创建频道", callback_data="batch_create_type_channel")
                 ],
-                [InlineKeyboardButton("❌ 取消", callback_data="batch_create_cancel")]
+                [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="batch_create_cancel")]
             ])
             
             self.safe_edit_message_text(progress_msg, text, parse_mode='HTML', reply_markup=keyboard)
@@ -18664,8 +18664,8 @@ admin3</code>
 """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 确认创建", callback_data="batch_create_confirm")],
-            [InlineKeyboardButton("❌ 取消", callback_data="batch_create_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'batch.confirm_create\'), callback_data="batch_create_confirm")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="batch_create_cancel")]
         ])
         
         self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
@@ -19028,7 +19028,7 @@ admin3</code>
                         chat_id=user_id,
                         document=f,
                         filename=success_filename,
-                        caption="✅ 成功创建列表"
+                        caption=self.i18n.get(user_id, \'common.create_list_success\')
                     )
             
             # 生成失败列表文件
@@ -19239,8 +19239,8 @@ admin3</code>
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("📷 上传图片", callback_data=f'custom_avatar_photo_{user_id}')],
                 [InlineKeyboardButton("🚫 删除头像", callback_data=f'custom_avatar_delete_{user_id}')],
-                [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_avatar_skip_{user_id}')],
-                [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+                [InlineKeyboardButton(self.i18n.get(user_id, \'batch.skip_no_modify\'), callback_data=f'custom_avatar_skip_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')]
             ])
             
             self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -19298,10 +19298,10 @@ admin3</code>
             )
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💬 统一简介", callback_data=f'custom_bio_single_{user_id}')],
-                [InlineKeyboardButton("⬜ 设置为空", callback_data=f'custom_bio_empty_{user_id}')],
-                [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_bio_skip_{user_id}')],
-                [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+                [InlineKeyboardButton(self.i18n.get(user_id, \'batch.unified_bio\'), callback_data=f'custom_bio_single_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'batch.set_empty\'), callback_data=f'custom_bio_empty_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'batch.skip_no_modify\'), callback_data=f'custom_bio_skip_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')]
             ])
             
             self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -19319,10 +19319,10 @@ admin3</code>
             )
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💬 统一简介", callback_data=f'custom_bio_single_{user_id}')],
-                [InlineKeyboardButton("⬜ 设置为空", callback_data=f'custom_bio_empty_{user_id}')],
-                [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_bio_skip_{user_id}')],
-                [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+                [InlineKeyboardButton(self.i18n.get(user_id, \'batch.unified_bio\'), callback_data=f'custom_bio_single_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'batch.set_empty\'), callback_data=f'custom_bio_empty_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'batch.skip_no_modify\'), callback_data=f'custom_bio_skip_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')]
             ])
             
             self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -19398,7 +19398,7 @@ admin3</code>
         
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton("🚀 开始处理", callback_data=f'exec_modify_{user_id}'),
-            InlineKeyboardButton("❌ 取消", callback_data='back_to_main')
+            InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')
         ]])
         
         self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -19467,8 +19467,8 @@ admin3</code>
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📷 上传图片", callback_data=f'custom_avatar_photo_{user_id}')],
             [InlineKeyboardButton("🚫 删除头像", callback_data=f'custom_avatar_delete_{user_id}')],
-            [InlineKeyboardButton("⏭ 跳过不修改", callback_data=f'custom_avatar_skip_{user_id}')],
-            [InlineKeyboardButton("❌ 取消", callback_data='back_to_main')]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'batch.skip_no_modify\'), callback_data=f'custom_avatar_skip_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')]
         ])
         
         self.safe_send_message(update, text, 'HTML', reply_markup=keyboard)
@@ -19548,7 +19548,7 @@ admin3</code>
         
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton("🚀 开始处理", callback_data=f'exec_modify_{user_id}'),
-            InlineKeyboardButton("❌ 取消", callback_data='back_to_main')
+            InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')
         ]])
         
         self.safe_send_message(update, text, 'HTML', reply_markup=keyboard)
@@ -19827,7 +19827,7 @@ admin3</code>
             text=summary,
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")
+                InlineKeyboardButton(self.i18n.get(user_id, \'common.back_to_main\'), callback_data="back_to_main")
             ]])
         )
         
@@ -20175,7 +20175,7 @@ admin3</code>
                     InlineKeyboardButton("🔍 自动识别2FA", callback_data="reauth_auto_detect"),
                     InlineKeyboardButton("✍️ 手动输入2FA", callback_data="reauth_manual_input")
                 ],
-                [InlineKeyboardButton("❌ 取消", callback_data="reauthorize_cancel")]
+                [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="reauthorize_cancel")]
             ])
             
             self.safe_edit_message_text(
@@ -20347,15 +20347,15 @@ admin3</code>
 """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 确认开始", callback_data="reauthorize_confirm")],
-            [InlineKeyboardButton("❌ 取消", callback_data="reauthorize_cancel")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'batch.confirm_start\'), callback_data="reauthorize_confirm")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="reauthorize_cancel")]
         ])
         
         self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
     
     def handle_reauthorize_execute(self, update: Update, context: CallbackContext, query, user_id: int):
         """执行重新授权"""
-        query.answer("⏳ 开始重新授权...")
+        query.answer(self.i18n.get(user_id, \'reauthorize.start_reauth\'))
         
         if user_id not in self.pending_reauthorize:
             self.safe_edit_message(query, "❌ 会话已过期")
@@ -20397,7 +20397,7 @@ admin3</code>
                 InlineKeyboardButton(f"{total}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"✅ 授权成功", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(fself.i18n.get(user_id, \'common.auth_success\'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{success}", callback_data="reauthorize_noop")
             ],
             [
@@ -21864,8 +21864,8 @@ admin3</code>
             
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("✅ 开始查询", callback_data="check_reg_execute"),
-                    InlineKeyboardButton("❌ 取消", callback_data="check_reg_cancel")
+                    InlineKeyboardButton(self.i18n.get(user_id, \'batch.start_query\'), callback_data="check_reg_execute"),
+                    InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="check_reg_cancel")
                 ]
             ])
             

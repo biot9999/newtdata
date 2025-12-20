@@ -252,7 +252,17 @@
     "quantity_mode": "🔢 <b>Select Quantity Mode:</b>\n\nChoose how to allocate account quantities",
     "input_quantities_multi": "🔢 <b>Enter Multiple Quantities (space-separated)</b>\n\nExample: 10 20 30\n\n💡 Tip:\n• Split by multiple quantities, e.g. 10 20 30",
     "step_2_of_5": "Step 2/5: Configure Name",
-    "select_name_config": "Please select name configuration method:"
+    "select_name_config": "Please select name configuration method:",
+    "unified_bio": "💬 Unified Bio",
+    "set_empty": "⬜ Set Empty",
+    "skip_no_modify": "⏭ Skip (No Modify)",
+    "confirm_create": "✅ Confirm Create",
+    "confirm_start": "✅ Confirm Start",
+    "start_query": "✅ Start Query",
+    "start_send": "✅ Start Send",
+    "continue_upload_zip": "✅ Please continue uploading ZIP files",
+    "creating_progress": "🚀 <b>Batch Creating</b>\n\nProgress: {current}/{total} ({progress}%)\nStatus: {message}",
+    "start_batch_create": "🚀 <b>Starting Batch Creation</b>\n\nProgress: 0/{total} (0%)\nStatus: Preparing..."
   },
   "api": {
     "title": "🔗 <b>API Conversion</b>",
@@ -448,7 +458,11 @@
     "category_network_error": "Network Error",
     "category_other_error": "Other Errors",
     "accounts_with_status": "📦 {status} Accounts ({count})",
-    "detailed_report_caption": "📊 Reauthorization Detailed Report"
+    "detailed_report_caption": "📊 Reauthorization Detailed Report",
+    "start_reauth": "⏳ Starting re-authorization...",
+    "start_reauth_progress": "🚀 <b>Starting Re-authorization</b>\n\nProgress: 0/{total} (0%)",
+    "reauth_in_progress": "🚀 <b>Re-authorization in Progress</b>\n\nProgress: {current}/{total} ({progress}%)",
+    "reauth_failed": "❌ <b>Re-authorization Failed</b>\n\nError: {error}"
   },
   "registration": {
     "title": "🕰️ <b>Check Registration Time</b>",
@@ -557,7 +571,7 @@
     "admin_removed": "✅ Admin removed: {user_id}",
     "no_admins": "📝 No admins",
     "usage": "📝 Usage:\n{usage}",
-    "user_not_found": "❌ User @{username} not found\nEnsure user has used the bot",
+    "user_not_found": "❌ User not found",
     "invalid_user_id": "❌ Provide valid user ID",
     "command_admin_only": "❌ Admin only command",
     "user_not_found_target": "❌ User @{target} not found\nEnsure user has used the bot",
@@ -602,7 +616,21 @@
     "add_success": "✅ Successfully added admin",
     "usage_instructions": "📝 Usage:",
     "vip_granted": "✅ Trial membership granted successfully",
-    "admin_set": "✅ Admin setting successful"
+    "admin_set": "✅ Admin setting successful",
+    "admin_panel_only": "❌ Admin panel access only",
+    "enable_proxy_btn": "🟢 Enable Proxy",
+    "disable_proxy_btn": "🔴 Disable Proxy",
+    "search_user": "🔍 Search User",
+    "recent_registrations": "📋 Recent Registrations",
+    "user_statistics": "📊 User Statistics",
+    "refresh_list": "🔄 Refresh List",
+    "user_management": "👥 User Management",
+    "refresh_statistics": "🔄 Refresh Statistics",
+    "cancel_search": "❌ Cancel Search",
+    "grant_trial_vip": "🎁 Grant Trial Membership",
+    "set_as_admin": "👑 Set as Admin",
+    "grant_failed": "❌ Grant failed",
+    "admin_access_only": "❌ Admin access only"
   },
   "proxy": {
     "title": "📡 <b>Proxy Management</b>",
@@ -624,8 +652,8 @@
     "refresh_proxy": "🔄 Refresh Proxy List",
     "view_proxy_status": "📊 View Proxy Status",
     "proxy_stats": "📈 Proxy Statistics",
-    "test_only": "🧪 Test Only",
-    "reload_proxy": "🔄 Reload Proxy",
+    "test_only": "🧪 Test Only (No Cleanup)",
+    "reload_proxy": "🔄 Reload Proxies",
     "proxy_status": "📊 Proxy Status",
     "clean_proxy": "🧹 Clean Failed Proxies",
     "speed_optimization": "⚡ Speed Optimization",
@@ -675,7 +703,18 @@
     "test_in_progress": "🧪 <b>Proxy Testing...</b>\n\n📊 Initializing test environment...",
     "test_complete": "✅ <b>Proxy Test Complete!</b>",
     "cleanup_result_complete": "✅ Proxy cleanup complete!",
-    "reload_complete": "✅ Reload complete: {old}→{new} proxies"
+    "reload_complete": "✅ Reload complete: {old}→{new} proxies",
+    "disable_proxy": "🔴 Disable Proxy",
+    "refresh_proxy_list": "🔄 Refresh Proxy List",
+    "test_proxy": "🧪 Test Proxy",
+    "proxy_statistics": "📈 Proxy Statistics",
+    "back_to_panel": "🔙 Back to Admin Panel",
+    "back_to_proxy_panel": "🔙 Back to Proxy Panel",
+    "confirm_cleanup": "✅ Confirm Cleanup",
+    "cleanup_failed_proxies": "🧹 Cleanup Failed Proxies",
+    "admin_only": "❌ Admin only",
+    "get_test_proxy_failed": "❌ Failed to get test proxy",
+    "test_proxy_type": "🧪 Test proxy: {type} proxy"
   },
   "settings": {
     "title": "⚙️ <b>Settings</b>",
@@ -717,7 +756,7 @@
     "task_expired": "❌ Task expired, please start over",
     "no_images_uploaded": "❌ No images uploaded yet, please upload first",
     "operation_mismatch": "❌ Operation type mismatch",
-    "no_pending_task": "❌ No pending task",
+    "no_pending_task": "❌ No pending tasks",
     "no_valid_files": "❌ <b>No Valid Files Found</b>\n\nPlease ensure ZIP contains Session or TData format files",
     "processing_failed": "❌ <b>Processing Failed</b>",
     "no_avatar_task": "❌ No avatar upload task in progress",
@@ -730,7 +769,18 @@
     "processing_file": "📥 <b>Processing your file...</b>",
     "speed_per_sec": "• Speed: {speed:.1f}/s",
     "time_elapsed_sec": "• Time elapsed: {seconds}s",
-    "processed_count": "• Processed: {processed}/{total}"
+    "processed_count": "• Processed: {processed}/{total}",
+    "back_to_main": "🔙 Back to Main Menu",
+    "skip": "⏭ Skip",
+    "refresh": "🔄 Refresh",
+    "operation_failed": "❌ Operation failed",
+    "thanks_attention": "✨ Thanks for your attention!",
+    "status_info": "ℹ️ This is status information",
+    "confirm_revoke": "✅ Confirm Revoke",
+    "auth_success": "✅ Authorization successful",
+    "activation_success": "✅ Activation successful",
+    "create_list_success": "✅ List created successfully",
+    "complete_merge": "✅ Merge complete"
   },
   "file": {
     "uploading": "⬆️ Uploading file...",
@@ -782,7 +832,12 @@
     "parse_failed": "❌ Parse failed: {error}",
     "no_valid_usernames": "❌ No valid usernames found, please re-enter",
     "file_processing_failed": "❌ File processing failed: {error}",
-    "name_empty": "❌ Name cannot be empty, please re-enter"
+    "name_empty": "❌ Name cannot be empty, please re-enter",
+    "create_failed_with_error": "❌ <b>Creation Failed</b>\n\nError: {error}",
+    "broadcast_failed": "❌ <b>Broadcast Failed</b>\n\nError: {error}",
+    "cleanup_failed_with_error": "❌ <b>Cleanup Failed</b>\n\nError: {error}",
+    "all_files_send_failed": "⚠️ All result files failed to send, please contact admin to check logs",
+    "report_issue_but_complete": "⚠️ Report generation issue, but processing complete\n\nTotal: {total}\nSuccess: {success}"
   },
   "broadcast": {
     "title": "<b>📢 Broadcast Management</b>",
@@ -790,7 +845,15 @@
     "history_title": "<b>📜 Broadcast History</b>",
     "no_history": "No broadcast history",
     "set_media": "<b>📸 Set Broadcast Media</b>\n\n<b>📋 Upload an image</b>\n\n• Formats: JPG, PNG, GIF\n• Image sent with text\n• Single image per broadcast\n\n⏰ <i>Expires in 5 minutes</i>",
-    "no_pending": "❌ No pending broadcast task"
+    "no_pending": "❌ No pending broadcast task",
+    "sent_media_preview": "✅ Media preview sent",
+    "sent_preview": "✅ Preview sent",
+    "text_preview_shown": "✅ Text preview shown",
+    "media_cleared": "✅ Media settings cleared",
+    "all_buttons_cleared": "✅ All buttons cleared",
+    "no_text_content": "⚠️ No text content set yet",
+    "set_text_first": "⚠️ Please set text content first",
+    "preview_header": "<b>📢 Preview</b>"
   },
   "admin_ext": {
     "msg_6": "Get all admins",
@@ -1094,7 +1157,9 @@
     "wrong_password_count": "Wrong password: {count}",
     "network_error_count": "Network error: {count}",
     "other_error_count": "Other errors: {count}",
-    "error_count": "Failed: {count}"
+    "error_count": "Failed: {count}",
+    "members_only": "💎 Members Only ({count})",
+    "active_7days": "🔥 Active Users (7 days) ({count})"
   },
   "twofa_result": {
     "complete_title": "🎉 2FA Password Modification Complete!",
@@ -1135,7 +1200,8 @@
     "download_temp_file": "📥 Temporary download file: {file}",
     "download_file": "📥 Downloading file: {file}",
     "detailed_report": "📋 <b>{status} Detailed Report</b>\n\nContains details of {count} accounts",
-    "status_with_count": "📋 <b>{status}</b> - {count} accounts"
+    "status_with_count": "📋 <b>{status}</b> - {count} accounts",
+    "twofa_result_success": "📦 Add 2FA Result - Success {count}"
   },
   "common_messages": {
     "proxy_test_start": "🧪 Starting proxy test for {count} proxies...",

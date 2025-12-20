@@ -252,7 +252,17 @@
     "quantity_mode": "🔢 <b>选择数量模式：</b>\n\n选择如何分配账号数量",
     "input_quantities_multi": "�� <b>请输入多个数量（空格分隔）</b>\n\n例如：10 20 30\n\n💡 提示：\n• 按多个数量依次切分，例如 10 20 30",
     "step_2_of_5": "步骤 2/5: 配置姓名",
-    "select_name_config": "请选择姓名配置方式："
+    "select_name_config": "请选择姓名配置方式：",
+    "unified_bio": "💬 统一简介",
+    "set_empty": "⬜ 设置为空",
+    "skip_no_modify": "⏭ 跳过不修改",
+    "confirm_create": "✅ 确认创建",
+    "confirm_start": "✅ 确认开始",
+    "start_query": "✅ 开始查询",
+    "start_send": "✅ 开始发送",
+    "continue_upload_zip": "✅ 请继续上传ZIP文件",
+    "creating_progress": "�� <b>批量创建中</b>\n\n进度: {current}/{total} ({progress}%)\n状态: {message}",
+    "start_batch_create": "🚀 <b>开始批量创建</b>\n\n进度: 0/{total} (0%)\n状态: 准备中..."
   },
   "api": {
     "title": "🔗 <b>API转换功能</b>",
@@ -448,7 +458,11 @@
     "category_network_error": "网络错误",
     "category_other_error": "其他错误",
     "accounts_with_status": "📦 {status}的账号 ({count} 个)",
-    "detailed_report_caption": "📊 重新授权详细报告"
+    "detailed_report_caption": "📊 重新授权详细报告",
+    "start_reauth": "⏳ 开始重新授权...",
+    "start_reauth_progress": "🚀 <b>开始重新授权</b>\n\n进度：0/{total} (0%)",
+    "reauth_in_progress": "🚀 <b>重新授权中</b>\n\n进度：{current}/{total} ({progress}%)",
+    "reauth_failed": "❌ <b>重新授权失败</b>\n\n错误: {error}"
   },
   "registration": {
     "title": "🕰️ <b>查询注册时间</b>",
@@ -557,7 +571,7 @@
     "admin_removed": "✅ 已移除管理员: {user_id}",
     "no_admins": "📝 暂无管理员",
     "usage": "📝 使用方法:\n{usage}",
-    "user_not_found": "❌ 找不到用户名 @{username}\n请确保用户已使用过机器人",
+    "user_not_found": "❌ 用户不存在",
     "invalid_user_id": "❌ 请提供有效的用户ID",
     "command_admin_only": "❌ 仅管理员可以使用此命令",
     "user_not_found_target": "❌ 找不到用户名 @{target}\n请确保用户已使用过机器人",
@@ -602,7 +616,21 @@
     "add_success": "✅ 成功添加管理员",
     "usage_instructions": "📝 使用方法:",
     "vip_granted": "✅ 体验会员授予成功",
-    "admin_set": "✅ 管理员设置成功"
+    "admin_set": "✅ 管理员设置成功",
+    "admin_panel_only": "❌ 仅管理员可以访问代理管理面板",
+    "enable_proxy_btn": "🟢 启用代理",
+    "disable_proxy_btn": "🔴 禁用代理",
+    "search_user": "🔍 搜索用户",
+    "recent_registrations": "📋 最近注册",
+    "user_statistics": "📊 用户统计",
+    "refresh_list": "🔄 刷新列表",
+    "user_management": "👥 用户管理",
+    "refresh_statistics": "🔄 刷新统计",
+    "cancel_search": "❌ 取消搜索",
+    "grant_trial_vip": "🎁 授予体验会员",
+    "set_as_admin": "👑 设为管理员",
+    "grant_failed": "❌ 授予失败",
+    "admin_access_only": "❌ 仅管理员可访问"
   },
   "proxy": {
     "title": "📡 <b>代理管理</b>",
@@ -675,7 +703,18 @@
     "test_in_progress": "🧪 <b>代理测试中...</b>\n\n📊 正在初始化测试环境...",
     "test_complete": "✅ <b>代理测试完成！</b>",
     "cleanup_result_complete": "✅ 代理清理完成!",
-    "reload_complete": "✅ 重新加载完成: {old}→{new}个代理"
+    "reload_complete": "✅ 重新加载完成: {old}→{new}个代理",
+    "disable_proxy": "🔴 关闭代理",
+    "refresh_proxy_list": "🔄 刷新代理列表",
+    "test_proxy": "🧪 测试代理",
+    "proxy_statistics": "📈 代理统计",
+    "back_to_panel": "🔙 返回管理面板",
+    "back_to_proxy_panel": "🔙 返回代理面板",
+    "confirm_cleanup": "✅ 确认清理",
+    "cleanup_failed_proxies": "🧹 清理失效代理",
+    "admin_only": "❌ 仅管理员可以操作",
+    "get_test_proxy_failed": "❌ 获取测试代理失败",
+    "test_proxy_type": "🧪 测试代理: {type}代理"
   },
   "settings": {
     "title": "⚙️ <b>设置</b>",
@@ -730,7 +769,18 @@
     "processing_file": "📥 <b>正在处理您的文件...</b>",
     "speed_per_sec": "• 速度: {speed:.1f} 个/秒",
     "time_elapsed_sec": "• 用时: {seconds} 秒",
-    "processed_count": "• 已处理: {processed}/{total}"
+    "processed_count": "• 已处理: {processed}/{total}",
+    "back_to_main": "🔙 返回主菜单",
+    "skip": "⏭ 跳过",
+    "refresh": "🔄 刷新",
+    "operation_failed": "❌ 操作失败",
+    "thanks_attention": "✨ 感谢您的关注！",
+    "status_info": "ℹ️ 这是状态信息",
+    "confirm_revoke": "✅ 确认撤销",
+    "auth_success": "✅ 授权成功",
+    "activation_success": "✅ 开通成功",
+    "create_list_success": "✅ 成功创建列表",
+    "complete_merge": "✅ 完成合并"
   },
   "file": {
     "uploading": "⬆️ 正在上传文件...",
@@ -782,7 +832,12 @@
     "parse_failed": "❌ 解析失败：{error}",
     "no_valid_usernames": "❌ 未找到有效的用户名，请重新输入",
     "file_processing_failed": "❌ 文件处理失败：{error}",
-    "name_empty": "❌ 姓名不能为空，请重新输入"
+    "name_empty": "❌ 姓名不能为空，请重新输入",
+    "create_failed_with_error": "❌ <b>创建失败</b>\n\n错误: {error}",
+    "broadcast_failed": "❌ <b>广播发送失败</b>\n\n错误: {error}",
+    "cleanup_failed_with_error": "❌ <b>清理失败</b>\n\n错误: {error}",
+    "all_files_send_failed": "⚠️ 所有结果文件发送失败，请联系管理员检查日志",
+    "report_issue_but_complete": "⚠️ 报告生成出现问题，但处理完成\n\n总数: {total}\n成功: {success}"
   },
   "broadcast": {
     "title": "<b>📢 群发通知管理</b>",
@@ -790,7 +845,15 @@
     "history_title": "<b>📜 广播历史记录</b>",
     "no_history": "暂无广播记录",
     "set_media": "<b>📸 设置广播媒体</b>\n\n<b>📋 请上传一张图片</b>\n\n• 支持格式：JPG、PNG、GIF\n• 图片将与文本一起发送\n• 单次广播只支持一张图片\n\n⏰ <i>5分钟内未上传将自动取消</i>",
-    "no_pending": "❌ 没有待处理的广播任务"
+    "no_pending": "❌ 没有待处理的广播任务",
+    "sent_media_preview": "✅ 已发送媒体预览",
+    "sent_preview": "✅ 已发送预览",
+    "text_preview_shown": "✅ 已显示文本预览",
+    "media_cleared": "✅ 已清除媒体设置",
+    "all_buttons_cleared": "✅ 已清除所有按钮",
+    "no_text_content": "⚠️ 尚未设置文本内容",
+    "set_text_first": "⚠️ 请先设置文本内容",
+    "preview_header": "<b>📢 预览</b>"
   },
   "admin_ext": {
     "msg_6": "获取所有管理员",
@@ -1094,7 +1157,9 @@
     "wrong_password_count": "密码错误: {count}",
     "network_error_count": "网络错误: {count}",
     "other_error_count": "其他错误: {count}",
-    "error_count": "失败: {count}"
+    "error_count": "失败: {count}",
+    "members_only": "💎 仅会员 ({count})",
+    "active_7days": "🔥 活跃用户(7天) ({count})"
   },
   "twofa_result": {
     "complete_title": "🎉 2FA密码修改完成！",
@@ -1135,7 +1200,8 @@
     "download_temp_file": "📥 临时下载文件: {file}",
     "download_file": "📥 下载文件: {file}",
     "detailed_report": "📋 <b>{status} 详细报告</b>\n\n包含 {count} 个账号的详细信息",
-    "status_with_count": "📋 <b>{status}</b> - {count}个账号"
+    "status_with_count": "📋 <b>{status}</b> - {count}个账号",
+    "twofa_result_success": "📦 添加2FA结果 - 成功 {count} 个"
   },
   "common_messages": {
     "proxy_test_start": "🧪 开始测试 {count} 个代理...",
