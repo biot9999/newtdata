@@ -11178,7 +11178,7 @@ class EnhancedBot:
         success = self.db.save_membership(target_user_id, "体验会员")
         
         if success:
-            query.answer("✅ 体验会员授予成功")
+            query.answer(self.i18n.get(user_id, 'admin.vip_granted'))
             # 刷新用户详情页面
             self.handle_user_detail(query, target_user_id)
         else:
@@ -11205,7 +11205,7 @@ class EnhancedBot:
         success = self.db.add_admin(target_user_id, username, first_name, user_id)
         
         if success:
-            query.answer("✅ 管理员设置成功")
+            query.answer(self.i18n.get(user_id, 'admin.admin_set'))
             # 刷新用户详情页面
             self.handle_user_detail(query, target_user_id)
         else:
@@ -15376,7 +15376,7 @@ class EnhancedBot:
                 pass
         except Exception as e:
             try:
-                query.answer(f"❌ 预览失败: {str(e)[:50]}", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.preview_failed', error=str(e)[:50]), show_alert=True)
             except:
                 pass
     
@@ -15619,7 +15619,7 @@ class EnhancedBot:
                 pass
         except Exception as e:
             try:
-                query.answer(f"❌ 预览失败: {str(e)[:50]}", show_alert=True)
+                query.answer(self.i18n.get(user_id, 'broadcast.preview_failed', error=str(e)[:50]), show_alert=True)
             except:
                 pass
     
@@ -16198,7 +16198,7 @@ class EnhancedBot:
             
             context.bot.send_message(
                 chat_id=admin_id,
-                text=f"❌ <b>广播发送失败</b>\n\n错误: {str(e)}",
+                text=self.i18n.get(user_id, 'error.broadcast_failed', error=str(e)),
                 parse_mode='HTML'
             )
         
@@ -18030,7 +18030,7 @@ class EnhancedBot:
             
             context.bot.send_message(
                 chat_id=user_id,
-                text=f"❌ <b>清理失败</b>\n\n错误: {str(e)}",
+                text=self.i18n.get(user_id, 'error.cleanup_failed_with_error', error=str(e)),
                 parse_mode='HTML'
             )
         
@@ -18748,7 +18748,7 @@ admin3</code>
                 traceback.print_exc()
                 context.bot.send_message(
                     chat_id=user_id,
-                    text=f"❌ <b>创建失败</b>\n\n错误: {str(e)}",
+                    text=self.i18n.get(user_id, 'error.create_failed_with_error', error=str(e)),
                     parse_mode='HTML'
                 )
             finally:
@@ -18793,7 +18793,7 @@ admin3</code>
         
         progress_msg = context.bot.send_message(
             chat_id=user_id,
-            text=f"🚀 <b>开始批量创建</b>\n\n进度: 0/{total_to_create} (0%)\n状态: 准备中...",
+            text=self.i18n.get(user_id, 'batch.start_batch_create', total=total_to_create),
             parse_mode='HTML',
             reply_markup=keyboard
         )
@@ -18819,7 +18819,7 @@ admin3</code>
                     context.bot.edit_message_text(
                         chat_id=user_id,
                         message_id=progress_msg.message_id,
-                        text=f"🚀 <b>批量创建中</b>\n\n进度: {current}/{total} ({progress}%)\n状态: {message}",
+                        text=self.i18n.get(user_id, 'batch.creating_progress', current=current, total=total, progress=progress, message=message),
                         parse_mode='HTML',
                         reply_markup=keyboard
                     )
@@ -20373,7 +20373,7 @@ admin3</code>
                 traceback.print_exc()
                 context.bot.send_message(
                     chat_id=user_id,
-                    text=f"❌ <b>重新授权失败</b>\n\n错误: {str(e)}",
+                    text=self.i18n.get(user_id, 'reauthorize.reauth_failed', error=str(e)),
                     parse_mode='HTML'
                 )
             finally:
@@ -20437,7 +20437,7 @@ admin3</code>
         
         progress_msg = context.bot.send_message(
             chat_id=user_id,
-            text=f"🚀 <b>开始重新授权</b>\n\n进度：0/{total_files} (0%)",
+            text=self.i18n.get(user_id, 'reauthorize.start_reauth_progress', total=total_files),
             parse_mode='HTML',
             reply_markup=keyboard
         )
