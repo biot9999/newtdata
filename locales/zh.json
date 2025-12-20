@@ -386,7 +386,8 @@
     "session_duplicates": "• Session 重复: {count} 个",
     "duplicate_note": "• 已单独打包，不与正常文件混合",
     "generated_files": "<b>📦 生成文件</b>",
-    "total_generated": "共 {count} 个文件（正常文件和重复文件分开打包）"
+    "total_generated": "共 {count} 个文件（正常文件和重复文件分开打包）",
+    "continue_upload": "➕ 继续上传文件"
   },
   "cleanup": {
     "title": "🧹 <b>一键清理</b>",
@@ -420,7 +421,8 @@
     "confirm_delete_chats": "• 删除所有聊天记录",
     "confirm_clear_contacts": "• 清除所有联系人",
     "confirm_archive": "• 归档剩余对话",
-    "confirm_irreversible": "<b>🔴 此操作不可逆！</b>"
+    "confirm_irreversible": "<b>🔴 此操作不可逆！</b>",
+    "summary_report": "📋 清理汇总报告"
   },
   "reauthorize": {
     "title": "🔑 <b>重新授权</b>",
@@ -479,7 +481,8 @@
     "start_reauth": "⏳ 开始重新授权...",
     "start_reauth_progress": "🚀 <b>开始重新授权</b>\n\n进度：0/{total} (0%)",
     "reauth_in_progress": "🚀 <b>重新授权中</b>\n\n进度：{current}/{total} ({progress}%)",
-    "reauth_failed": "❌ <b>重新授权失败</b>\n\n错误: {error}"
+    "reauth_failed": "❌ <b>重新授权失败</b>\n\n错误: {error}",
+    "serious_error": "❌ 重新授权出现严重错误: {error}\n\n已处理账号可能未完全保存"
   },
   "registration": {
     "title": "🕰️ <b>查询注册时间</b>",
@@ -812,7 +815,9 @@
     "days_360": "360天",
     "buttons_count": "{count} 个按钮",
     "accounts_in_parentheses": "{count} 个账号)",
-    "proxy_type_upper": "{type}代理"
+    "proxy_type_upper": "{type}代理",
+    "realtime_progress": "实时进度更新中...",
+    "reply_markup_desc": "回复键盘标记"
   },
   "file": {
     "uploading": "⬆️ 正在上传文件...",
@@ -901,7 +906,18 @@
     "no_buttons_set": "⚠️ 尚未设置按钮",
     "unrecognized_action": "⚠️ 未识别的操作",
     "network_error": "⚠️ 网络错误",
-    "admin_only_feature": "❌ 仅管理员可访问广播功能"
+    "admin_only_feature": "❌ 仅管理员可访问广播功能",
+    "continue_activation": "🔄 继续开通",
+    "continue_revoke": "🔄 继续撤销",
+    "create_broadcast": "📝 创建群发",
+    "history_records": "📜 历史记录",
+    "media_preview": "📸 当前广播媒体预览",
+    "preview_failed": "❌ 预览失败: {error}",
+    "total_buttons": "✅ 共 {count} 个按钮",
+    "sending_progress": "📤 <b>广播发送中...</b>\n\n• 目标: {total} 人\n• 进度: {current}/{total}\n• 成功: {success}\n• 失败: {failed}",
+    "back_to_history": "🔙 返回历史",
+    "all_users_count": "👥 全部用户 ({count})",
+    "new_users_7days": "🆕 新用户(7天) ({count})"
   },
   "admin_ext": {
     "msg_6": "获取所有管理员",

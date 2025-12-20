@@ -8729,7 +8729,7 @@ class EnhancedBot:
             update: Telegram update 对象
             text: 要发送的消息文本
             parse_mode: 解析模式（如 'HTML'）
-            reply_markup: 回复键盘标记
+            reply_markup: self.i18n.get(user_id, \'common.reply_markup_desc\')
             max_retries: 最大重试次数（默认使用 MESSAGE_RETRY_MAX）
             
         Returns:
@@ -8819,7 +8819,7 @@ class EnhancedBot:
             query: Telegram callback query 对象
             text: 要编辑的消息文本
             parse_mode: 解析模式（如 'HTML'）
-            reply_markup: 回复键盘标记
+            reply_markup: self.i18n.get(user_id, \'common.reply_markup_desc\')
             max_retries: 最大重试次数（默认使用 MESSAGE_RETRY_MAX）
             
         Returns:
@@ -8891,7 +8891,7 @@ class EnhancedBot:
             message: Telegram message 对象
             text: 要编辑的消息文本
             parse_mode: 解析模式（如 'HTML'）
-            reply_markup: 回复键盘标记
+            reply_markup: self.i18n.get(user_id, \'common.reply_markup_desc\')
             max_retries: 最大重试次数（默认使用 MESSAGE_RETRY_MAX）
             
         Returns:
@@ -14951,7 +14951,7 @@ class EnhancedBot:
             del self.pending_manual_open[admin_id]
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 继续开通", callback_data="admin_manual_menu")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'broadcast.continue_activation\'), callback_data="admin_manual_menu")],
             [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ])
         
@@ -15127,7 +15127,7 @@ class EnhancedBot:
             text = "❌ <b>撤销失败</b>\n\n该用户可能没有会员权限，或撤销操作失败。"
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 继续撤销", callback_data="admin_revoke_menu")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'broadcast.continue_revoke\'), callback_data="admin_revoke_menu")],
             [InlineKeyboardButton(self.i18n.get(user_id, \'proxy.back_to_panel\'), callback_data="admin_panel")]
         ])
         
@@ -15299,8 +15299,8 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📝 创建群发", callback_data="broadcast_create")],
-            [InlineKeyboardButton("📜 历史记录", callback_data="broadcast_history")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'broadcast.create_broadcast\'), callback_data="broadcast_create")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'broadcast.history_records\'), callback_data="broadcast_history")],
             [InlineKeyboardButton(self.i18n.get(user_id, \'common.back\'), callback_data="admin_panel")]
         ])
         
@@ -15368,7 +15368,7 @@ class EnhancedBot:
             context.bot.send_photo(
                 chat_id=user_id,
                 photo=task['media_file_id'],
-                caption="📸 当前广播媒体预览"
+                caption=self.i18n.get(user_id, \'broadcast.media_preview\')
             )
             try:
                 query.answer(self.i18n.get(user_id, \'broadcast.sent_media_preview\'))
@@ -16327,7 +16327,7 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回历史", callback_data="broadcast_history")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'broadcast.back_to_history\'), callback_data="broadcast_history")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16586,7 +16586,7 @@ class EnhancedBot:
             
             # 创建即时操作按钮
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("➕ 继续上传文件", callback_data="merge_continue")],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'merge.continue_upload\'), callback_data="merge_continue")],
                 [InlineKeyboardButton(self.i18n.get(user_id, \'common.complete_merge\'), callback_data="merge_finish")],
                 [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="merge_cancel")]
             ])
@@ -18003,7 +18003,7 @@ class EnhancedBot:
                     context.bot.send_document(
                         chat_id=user_id,
                         document=f,
-                        caption=f"📋 清理汇总报告",
+                        caption=fself.i18n.get(user_id, \'cleanup.summary_report\'),
                         filename=os.path.basename(summary_report_path)
                     )
             except Exception as e:
@@ -18304,7 +18304,7 @@ class EnhancedBot:
         
         if data == "batch_create_noop":
             # 这是进度按钮的空操作回调
-            query.answer("实时进度更新中...")
+            query.answer(self.i18n.get(user_id, \'common.realtime_progress\'))
             return
         elif data == "batch_create_type_group":
             self.handle_batch_create_select_type(query, user_id, "group")

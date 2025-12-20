@@ -386,7 +386,8 @@
     "session_duplicates": "• Session Duplicates: {count}",
     "duplicate_note": "• Packaged separately, not mixed with normal files",
     "generated_files": "<b>📦 Generated Files</b>",
-    "total_generated": "Total {count} files (normal and duplicate files packaged separately)"
+    "total_generated": "Total {count} files (normal and duplicate files packaged separately)",
+    "continue_upload": "➕ Continue Upload Files"
   },
   "cleanup": {
     "title": "🧹 <b>One-Click Cleanup</b>",
@@ -420,7 +421,8 @@
     "confirm_delete_chats": "• Delete all chat history",
     "confirm_clear_contacts": "• Clear all contacts",
     "confirm_archive": "• Archive remaining dialogs",
-    "confirm_irreversible": "<b>🔴 This operation is irreversible!</b>"
+    "confirm_irreversible": "<b>🔴 This operation is irreversible!</b>",
+    "summary_report": "📋 Cleanup Summary Report"
   },
   "reauthorize": {
     "title": "🔑 <b>Reauthorize</b>",
@@ -479,7 +481,8 @@
     "start_reauth": "⏳ Starting re-authorization...",
     "start_reauth_progress": "🚀 <b>Starting Re-authorization</b>\n\nProgress: 0/{total} (0%)",
     "reauth_in_progress": "🚀 <b>Re-authorization in Progress</b>\n\nProgress: {current}/{total} ({progress}%)",
-    "reauth_failed": "❌ <b>Re-authorization Failed</b>\n\nError: {error}"
+    "reauth_failed": "❌ <b>Re-authorization Failed</b>\n\nError: {error}",
+    "serious_error": "❌ Serious error in re-authorization: {error}\n\nProcessed accounts may not be fully saved"
   },
   "registration": {
     "title": "🕰️ <b>Check Registration Time</b>",
@@ -812,7 +815,9 @@
     "days_360": "360 days",
     "buttons_count": "{count} buttons",
     "accounts_in_parentheses": "{count} accounts)",
-    "proxy_type_upper": "{type} proxy"
+    "proxy_type_upper": "{type} proxy",
+    "realtime_progress": "Real-time progress updating...",
+    "reply_markup_desc": "Reply keyboard markup"
   },
   "file": {
     "uploading": "⬆️ Uploading file...",
@@ -901,7 +906,18 @@
     "no_buttons_set": "⚠️ No buttons set yet",
     "unrecognized_action": "⚠️ Unrecognized action",
     "network_error": "⚠️ Network error",
-    "admin_only_feature": "❌ Broadcast feature is admin only"
+    "admin_only_feature": "❌ Broadcast feature is admin only",
+    "continue_activation": "🔄 Continue Activation",
+    "continue_revoke": "🔄 Continue Revoke",
+    "create_broadcast": "📝 Create Broadcast",
+    "history_records": "📜 History Records",
+    "media_preview": "📸 Current broadcast media preview",
+    "preview_failed": "❌ Preview failed: {error}",
+    "total_buttons": "✅ Total {count} buttons",
+    "sending_progress": "📤 <b>Broadcasting...</b>\n\n• Target: {total} people\n• Progress: {current}/{total}\n• Success: {success}\n• Failed: {failed}",
+    "back_to_history": "🔙 Back to History",
+    "all_users_count": "👥 All Users ({count})",
+    "new_users_7days": "🆕 New Users (7 days) ({count})"
   },
   "admin_ext": {
     "msg_6": "Get all admins",
