@@ -373,7 +373,22 @@
     "upload_failed": "❌ Upload failed: {error}",
     "download_failed": "❌ Download failed: {error}",
     "not_found": "❌ File not found",
-    "complete": "✅ File processing complete"
+    "complete": "✅ File processing complete",
+    "skip_duplicate_session": "⏭️ Skipping duplicate Session file: {file}",
+    "processing_file": "⏳ Processing file...",
+    "initializing": "⏳ Initializing...",
+    "please_wait": "⏳ Please wait...",
+    "processing_please_wait": "⏳ Processing, please wait...",
+    "start_conversion": "🔄 <b>Starting conversion...</b>\n\n📁 Found {total} files\n⏳ Initializing...",
+    "found_files": "✅ <b>Found {count} account files</b>\n\n⏳ Verifying accounts...",
+    "start_broadcast": "📤 <b>Starting broadcast...</b>\n\nInitializing...",
+    "start_cleanup": "🧹 <b>Starting cleanup...</b>\n\nInitializing cleanup service...",
+    "broadcasting": "📤 <b>Broadcasting...</b>\n\n• Target: {total} users\n• Progress: {current}/{total}\n• Success: {success}\n• Failed: {failed}",
+    "cleanup_progress": "📊 Total progress: {current}/{total} ({progress}%)\n",
+    "verification_progress": "⏳ <b>Verifying accounts...</b>\n\nProgress: {current}/{total}",
+    "batch_create_start": "🚀 <b>Starting Batch Creation</b>\n\nProgress: 0/{total} (0%)\nStatus: Preparing...",
+    "batch_creating": "🚀 <b>Batch Creating</b>\n\nProgress: {current}/{total} ({progress}%)\nStatus: {message}",
+    "reauth_progress": "🚀 <b>Reauthorizing</b>\n\nProgress: {current}/{total} ({progress}%)"
   },
   "error": {
     "unknown": "❌ Unknown error",

@@ -3198,7 +3198,7 @@ class FileProcessor:
                         normalized_path = os.path.normpath(os.path.abspath(file_full_path))
                         
                         if normalized_path in seen_session_files:
-                            print(f"⏭️ 跳过重复Session文件: {file}")
+                            print(self.i18n.get(user_id, 'file.skip_duplicate_session', file=file))
                             continue
                         
                         seen_session_files.add(normalized_path)
@@ -12282,7 +12282,7 @@ class EnhancedBot:
             
             try:
                 progress_msg.edit_text(
-                    f"🔄 <b>开始转换...</b>\n\n📁 找到 {total_files} 个文件\n⏳ 正在初始化...",
+                    self.i18n.get(user_id, 'file.start_conversion', total=total_files),
                     parse_mode='HTML'
                 )
             except:

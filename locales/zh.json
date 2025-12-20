@@ -373,7 +373,22 @@
     "upload_failed": "❌ 上传失败: {error}",
     "download_failed": "❌ 下载失败: {error}",
     "not_found": "❌ 文件未找到",
-    "complete": "✅ 文件处理完成"
+    "complete": "✅ 文件处理完成",
+    "skip_duplicate_session": "⏭️ 跳过重复Session文件: {file}",
+    "processing_file": "⏳ 正在处理文件...",
+    "initializing": "⏳ 正在初始化...",
+    "please_wait": "⏳ 请稍候...",
+    "processing_please_wait": "⏳ 正在处理，请稍候...",
+    "start_conversion": "🔄 <b>开始转换...</b>\n\n📁 找到 {total} 个文件\n⏳ 正在初始化...",
+    "found_files": "✅ <b>找到 {count} 个账号文件</b>\n\n⏳ 正在验证账号...",
+    "start_broadcast": "📤 <b>开始发送广播...</b>\n\n正在初始化...",
+    "start_cleanup": "🧹 <b>开始清理...</b>\n\n正在初始化清理服务...",
+    "broadcasting": "📤 <b>广播发送中...</b>\n\n• 目标: {total} 人\n• 进度: {current}/{total}\n• 成功: {success}\n• 失败: {failed}",
+    "cleanup_progress": "📊 总进度: {current}/{total} ({progress}%)\n",
+    "verification_progress": "⏳ <b>验证账号中...</b>\n\n进度: {current}/{total}",
+    "batch_create_start": "🚀 <b>开始批量创建</b>\n\n进度: 0/{total} (0%)\n状态: 准备中...",
+    "batch_creating": "🚀 <b>批量创建中</b>\n\n进度: {current}/{total} ({progress}%)\n状态: {message}",
+    "reauth_progress": "🚀 <b>重新授权中</b>\n\n进度：{current}/{total} ({progress}%)"
   },
   "error": {
     "unknown": "❌ 未知错误",
