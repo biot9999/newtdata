@@ -2938,9 +2938,10 @@ class Database:
 class FileProcessor:
     """文件处理器"""
     
-    def __init__(self, checker: SpamBotChecker, db: Database):
+    def __init__(self, checker: SpamBotChecker, db: Database, i18n: I18n):
         self.checker = checker
         self.db = db
+        self.i18n = i18n
     
     async def convert_tdata_and_check(self, tdata_path: str, tdata_name: str) -> Tuple[str, str, str]:
         """
@@ -3573,8 +3574,9 @@ class FileProcessor:
 class FormatConverter:
     """Tdata与Session格式互转器"""
     
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, i18n: I18n):
         self.db = db
+        self.i18n = i18n
     
     def generate_failure_files(self, tdata_path: str, tdata_name: str, error_message: str):
         """
@@ -4515,9 +4517,10 @@ class TwoFactorManager:
     # 配置常量 - 并发处理数量
     DEFAULT_CONCURRENT_LIMIT = 50  # 默认并发数限制，提升批量处理速度
     
-    def __init__(self, proxy_manager: ProxyManager, db: Database):
+    def __init__(self, proxy_manager: ProxyManager, db: Database, i18n: I18n):
         self.proxy_manager = proxy_manager
         self.db = db
+        self.i18n = i18n
         self.password_detector = PasswordDetector()
         self.semaphore = asyncio.Semaphore(self.DEFAULT_CONCURRENT_LIMIT)  # 使用配置的并发数
         # 用于存储待处理的2FA任务
@@ -8576,9 +8579,9 @@ class EnhancedBot:
         self.proxy_tester = ProxyTester(self.proxy_manager)
         self.device_params_manager = DeviceParamsManager()  # 初始化设备参数管理器
         self.checker = SpamBotChecker(self.proxy_manager)
-        self.processor = FileProcessor(self.checker, self.db)
-        self.converter = FormatConverter(self.db)
-        self.two_factor_manager = TwoFactorManager(self.proxy_manager, self.db)
+        self.processor = FileProcessor(self.checker, self.db, self.i18n)
+        self.converter = FormatConverter(self.db, self.i18n)
+        self.two_factor_manager = TwoFactorManager(self.proxy_manager, self.db, self.i18n)
         import inspect
         print("DEBUG APIFormatConverter source:", inspect.getsourcefile(APIFormatConverter))
         print("DEBUG APIFormatConverter signature:", str(inspect.signature(APIFormatConverter)))
