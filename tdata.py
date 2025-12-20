@@ -8729,7 +8729,7 @@ class EnhancedBot:
             update: Telegram update 对象
             text: 要发送的消息文本
             parse_mode: 解析模式（如 'HTML'）
-            reply_markup: self.i18n.get(user_id, \'common.reply_markup_desc\')
+            reply_markup: 回复键盘标记
             max_retries: 最大重试次数（默认使用 MESSAGE_RETRY_MAX）
             
         Returns:
