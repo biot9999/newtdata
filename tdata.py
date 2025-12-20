@@ -9152,11 +9152,11 @@ class EnhancedBot:
         # 权限检查
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_send_message(update, "❌ 需要会员权限才能使用API转换功能")
+            self.safe_send_message(update, self.i18n.get(user_id, "api.member_only"))
             return
 
         if not 'FLASK_AVAILABLE' in globals() or not FLASK_AVAILABLE:
-            self.safe_send_message(update, "❌ API转换功能不可用\n\n原因: Flask库未安装\n💡 请安装: pip install flask jinja2")
+            self.safe_send_message(update, self.i18n.get(user_id, "api.unavailable_flask"))
             return
 
         text = """
@@ -9205,11 +9205,11 @@ class EnhancedBot:
         # 权限检查
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_edit_message(query, "❌ 需要会员权限才能使用API转换功能")
+            self.safe_edit_message(query, self.i18n.get(user_id, "api.member_only"))
             return
 
         if not 'FLASK_AVAILABLE' in globals() or not FLASK_AVAILABLE:
-            self.safe_edit_message(query, "❌ API转换功能不可用\n\n原因: Flask库未安装\n💡 请安装: pip install flask jinja2")
+            self.safe_edit_message(query, self.i18n.get(user_id, "api.unavailable_flask"))
             return
 
         text = """
@@ -9331,21 +9331,21 @@ class EnhancedBot:
             conn.close()
             
             if not row or row[0] != "waiting_custom_avatar_upload":
-                self.safe_send_message(update, "❌ 当前没有正在进行的头像上传任务")
+                self.safe_send_message(update, self.i18n.get(user_id, "common.no_avatar_task"))
                 return
         except:
             return
         
         # 检查任务
         if user_id not in self.pending_modify_tasks:
-            self.safe_send_message(update, "❌ 任务已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, "common.task_expired"))
             return
         
         config_data = self.pending_modify_tasks[user_id].get('custom_config', {})
         photo_count = len(config_data.get('avatar_data', []))
         
         if photo_count == 0:
-            self.safe_send_message(update, "❌ 还没有上传任何图片，请先上传图片")
+            self.safe_send_message(update, self.i18n.get(user_id, "common.no_images"))
             return
         
         # 清除等待状态
@@ -9379,7 +9379,7 @@ class EnhancedBot:
         user_id = update.effective_user.id
         
         if not self.db.is_admin(user_id):
-            self.safe_send_message(update, "❌ 仅管理员可以使用此命令")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.command_admin_only"))
             return
         
         if not context.args:
@@ -9405,14 +9405,14 @@ class EnhancedBot:
             target = target.replace("@", "")
             user_info = self.db.get_user_by_username(target)
             if not user_info:
-                self.safe_send_message(update, f"❌ 找不到用户名 @{target}\n请确保用户已使用过机器人")
+                self.safe_send_message(update, fself.i18n.get(user_id, "admin.user_not_found_target"))
                 return
             
             target_user_id, target_username, target_first_name = user_info
         
         # 检查是否已经是管理员
         if self.db.is_admin(target_user_id):
-            self.safe_send_message(update, f"⚠️ 用户 {target_user_id} 已经是管理员")
+            self.safe_send_message(update, fself.i18n.get(user_id, "admin.already_admin"))
             return
         
         # 添加管理员
@@ -9425,14 +9425,14 @@ class EnhancedBot:
                 f"⏰ 添加时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
             )
         else:
-            self.safe_send_message(update, "❌ 添加管理员失败")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.add_failed"))
     
     def remove_admin_command(self, update: Update, context: CallbackContext):
         """移除管理员命令"""
         user_id = update.effective_user.id
         
         if not self.db.is_admin(user_id):
-            self.safe_send_message(update, "❌ 仅管理员可以使用此命令")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.command_admin_only"))
             return
         
         if not context.args:
@@ -9447,40 +9447,40 @@ class EnhancedBot:
         try:
             target_user_id = int(context.args[0])
         except ValueError:
-            self.safe_send_message(update, "❌ 请提供有效的用户ID")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.invalid_user_id"))
             return
         
         # 不能移除配置文件中的管理员
         if target_user_id in config.ADMIN_IDS:
-            self.safe_send_message(update, "❌ 无法移除配置文件中的管理员")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.cannot_remove_config"))
             return
         
         # 不能移除自己
         if target_user_id == user_id:
-            self.safe_send_message(update, "❌ 无法移除自己的管理员权限")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.cannot_remove_self"))
             return
         
         if not self.db.is_admin(target_user_id):
-            self.safe_send_message(update, f"⚠️ 用户 {target_user_id} 不是管理员")
+            self.safe_send_message(update, fself.i18n.get(user_id, "admin.not_admin"))
             return
         
         if self.db.remove_admin(target_user_id):
-            self.safe_send_message(update, f"✅ 已移除管理员: {target_user_id}")
+            self.safe_send_message(update, fself.i18n.get(user_id, "admin.removed_success"))
         else:
-            self.safe_send_message(update, "❌ 移除管理员失败")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.remove_failed"))
     
     def list_admins_command(self, update: Update, context: CallbackContext):
         """查看管理员列表命令"""
         user_id = update.effective_user.id
         
         if not self.db.is_admin(user_id):
-            self.safe_send_message(update, "❌ 仅管理员可以使用此命令")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.command_admin_only"))
             return
         
         admins = self.db.get_all_admins()
         
         if not admins:
-            self.safe_send_message(update, "📝 暂无管理员")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.no_admins"))
             return
         
         admin_text = "<b>👑 管理员列表</b>\n\n"
@@ -9509,7 +9509,7 @@ class EnhancedBot:
         user_id = update.effective_user.id
         
         if not self.db.is_admin(user_id):
-            self.safe_send_message(update, "❌ 仅管理员可以使用此命令")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.command_admin_only"))
             return
         
         # 获取当前代理状态
@@ -9567,7 +9567,7 @@ class EnhancedBot:
         if context.args:
             if context.args[0] == "reload":
                 self.proxy_manager.load_proxies()
-                self.safe_send_message(update, f"✅ 已重新加载代理文件\n📡 新代理数量: {len(self.proxy_manager.proxies)}个")
+                self.safe_send_message(update, fself.i18n.get(user_id, "proxy.reloaded_count"))
                 return
             elif context.args[0] == "status":
                 self.show_proxy_detailed_status(update)
@@ -9600,18 +9600,18 @@ class EnhancedBot:
             
             self.safe_send_message(update, status_text, 'HTML')
         else:
-            self.safe_send_message(update, "❌ 没有可用的代理")
+            self.safe_send_message(update, self.i18n.get(user_id, "proxy.no_available"))
     
     def test_proxy_command(self, update: Update, context: CallbackContext):
         """测试代理命令"""
         user_id = update.effective_user.id
         
         if not self.db.is_admin(user_id):
-            self.safe_send_message(update, "❌ 仅管理员可以使用此命令")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.command_admin_only"))
             return
         
         if not self.proxy_manager.proxies:
-            self.safe_send_message(update, "❌ 没有可用的代理进行测试")
+            self.safe_send_message(update, self.i18n.get(user_id, "proxy.no_test"))
             return
         
         # 异步处理代理测试
@@ -9695,18 +9695,18 @@ class EnhancedBot:
                     pass
             
         except Exception as e:
-            self.safe_send_message(update, f"❌ 代理测试失败: {e}")
+            self.safe_send_message(update, fself.i18n.get(user_id, "proxy.test_failed_error"))
     
     def clean_proxy_command(self, update: Update, context: CallbackContext):
         """清理代理命令"""
         user_id = update.effective_user.id
         
         if not self.db.is_admin(user_id):
-            self.safe_send_message(update, "❌ 仅管理员可以使用此命令")
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.command_admin_only"))
             return
         
         if not self.proxy_manager.proxies:
-            self.safe_send_message(update, "❌ 没有可用的代理进行清理")
+            self.safe_send_message(update, self.i18n.get(user_id, "proxy.no_cleanup"))
             return
         
         # 检查是否有确认参数
@@ -9754,7 +9754,7 @@ class EnhancedBot:
     def _execute_proxy_cleanup(self, update, context, confirmed: bool):
         """执行代理清理"""
         if not confirmed:
-            self.safe_send_message(update, "❌ 代理清理已取消")
+            self.safe_send_message(update, self.i18n.get(user_id, "proxy.cleanup_cancelled"))
             return
         
         # 异步处理代理清理
@@ -9826,7 +9826,7 @@ class EnhancedBot:
                         pass
                 
         except Exception as e:
-            self.safe_send_message(update, f"❌ 代理清理过程失败: {e}")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_3ac9c801", e=e))
     
     def convert_command(self, update: Update, context: CallbackContext):
         """格式转换命令"""
@@ -9835,11 +9835,11 @@ class EnhancedBot:
         # 检查权限
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_send_message(update, "❌ 需要会员权限才能使用格式转换功能")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_6322dec5"))
             return
         
         if not OPENTELE_AVAILABLE:
-            self.safe_send_message(update, "❌ 格式转换功能不可用\n\n原因: opentele库未安装\n💡 请安装: pip install opentele")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_f57818d9"))
             return
         
         text = """
@@ -9988,14 +9988,14 @@ class EnhancedBot:
             status_text += f"🔧 代理开关: {'启用' if enabled else '禁用'}\n"
             status_text += f"⏰ 更新时间: {updated_time}"
         else:
-            status_text = "❌ 没有可用的代理"
+            status_text = self.i18n.get(user_id, "proxy.no_available")
         
         query.answer(status_text, show_alert=True)
     
     def test_proxy_connection(self, query):
         """测试代理连接"""
         if not self.proxy_manager.proxies:
-            query.answer("❌ 没有可用的代理进行测试", show_alert=True)
+            query.answer(self.i18n.get(user_id, "proxy.no_test"), show_alert=True)
             return
         
         # 简单测试：尝试获取一个代理
@@ -10209,7 +10209,7 @@ class EnhancedBot:
                         asyncio.run(self.complete_remove_2fa(update, context, user_id, None))
                     threading.Thread(target=process_remove, daemon=True).start()
                 else:
-                    query.answer("❌ 操作类型不匹配")
+                    query.answer(self.i18n.get(user_id, "common.operation_mismatch"))
             else:
                 query.answer("❌ 没有待处理的任务")
         elif data == "remove_2fa_manual":
@@ -10239,7 +10239,7 @@ class EnhancedBot:
                         print(f"❌ 更新消息失败: {e}")
                         query.answer("❌ 操作失败")
                 else:
-                    query.answer("❌ 操作类型不匹配")
+                    query.answer(self.i18n.get(user_id, "common.operation_mismatch"))
             else:
                 query.answer("❌ 没有待处理的任务")
         elif data == "convert_tdata_to_session":
@@ -10401,7 +10401,7 @@ class EnhancedBot:
             self._execute_proxy_cleanup(update, context, True)
         elif data == "cancel_proxy_cleanup":
             query.answer()
-            self.safe_edit_message(query, "❌ 代理清理已取消")
+            self.safe_edit_message(query, self.i18n.get(user_id, "proxy.cleanup_cancelled"))
         elif data == "test_only_proxy":
             # 仅测试不清理
             query.answer()
@@ -10409,7 +10409,7 @@ class EnhancedBot:
                 asyncio.run(self.process_proxy_test(update, context))
             thread = threading.Thread(target=process_test)
             thread.start()
-            self.safe_edit_message(query, "🧪 开始测试代理（仅测试不清理）...")
+            self.safe_edit_message(query, self.i18n.get(user_id, "proxy.test_start"))
         elif data == "admin_users":
             self.handle_admin_users(query)
         elif data == "admin_stats":
@@ -10473,7 +10473,7 @@ class EnhancedBot:
             return
         
         if not TELETHON_AVAILABLE:
-            self.safe_edit_message(query, self.i18n.get(user_id, 'error.system', error='Telethon库未安装'))
+            self.safe_edit_message(query, self.i18n.get(user_id, 'error.system', error=self.i18n.get(user_id, "dynamic.msg_1a9f4de2")))
             return
         
         text = self.i18n.get(user_id, 'check.upload_prompt')
@@ -10496,7 +10496,7 @@ class EnhancedBot:
             return
         
         if not OPENTELE_AVAILABLE:
-            self.safe_edit_message(query, self.i18n.get(user_id, 'error.system', error='opentele库未安装'))
+            self.safe_edit_message(query, self.i18n.get(user_id, 'error.system', error=self.i18n.get(user_id, "dynamic.msg_7037b843")))
             return
         
         text = self.i18n.get(user_id, 'convert.title') + "\n\n" + self.i18n.get(user_id, 'convert.menu')
@@ -10544,11 +10544,11 @@ class EnhancedBot:
         # 检查权限
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_edit_message(query, "❌ 需要会员权限才能使用2FA修改功能")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_1fc0b419"))
             return
         
         if not TELETHON_AVAILABLE:
-            self.safe_edit_message(query, "❌ 2FA修改功能不可用\n\n原因: Telethon库未安装")
+            self.safe_edit_message(query, self.i18n.get(user_id, "twofa.unavailable_telethon"))
             return
         
         text = """
@@ -10598,11 +10598,11 @@ class EnhancedBot:
         # 检查权限
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_edit_message(query, "❌ 需要会员权限才能使用忘记2FA功能")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_f6bd8963"))
             return
         
         if not TELETHON_AVAILABLE:
-            self.safe_edit_message(query, "❌ 忘记2FA功能不可用\n\n原因: Telethon库未安装")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_db66722c"))
             return
         
         # 检查代理是否可用
@@ -10654,7 +10654,7 @@ class EnhancedBot:
         # 检查权限
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_edit_message(query, "❌ 需要会员权限才能使用添加2FA功能")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_1308857d"))
             return
         
         text = """
@@ -10694,11 +10694,11 @@ class EnhancedBot:
         # 检查权限
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_edit_message(query, "❌ 需要会员权限才能使用删除2FA功能")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_5c42fa7f"))
             return
         
         if not TELETHON_AVAILABLE:
-            self.safe_edit_message(query, "❌ 删除2FA功能不可用\n\n原因: Telethon库未安装")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_1e42173b"))
             return
         
         text = """
@@ -11165,7 +11165,7 @@ class EnhancedBot:
         user_info = self.db.get_user_membership_info(target_user_id)
         
         if not user_info:
-            self.safe_edit_message(query, f"❌ 找不到用户 {target_user_id}")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_02990459", target_user_id=target_user_id))
             return
         
         # 格式化显示
@@ -11308,7 +11308,7 @@ class EnhancedBot:
         document = update.message.document
 
         if not document:
-            self.safe_send_message(update, "❌ 请上传文件")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_d307f801"))
             return
 
         try:
@@ -11339,12 +11339,12 @@ class EnhancedBot:
                 "registration_check_upload",
                 "waiting_modify_file",
             ]:
-                self.safe_send_message(update, "❌ 请先点击相应的功能按钮")
+                self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_25c2cce9"))
                 return
 
             user_status = row[0]
         except Exception:
-            self.safe_send_message(update, "❌ 系统错误，请重试")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_31521482"))
             return
         
         # 文件重命名和账户合并不需要会员权限检查，也不需要ZIP格式检查
@@ -11357,16 +11357,16 @@ class EnhancedBot:
         
         # 其他功能需要ZIP格式
         if not document.file_name.lower().endswith('.zip'):
-            self.safe_send_message(update, "❌ 请上传ZIP格式的压缩包")
+            self.safe_send_message(update, self.i18n.get(user_id, "file.upload_zip_only"))
             return
 
         is_member, _, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_send_message(update, "❌ 需要会员权限")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_f92ce97a"))
             return
 
         if document.file_size > 100 * 1024 * 1024:
-            self.safe_send_message(update, "❌ 文件过大 (限制100MB)")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_9e888bd1"))
             return
 
         # 根据用户状态选择处理方式
@@ -11561,7 +11561,7 @@ class EnhancedBot:
         """处理修改资料的文件上传"""
         user_id = update.effective_user.id
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理您的文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_b8d1dfeb"), 'HTML')
         if not progress_msg:
             return
         
@@ -11577,7 +11577,7 @@ class EnhancedBot:
             
             if not files:
                 try:
-                    progress_msg.edit_text("❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
+                    progress_msg.edit_text(self.i18n.get(user_id, "common.no_valid_files"), parse_mode='HTML')
                 except:
                     pass
                 return
@@ -11649,7 +11649,7 @@ class EnhancedBot:
         start_time = time.time()
         task_id = f"{user_id}_{int(start_time)}"
 
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理您的文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_b8d1dfeb"), 'HTML')
         if not progress_msg:
             return
 
@@ -11662,7 +11662,7 @@ class EnhancedBot:
             files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, task_id)
             if not files:
                 try:
-                    progress_msg.edit_text("❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
+                    progress_msg.edit_text(self.i18n.get(user_id, "common.no_valid_files"), parse_mode='HTML')
                 except:
                     pass
                 return
@@ -11707,7 +11707,7 @@ class EnhancedBot:
         result_files = []
         task = self.pending_api_tasks.get(user_id)
         if not task:
-            self.safe_send_message(update, "❌ 没有待处理的API转换任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_837b89b0"))
             return
 
         files = task["files"]
@@ -12547,7 +12547,7 @@ class EnhancedBot:
         
         # 检查是否有待处理的任务
         if user_id not in self.two_factor_manager.pending_2fa_tasks:
-            self.safe_send_message(update, "❌ 没有待处理的2FA修改任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_d3be9532"))
             return
         
         task_info = self.two_factor_manager.pending_2fa_tasks[user_id]
@@ -12791,7 +12791,7 @@ class EnhancedBot:
         
         # 检查是否有待处理的广播任务
         if user_id not in self.pending_broadcasts:
-            self.safe_send_message(update, "❌ 没有待处理的广播任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -12943,9 +12943,9 @@ class EnhancedBot:
                                 asyncio.run(self.complete_remove_2fa(update, context, user_id, old_password))
                             threading.Thread(target=process_remove, daemon=True).start()
                         else:
-                            self.safe_send_message(update, "❌ 操作类型不匹配")
+                            self.safe_send_message(update, self.i18n.get(user_id, "common.operation_mismatch"))
                     else:
-                        self.safe_send_message(update, "❌ 没有待处理的删除2FA任务")
+                        self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_ec505e2e"))
                     return
                 elif user_status == "batch_create_count":
                     self.handle_batch_create_count_input(update, context, user_id, text)
@@ -13045,7 +13045,7 @@ class EnhancedBot:
                     try:
                         qty = int(text.strip())
                         if qty <= 0:
-                            self.safe_send_message(update, "❌ 请输入大于0的正整数")
+                            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_b62f912d"))
                             return
                         
                         # 处理单个数量拆分
@@ -13054,7 +13054,7 @@ class EnhancedBot:
                         threading.Thread(target=process_single_qty, daemon=True).start()
                         return
                     except ValueError:
-                        self.safe_send_message(update, "❌ 请输入有效的正整数")
+                        self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_9c040260"))
                         return
                 
                 # 多个数量拆分
@@ -13063,7 +13063,7 @@ class EnhancedBot:
                         parts = text.strip().split()
                         quantities = [int(p) for p in parts]
                         if any(q <= 0 for q in quantities):
-                            self.safe_send_message(update, "❌ 所有数量必须大于0")
+                            self.safe_send_message(update, self.i18n.get(user_id, "common.quantity_positive"))
                             return
                         
                         # 处理多个数量拆分
@@ -13072,26 +13072,26 @@ class EnhancedBot:
                         threading.Thread(target=process_multi_qty, daemon=True).start()
                         return
                     except ValueError:
-                        self.safe_send_message(update, "❌ 请输入有效的正整数，用空格分隔\n例如: 10 20 30")
+                        self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_5da27320"))
                         return
         except Exception as e:
             print(f"❌ 检查分类状态失败: {e}")
         # 管理员搜索用户
         if user_status == "waiting_admin_search":
             if not self.db.is_admin(user_id):
-                self.safe_send_message(update, "❌ 权限不足")
+                self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_3436c5fc"))
                 return
             
             search_query = text.strip()
             if len(search_query) < 2:
-                self.safe_send_message(update, "❌ 搜索关键词太短，请至少输入2个字符")
+                self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_56fa83e3"))
                 return
             
             # 执行搜索
             search_results = self.db.search_user(search_query)
             
             if not search_results:
-                self.safe_send_message(update, f"🔍 未找到匹配 '{search_query}' 的用户")
+                self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_e2f17e7f", search_query=search_query))
                 # 清空状态
                 self.db.save_user(user_id, update.effective_user.username or "", update.effective_user.first_name or "", "")
                 return
@@ -13152,9 +13152,9 @@ class EnhancedBot:
         # 其他文本消息的处理
         text_lower = text.lower()
         if any(word in text_lower for word in ["你好", "hello", "hi"]):
-            self.safe_send_message(update, "👋 你好！发送 /start 开始检测")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_40abd40e"))
         elif "帮助" in text_lower or "help" in text_lower:
-            self.safe_send_message(update, "📖 发送 /help 查看帮助")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_46c728ef"))
     
     # ================================
     # 账号分类功能
@@ -13167,11 +13167,11 @@ class EnhancedBot:
         # 权限检查
         is_member, _, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_send_message(update, "❌ 需要会员权限才能使用账号分类功能")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_28ba6dfc"))
             return
         
         if not CLASSIFY_AVAILABLE or not self.classifier:
-            self.safe_send_message(update, "❌ 账号分类功能不可用\n\n请检查 account_classifier.py 模块和 phonenumbers 库是否正确安装")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_3573d37f"))
             return
         
         self.handle_classify_menu(update.callback_query if hasattr(update, 'callback_query') else None, update)
@@ -13187,9 +13187,9 @@ class EnhancedBot:
         is_member, _, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
             if query:
-                self.safe_edit_message(query, "❌ 需要会员权限")
+                self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_f92ce97a"))
             else:
-                self.safe_send_message(update, "❌ 需要会员权限")
+                self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_f92ce97a"))
             return
         
         if not CLASSIFY_AVAILABLE or not self.classifier:
@@ -13271,7 +13271,7 @@ class EnhancedBot:
     def handle_add_2fa_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理添加2FA密码输入"""
         if user_id not in self.pending_add_2fa_tasks:
-            self.safe_send_message(update, "❌ 没有待处理的添加2FA任务，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, "twofa.no_add_task"))
             return
         
         task = self.pending_add_2fa_tasks[user_id]
@@ -13280,14 +13280,14 @@ class EnhancedBot:
         if time.time() - task['start_time'] > 300:
             del self.pending_add_2fa_tasks[user_id]
             self.db.save_user(user_id, "", "", "")
-            self.safe_send_message(update, "❌ 操作超时，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_2f564df5"))
             return
         
         # 验证密码
         two_fa_password = text.strip()
         
         if not two_fa_password:
-            self.safe_send_message(update, "❌ 2FA密码不能为空，请重新输入")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_aa602bb6"))
             return
         
         # 确认接收密码
@@ -13314,7 +13314,7 @@ class EnhancedBot:
         task_id = f"{user_id}_{int(start_time)}"
         batch_id = f"forget2fa_{task_id}"
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理您的文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_b8d1dfeb"), 'HTML')
         if not progress_msg:
             return
         
@@ -13330,7 +13330,7 @@ class EnhancedBot:
             if not files:
                 try:
                     progress_msg.edit_text(
-                        "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件",
+                        self.i18n.get(user_id, "common.no_valid_files"),
                         parse_mode='HTML'
                     )
                 except:
@@ -13512,7 +13512,7 @@ class EnhancedBot:
         start_time = time.time()
         task_id = f"{user_id}_{int(start_time)}"
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理您的文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_b8d1dfeb"), 'HTML')
         if not progress_msg:
             return
         
@@ -13590,7 +13590,7 @@ class EnhancedBot:
     async def complete_add_2fa(self, update, context, user_id: int, two_fa_password: str):
         """完成添加2FA - 为文件添加2FA配置"""
         if user_id not in self.pending_add_2fa_tasks:
-            self.safe_send_message(update, "❌ 没有待处理的添加2FA任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_e16b28c0"))
             return
         
         task_info = self.pending_add_2fa_tasks[user_id]
@@ -13599,7 +13599,7 @@ class EnhancedBot:
         extract_dir = task_info['extract_dir']
         temp_dir = task_info.get('temp_dir')
         
-        progress_msg = self.safe_send_message(update, "🔄 <b>正在添加2FA配置...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_e7b319f0"), 'HTML')
         
         try:
             success_count = 0
@@ -13676,7 +13676,7 @@ class EnhancedBot:
             print(f"❌ 完成添加2FA失败: {e}")
             import traceback
             traceback.print_exc()
-            self.safe_send_message(update, f"❌ 处理失败: {str(e)[:100]}")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_fc583302"))
         
         finally:
             # 清理任务
@@ -13947,7 +13947,7 @@ class EnhancedBot:
         """执行删除2FA操作"""
         # 检查是否有待处理的任务
         if user_id not in self.two_factor_manager.pending_2fa_tasks:
-            self.safe_send_message(update, "❌ 没有待处理的删除2FA任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_ec505e2e"))
             return
         
         task_info = self.two_factor_manager.pending_2fa_tasks[user_id]
@@ -14162,7 +14162,7 @@ class EnhancedBot:
             except:
                 # 如果更新消息失败，尝试发送新消息
                 try:
-                    self.safe_send_message(update, f"❌ 删除2FA失败: {str(e)}")
+                    self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_840d11da"))
                 except:
                     pass
         
@@ -14207,7 +14207,7 @@ class EnhancedBot:
         start_time = time.time()
         task_id = f"{user_id}_{int(start_time)}"
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理您的文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_b8d1dfeb"), 'HTML')
         if not progress_msg:
             return
         
@@ -14337,7 +14337,7 @@ class EnhancedBot:
     async def _classify_split_single_qty(self, update, context, user_id, qty):
         """按单个数量拆分"""
         if user_id not in self.pending_classify_tasks:
-            self.safe_send_message(update, "❌ 没有待处理的分类任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_8f5521a2"))
             return
         
         task = self.pending_classify_tasks[user_id]
@@ -14348,7 +14348,7 @@ class EnhancedBot:
         try:
             total = len(metas)
             if qty > total:
-                self.safe_send_message(update, f"❌ 数量 {qty} 超过总账号数 {total}")
+                self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_020078be", qty=qty, total=total))
                 return
             
             # 更新提示
@@ -14397,14 +14397,14 @@ class EnhancedBot:
             print(f"❌ 单数量拆分失败: {e}")
             import traceback
             traceback.print_exc()
-            self.safe_send_message(update, f"❌ 拆分失败: {str(e)}")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_4c4f47ce"))
         finally:
             self._classify_cleanup(user_id)
     
     async def _classify_split_multi_qty(self, update, context, user_id, quantities):
         """按多个数量拆分"""
         if user_id not in self.pending_classify_tasks:
-            self.safe_send_message(update, "❌ 没有待处理的分类任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_8f5521a2"))
             return
         
         task = self.pending_classify_tasks[user_id]
@@ -14469,7 +14469,7 @@ class EnhancedBot:
             print(f"❌ 多数量拆分失败: {e}")
             import traceback
             traceback.print_exc()
-            self.safe_send_message(update, f"❌ 拆分失败: {str(e)}")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_4c4f47ce"))
         finally:
             self._classify_cleanup(user_id)
     
@@ -14580,7 +14580,7 @@ class EnhancedBot:
     async def _classify_split_by_country(self, update, context, user_id):
         """按国家拆分"""
         if user_id not in self.pending_classify_tasks:
-            self.safe_send_message(update, "❌ 没有待处理的分类任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_8f5521a2"))
             return
         
         task = self.pending_classify_tasks[user_id]
@@ -14631,7 +14631,7 @@ class EnhancedBot:
             print(f"❌ 国家拆分失败: {e}")
             import traceback
             traceback.print_exc()
-            self.safe_send_message(update, f"❌ 拆分失败: {str(e)}")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_4c4f47ce"))
         finally:
             self._classify_cleanup(user_id)
     
@@ -14716,7 +14716,7 @@ class EnhancedBot:
         # 验证兑换码
         code = code.strip()
         if len(code) > 10:
-            self.safe_send_message(update, "❌ 卡密长度不能超过10位")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_32d85724"))
             return
         
         # 执行兑换
@@ -15303,7 +15303,7 @@ class EnhancedBot:
                 import traceback
                 traceback.print_exc()
                 try:
-                    self.safe_edit_message(query, f"❌ 操作失败: {str(e)[:100]}")
+                    self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_9fde91dc"))
                 except:
                     pass
             return
@@ -15330,7 +15330,7 @@ class EnhancedBot:
             import traceback
             traceback.print_exc()
             try:
-                self.safe_edit_message(query, f"❌ 操作失败: {str(e)[:100]}")
+                self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_9fde91dc"))
             except:
                 pass
     
@@ -15408,7 +15408,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15444,7 +15444,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15478,7 +15478,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15498,7 +15498,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15536,7 +15536,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15572,7 +15572,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15613,7 +15613,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15644,7 +15644,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15663,7 +15663,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15721,7 +15721,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         # 返回编辑界面
@@ -15732,7 +15732,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15762,7 +15762,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15845,7 +15845,7 @@ class EnhancedBot:
     def handle_broadcast_title_input(self, update, context, user_id, title):
         """处理标题输入"""
         if user_id not in self.pending_broadcasts:
-            self.safe_send_message(update, "❌ 没有待处理的广播任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15854,17 +15854,17 @@ class EnhancedBot:
         if time.time() - task['started_at'] > 300:  # 5分钟
             del self.pending_broadcasts[user_id]
             self.db.save_user(user_id, "", "", "")
-            self.safe_send_message(update, "❌ 操作超时，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_2f564df5"))
             return
         
         # 验证标题
         title = title.strip()
         if not title:
-            self.safe_send_message(update, "❌ 标题不能为空，请重新输入")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_0e582046"))
             return
         
         if len(title) > 100:
-            self.safe_send_message(update, "❌ 标题过长（最多100字符），请重新输入")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_971c83ca"))
             return
         
         # 保存标题并进入下一步
@@ -15895,7 +15895,7 @@ class EnhancedBot:
     def handle_broadcast_content_input(self, update, context, user_id, content):
         """处理内容输入"""
         if user_id not in self.pending_broadcasts:
-            self.safe_send_message(update, "❌ 没有待处理的广播任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15904,13 +15904,13 @@ class EnhancedBot:
         if time.time() - task['started_at'] > 300:
             del self.pending_broadcasts[user_id]
             self.db.save_user(user_id, "", "", "")
-            self.safe_send_message(update, "❌ 操作超时，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_2f564df5"))
             return
         
         # 验证内容
         content = content.strip()
         if not content:
-            self.safe_send_message(update, "❌ 内容不能为空，请重新输入")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_4202cf4e"))
             return
         
         # 保存内容
@@ -15920,13 +15920,13 @@ class EnhancedBot:
         self.db.save_user(user_id, "", "", "")
         
         # 返回编辑器
-        self.safe_send_message(update, "✅ <b>内容已保存</b>\n\n返回编辑器继续设置", 'HTML')
+        self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_7836cb25"), 'HTML')
         self.show_broadcast_wizard_editor_as_new_message(update, context)
     
     def handle_broadcast_buttons_input(self, update, context, user_id, buttons_text):
         """处理按钮输入"""
         if user_id not in self.pending_broadcasts:
-            self.safe_send_message(update, "❌ 没有待处理的广播任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -15935,7 +15935,7 @@ class EnhancedBot:
         if time.time() - task['started_at'] > 300:
             del self.pending_broadcasts[user_id]
             self.db.save_user(user_id, "", "", "")
-            self.safe_send_message(update, "❌ 操作超时，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_2f564df5"))
             return
         
         # 检查是否跳过
@@ -15944,7 +15944,7 @@ class EnhancedBot:
             task['buttons'] = []
             # 清空用户状态
             self.db.save_user(user_id, "", "", "")
-            self.safe_send_message(update, "✅ <b>已跳过按钮设置</b>\n\n返回编辑器继续设置", 'HTML')
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_55737562"), 'HTML')
             self.show_broadcast_wizard_editor_as_new_message(update, context)
             return
         
@@ -15999,7 +15999,7 @@ class EnhancedBot:
         self.db.save_user(user_id, "", "", "")
         
         # 返回编辑器
-        self.safe_send_message(update, f"✅ <b>已保存 {len(buttons)} 个按钮</b>\n\n返回编辑器继续设置", 'HTML')
+        self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_d85c3f70"), 'HTML')
         self.show_broadcast_wizard_editor_as_new_message(update, context)
     
     
@@ -16048,7 +16048,7 @@ class EnhancedBot:
         query.answer()
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -16058,7 +16058,7 @@ class EnhancedBot:
         target_users = self.db.get_target_users(target)
         
         if not target_users:
-            self.safe_edit_message(query, "❌ 未找到符合条件的用户")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_021e28f7"))
             return
         
         # 目标名称映射
@@ -16107,7 +16107,7 @@ class EnhancedBot:
         query.answer()
         
         if user_id not in self.pending_broadcasts:
-            self.safe_edit_message(query, "❌ 没有待处理的广播任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "broadcast.no_pending"))
             return
         
         task = self.pending_broadcasts[user_id]
@@ -16123,7 +16123,7 @@ class EnhancedBot:
         )
         
         if not broadcast_id:
-            self.safe_edit_message(query, "❌ 创建广播记录失败")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_729d4266"))
             return
         
         task['broadcast_id'] = broadcast_id
@@ -16135,7 +16135,7 @@ class EnhancedBot:
         thread = threading.Thread(target=send_broadcast, daemon=True)
         thread.start()
         
-        self.safe_edit_message(query, "📤 <b>开始发送广播...</b>\n\n正在初始化...", 'HTML')
+        self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_29ec9a62"), 'HTML')
     
     async def execute_broadcast_sending(self, update, context, admin_id, broadcast_id):
         """执行广播发送"""
@@ -16363,7 +16363,7 @@ class EnhancedBot:
         detail = self.db.get_broadcast_detail(broadcast_id)
         
         if not detail:
-            self.safe_edit_message(query, "❌ 未找到广播记录")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_7cf8d07f"))
             return
         
         # 状态图标
@@ -16500,7 +16500,7 @@ class EnhancedBot:
         user_id = update.effective_user.id
         
         if user_id not in self.pending_rename:
-            self.safe_send_message(update, "❌ 没有待处理的重命名任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "rename.no_pending"))
             return
         
         # 创建临时目录
@@ -16521,7 +16521,7 @@ class EnhancedBot:
         try:
             document.get_file().download(file_path)
         except Exception as e:
-            self.safe_send_message(update, f"❌ 下载文件失败: {str(e)}")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_456280d4"))
             shutil.rmtree(temp_dir, ignore_errors=True)
             return
         
@@ -16559,7 +16559,7 @@ class EnhancedBot:
     def handle_rename_newname_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理新文件名输入"""
         if user_id not in self.pending_rename:
-            self.safe_send_message(update, "❌ 没有待处理的重命名任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "rename.no_pending"))
             return
         
         task = self.pending_rename[user_id]
@@ -16568,7 +16568,7 @@ class EnhancedBot:
         new_name = self.sanitize_filename(text.strip())
         
         if not new_name:
-            self.safe_send_message(update, "❌ 文件名无效，请重新输入")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_d3127000"))
             return
         
         # 构建完整的新文件名
@@ -16579,7 +16579,7 @@ class EnhancedBot:
         try:
             shutil.move(task['file_path'], new_file_path)
         except Exception as e:
-            self.safe_send_message(update, f"❌ 重命名失败: {str(e)}")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_76e5c9f9"))
             self.cleanup_rename_task(user_id)
             return
         
@@ -16587,9 +16587,9 @@ class EnhancedBot:
         caption = f"✅ <b>文件重命名成功</b>\n\n原文件名: <code>{task['orig_name']}</code>\n新文件名: <code>{new_filename}</code>"
         
         if self.send_document_safely(user_id, new_file_path, caption, new_filename):
-            self.safe_send_message(update, "✅ <b>文件已发送！</b>", 'HTML')
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_1d64ce12"), 'HTML')
         else:
-            self.safe_send_message(update, "❌ 发送文件失败")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_d94fa3f2"))
         
         # 清理任务
         self.cleanup_rename_task(user_id)
@@ -16661,7 +16661,7 @@ class EnhancedBot:
         user_id = update.effective_user.id
         
         if user_id not in self.pending_merge:
-            self.safe_send_message(update, "❌ 没有待处理的合并任务")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_82327346"))
             return
         
         task = self.pending_merge[user_id]
@@ -16669,7 +16669,7 @@ class EnhancedBot:
         
         # 检查文件类型 - 仅接受ZIP文件
         if not filename.lower().endswith('.zip'):
-            self.safe_send_message(update, "❌ 仅支持 .zip 文件，请重新上传")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_26d692fb"))
             return
         
         # 下载文件
@@ -16698,7 +16698,7 @@ class EnhancedBot:
                 reply_markup=keyboard
             )
         except Exception as e:
-            self.safe_send_message(update, f"❌ 下载文件失败: {str(e)}")
+            self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_456280d4"))
     
     def handle_merge_continue(self, query):
         """处理继续上传文件"""
@@ -16706,7 +16706,7 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if user_id not in self.pending_merge:
-            self.safe_edit_message(query, "❌ 没有待处理的合并任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_82327346"))
             return
         
         task = self.pending_merge[user_id]
@@ -16737,7 +16737,7 @@ class EnhancedBot:
         if user_id in self.pending_merge:
             self.cleanup_merge_task(user_id)
         
-        self.safe_edit_message(query, "❌ 已取消合并操作")
+        self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_ca635afe"))
         
         # 返回主菜单
         time.sleep(1)
@@ -16752,16 +16752,16 @@ class EnhancedBot:
         query.answer()
         
         if user_id not in self.pending_merge:
-            self.safe_edit_message(query, "❌ 没有待处理的合并任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_82327346"))
             return
         
         task = self.pending_merge[user_id]
         
         if not task['files']:
-            self.safe_edit_message(query, "❌ 没有上传任何文件")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_6ddff3b5"))
             return
         
-        self.safe_edit_message(query, "🔄 <b>正在处理文件...</b>", 'HTML')
+        self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_c9c59585"), 'HTML')
         
         # 在后台线程中处理
         def process_merge():
@@ -17089,13 +17089,13 @@ class EnhancedBot:
         
         # 检查是否启用
         if not config.ENABLE_ONE_CLICK_CLEANUP:
-            self.safe_edit_message(query, "❌ 一键清理功能未启用")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_e2236276"))
             return
         
         # 检查会员权限
         is_member, _, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_edit_message(query, "❌ 一键清理需要会员权限")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_3856d8fe"))
             return
         
         # 设置用户状态
@@ -17140,7 +17140,7 @@ class EnhancedBot:
         user_id = update.effective_user.id
         start_time = time.time()
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理您的文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_b8d1dfeb"), 'HTML')
         if not progress_msg:
             return
         
@@ -17160,7 +17160,7 @@ class EnhancedBot:
             if not files:
                 try:
                     progress_msg.edit_text(
-                        "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件",
+                        self.i18n.get(user_id, "common.no_valid_files"),
                         parse_mode='HTML'
                     )
                 except:
@@ -17613,7 +17613,7 @@ class EnhancedBot:
         query.answer()
         
         if user_id not in self.pending_cleanup:
-            self.safe_edit_message(query, "❌ 没有待处理的清理任务")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_2e5fb583"))
             return
         
         task = self.pending_cleanup[user_id]
@@ -17621,7 +17621,7 @@ class EnhancedBot:
         # 检查超时（10分钟）
         if time.time() - task['started_at'] > 600:
             self.cleanup_cleanup_task(user_id)
-            self.safe_edit_message(query, "❌ 操作超时，请重新开始")
+            self.safe_edit_message(query, self.i18n.get(user_id, "dynamic.msg_2f564df5"))
             return
         
         # 启动异步清理
@@ -18228,7 +18228,7 @@ class EnhancedBot:
             files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, unique_task_id)
             
             if not files:
-                self.safe_edit_message_text(progress_msg, "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
+                self.safe_edit_message_text(progress_msg, self.i18n.get(user_id, "common.no_valid_files"), parse_mode='HTML')
                 return
             
             self.safe_edit_message_text(
@@ -19294,7 +19294,7 @@ admin3</code>
         action = '_'.join(data.split('_')[:-1])
         
         if user_id not in self.pending_modify_tasks:
-            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            self.safe_edit_message(query, self.i18n.get(user_id, "common.task_expired"))
             return
         
         config = self.pending_modify_tasks[user_id].get('custom_config', {})
@@ -19351,7 +19351,7 @@ admin3</code>
         action = '_'.join(data.split('_')[:-1])
         
         if user_id not in self.pending_modify_tasks:
-            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            self.safe_edit_message(query, self.i18n.get(user_id, "common.task_expired"))
             return
         
         config = self.pending_modify_tasks[user_id].get('custom_config', {})
@@ -19433,7 +19433,7 @@ admin3</code>
         action = '_'.join(data.split('_')[:-1])
         
         if user_id not in self.pending_modify_tasks:
-            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            self.safe_edit_message(query, self.i18n.get(user_id, "common.task_expired"))
             return
         
         config = self.pending_modify_tasks[user_id].get('custom_config', {})
@@ -19474,7 +19474,7 @@ admin3</code>
     def show_custom_final_confirm(self, query, user_id: int):
         """显示自定义配置最终确认"""
         if user_id not in self.pending_modify_tasks:
-            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            self.safe_edit_message(query, self.i18n.get(user_id, "common.task_expired"))
             return
         
         task = self.pending_modify_tasks[user_id]
@@ -19527,7 +19527,7 @@ admin3</code>
     def handle_custom_name_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理自定义姓名输入"""
         if user_id not in self.pending_modify_tasks:
-            self.safe_send_message(update, "❌ 任务已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, "common.task_expired"))
             return
         
         # 解析姓名
@@ -19575,7 +19575,7 @@ admin3</code>
     def handle_custom_avatar_photo_upload(self, update: Update, context: CallbackContext, user_id: int):
         """处理自定义头像图片上传"""
         if user_id not in self.pending_modify_tasks:
-            self.safe_send_message(update, "❌ 任务已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, "common.task_expired"))
             return
         
         try:
@@ -19610,12 +19610,12 @@ admin3</code>
             
         except Exception as e:
             logger.error(f"处理头像上传失败: {e}")
-            self.safe_send_message(update, f"❌ 上传失败: {e}")
+            self.safe_send_message(update, fself.i18n.get(user_id, "file.upload_failed_error"))
     
     def handle_custom_bio_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理自定义简介输入"""
         if user_id not in self.pending_modify_tasks:
-            self.safe_send_message(update, "❌ 任务已过期，请重新开始")
+            self.safe_send_message(update, self.i18n.get(user_id, "common.task_expired"))
             return
         
         # 保存简介
@@ -19658,7 +19658,7 @@ admin3</code>
         user_id = int(data.split('_')[-1])
         
         if user_id not in self.pending_modify_tasks:
-            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            self.safe_edit_message(query, self.i18n.get(user_id, "common.task_expired"))
             return
         
         # 进入执行流程（与handle_exec_modify相同）
@@ -19671,7 +19671,7 @@ admin3</code>
         
         # 获取任务信息
         if user_id not in self.pending_modify_tasks:
-            self.safe_edit_message(query, "❌ 任务已过期，请重新开始")
+            self.safe_edit_message(query, self.i18n.get(user_id, "common.task_expired"))
             return
         
         task = self.pending_modify_tasks[user_id]
@@ -20243,7 +20243,7 @@ admin3</code>
             files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, unique_task_id)
             
             if not files:
-                self.safe_edit_message_text(progress_msg, "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
+                self.safe_edit_message_text(progress_msg, self.i18n.get(user_id, "common.no_valid_files"), parse_mode='HTML')
                 return
             
             # 保存任务信息
@@ -20485,7 +20485,7 @@ admin3</code>
         
         self.safe_edit_message(
             query,
-            "⏳ <b>正在重新授权中...</b>\n\n请稍候，完成后会发送详细报告",
+            self.i18n.get(user_id, "reauthorize.in_progress"),
             parse_mode='HTML'
         )
     
@@ -21829,7 +21829,7 @@ admin3</code>
             is_member, level, expiry = self.db.check_membership(user_id)
             if not is_member:
                 query.edit_message_text(
-                    text="❌ 查询注册时间功能需要会员权限\n\n请先开通会员",
+                    text=self.i18n.get(user_id, "registration.member_only"),
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
                         InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")
@@ -21931,7 +21931,7 @@ admin3</code>
             files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, unique_task_id)
             
             if not files:
-                self.safe_edit_message_text(progress_msg, "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的文件", parse_mode='HTML')
+                self.safe_edit_message_text(progress_msg, self.i18n.get(user_id, "common.no_valid_files"), parse_mode='HTML')
                 return
             
             # 保存任务信息
