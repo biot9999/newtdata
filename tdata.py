@@ -2943,6 +2943,39 @@ class FileProcessor:
         self.db = db
         self.i18n = i18n
     
+    def translate_status(self, status: str, user_id: int) -> str:
+        """
+        Translate status code to localized string
+        
+        Args:
+            status: Status code (e.g., 'unlimited', 'spam', 'frozen', etc.)
+            user_id: User ID for language selection
+            
+        Returns:
+            Localized status string
+        """
+        # Map status codes to translation keys
+        status_key_map = {
+            'unlimited': 'check_status.unlimited',
+            'spam': 'check_status.spam',
+            'frozen': 'check_status.frozen',
+            'banned': 'check_status.banned',
+            'connection_error': 'check_status.connection_error',
+            'deactivated': 'check_status.deactivated',
+            'invalid': 'check_status.invalid',
+            'restricted': 'check_status.restricted',
+            'limited': 'check_status.limited',
+            'normal': 'check_status.normal',
+        }
+        
+        # Get translation key or fall back to status code
+        translation_key = status_key_map.get(status, None)
+        if translation_key:
+            return self.i18n.get(user_id, translation_key)
+        else:
+            # Return status as-is if not in map
+            return status
+    
     async def convert_tdata_and_check(self, tdata_path: str, tdata_name: str) -> Tuple[str, str, str]:
         """
         将TData转换为临时Session并使用Session检查方法（带代理支持）
@@ -12532,7 +12565,7 @@ class EnhancedBot:
                     if os.path.exists(zip_path):
                         try:
                             with open(zip_path, 'rb') as f:
-                                caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
+                                caption = f"📦 <b>{status}</b> ({self.i18n.get(user_id, 'statistics.accounts_count', count=count)})\n\n{self.i18n.get(user_id, 'twofa_result.processing_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}"
                                 context.bot.send_document(
                                     chat_id=update.effective_chat.id,
                                     document=f,
@@ -12550,7 +12583,7 @@ class EnhancedBot:
                     if os.path.exists(txt_path):
                         try:
                             with open(txt_path, 'rb') as f:
-                                caption = f"📋 <b>{status} 详细报告</b>\n\n包含 {count} 个账号的详细信息"
+                                caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status, count=count)
                                 context.bot.send_document(
                                     chat_id=update.effective_chat.id,
                                     document=f,
