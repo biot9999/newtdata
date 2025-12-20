@@ -96,7 +96,14 @@
     "ensure_zip_contains": "请确保ZIP文件包含:",
     "session_file_types": "• Session 文件 (.session)",
     "session_json_files": "• Session+JSON 文件 (.session + .json)",
-    "tdata_folders": "• TData 文件夹"
+    "tdata_folders": "• TData 文件夹",
+    "send_summary_header": "📋 <b>发送总结</b>",
+    "success_sent_files": "• 成功发送: {count} 个文件",
+    "detection_mode_display": "• 检测模式: {mode}",
+    "detection_time_seconds": "• 检测时间: {seconds}秒",
+    "thanks_restart": "感谢使用增强版机器人！如需再次检测，请点击 /start",
+    "proxy_mode_emoji": "📡代理模式",
+    "local_mode_emoji": "🏠本地模式"
   },
   "convert": {
     "title": "🔄 <b>格式转换功能</b>",
@@ -119,7 +126,15 @@
     "conversion_failed": "❌ 转换失败: {filename} - {error}",
     "result_success": "📦 转换成功",
     "result_failed": "📦 转换失败",
-    "unavailable_opentele": "❌ 格式转换功能不可用\n\n原因: opentele库未安装\n�� 请安装: pip install opentele"
+    "unavailable_opentele": "❌ 格式转换功能不可用\n\n原因: opentele库未安装\n�� 请安装: pip install opentele",
+    "statistics_header": "📊 <b>转换统计</b>",
+    "total_count": "• 总计: {count}个",
+    "success_with_rate": "• ✅ 成功: {count}个 ({rate:.1f}%)",
+    "failed_with_rate": "• ❌ 失败: {count}个 ({rate:.1f}%)",
+    "total_time": "• ⏱️ 总用时: {seconds}秒 ({minutes:.1f}分钟)",
+    "avg_speed_per_sec": "• 🚀 平均速度: {speed:.2f}个/秒",
+    "task_complete": "✅ <b>转换任务完成！</b>",
+    "all_results_sent": "所有结果文件已发送！"
   },
   "modify": {
     "title": "👤 <b>修改资料功能</b>",
@@ -270,8 +285,8 @@
     "conversion_complete": "🎉 <b>API格式转换完成！</b>",
     "conversion_stats": "📊 <b>转换统计</b>",
     "total_files": "总文件: {count} 个",
-    "success_count": "• ✅ 成功: {count} 个 ({rate}%)",
-    "failed_count": "• ❌ 失败: {count} 个 ({rate}%)",
+    "success_count": "• ✅ 成功: {count} 个",
+    "failed_count": "• ❌ 失败: {count} 个",
     "elapsed_time": "• ⏱️ 用时: {seconds} 秒",
     "conversion_speed": "• 🚀 速度: {speed} 个/秒",
     "sending_txt": "📄 正在发送TXT文件...",
@@ -283,7 +298,14 @@
     "auto_detect": "自动检测",
     "concurrent_batch": "并发数: {concurrent} | 批次: {batch}",
     "start_conversion_to_api": "🔄 <b>开始转换为API格式...</b>",
-    "web_2fa_auto": "🔐 网页2FA: 自动识别"
+    "web_2fa_auto": "🔐 网页2FA: 自动识别",
+    "conversion_progress_header": "📊 <b>转换进度</b>",
+    "progress_percent": "• 进度: {progress}% ({processed}/{total})",
+    "avg_speed": "• 平均速度: {speed:.1f} 个/秒",
+    "remaining_time": "• 预计剩余: {minutes:.1f} 分钟",
+    "processing_status_header": "⚡ <b>处理状态</b>",
+    "file_type_display": "• 文件类型: {type}",
+    "converting_in_progress": "API转换进行中..."
   },
   "rename": {
     "title": "📝 <b>文件重命名</b>",
@@ -732,7 +754,16 @@
     "account_frozen": "❌ 账号已冻结",
     "account_banned": "❌ 账号已被封禁",
     "invalid_2fa": "❌ 2FA密码错误",
-    "session_expired": "❌ 会话已过期"
+    "session_expired": "❌ 会话已过期，请重新开始",
+    "processing_failed_with_error": "❌ <b>处理失败</b>\n\n{error}",
+    "failed_with_error": "❌ 失败: {error}",
+    "quantity_range": "❌ 数量必须在1-10之间，请重新输入",
+    "invalid_number": "❌ 请输入有效的数字（1-10）",
+    "no_valid_names": "❌ 未找到有效的名称，请重新输入",
+    "parse_failed": "❌ 解析失败：{error}",
+    "no_valid_usernames": "❌ 未找到有效的用户名，请重新输入",
+    "file_processing_failed": "❌ 文件处理失败：{error}",
+    "name_empty": "❌ 姓名不能为空，请重新输入"
   },
   "broadcast": {
     "title": "<b>📢 群发通知管理</b>",

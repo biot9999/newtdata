@@ -96,7 +96,14 @@
     "ensure_zip_contains": "Please ensure ZIP file contains:",
     "session_file_types": "• Session files (.session)",
     "session_json_files": "• Session+JSON files (.session + .json)",
-    "tdata_folders": "• TData folders"
+    "tdata_folders": "• TData folders",
+    "send_summary_header": "📋 <b>Send Summary</b>",
+    "success_sent_files": "• Successfully sent: {count} files",
+    "detection_mode_display": "• Detection mode: {mode}",
+    "detection_time_seconds": "• Detection time: {seconds}s",
+    "thanks_restart": "Thanks for using! To detect again, click /start",
+    "proxy_mode_emoji": "📡 Proxy Mode",
+    "local_mode_emoji": "🏠 Local Mode"
   },
   "convert": {
     "title": "🔄 <b>Format Conversion</b>",
@@ -119,7 +126,15 @@
     "conversion_failed": "❌ Conversion failed: {filename} - {error}",
     "result_success": "📦 Conversion Success",
     "result_failed": "📦 Conversion Failed",
-    "unavailable_opentele": "❌ Format conversion unavailable\n\nReason: opentele library not installed\n💡 Install: pip install opentele"
+    "unavailable_opentele": "❌ Format conversion unavailable\n\nReason: opentele library not installed\n💡 Install: pip install opentele",
+    "statistics_header": "📊 <b>Conversion Statistics</b>",
+    "total_count": "• Total: {count}",
+    "success_with_rate": "• ✅ Success: {count} ({rate:.1f}%)",
+    "failed_with_rate": "• ❌ Failed: {count} ({rate:.1f}%)",
+    "total_time": "• ⏱️ Total time: {seconds}s ({minutes:.1f}min)",
+    "avg_speed_per_sec": "• 🚀 Avg speed: {speed:.2f}/s",
+    "task_complete": "✅ <b>Conversion Task Complete!</b>",
+    "all_results_sent": "All result files sent!"
   },
   "modify": {
     "title": "👤 <b>Modify Profile</b>",
@@ -270,8 +285,8 @@
     "conversion_complete": "🎉 <b>API Format Conversion Complete!</b>",
     "conversion_stats": "📊 <b>Conversion Statistics</b>",
     "total_files": "Total files: {count}",
-    "success_count": "• ✅ Success: {count} ({rate}%)",
-    "failed_count": "• ❌ Failed: {count} ({rate}%)",
+    "success_count": "• ✅ Success: {count}",
+    "failed_count": "• ❌ Failed: {count}",
     "elapsed_time": "• ⏱️ Time: {seconds}s",
     "conversion_speed": "• 🚀 Speed: {speed}/s",
     "sending_txt": "📄 Sending TXT file...",
@@ -283,7 +298,14 @@
     "auto_detect": "Auto-detect",
     "concurrent_batch": "Concurrent: {concurrent} | Batch: {batch}",
     "start_conversion_to_api": "🔄 <b>Starting conversion to API format...</b>",
-    "web_2fa_auto": "🔐 Web 2FA: Auto-detect"
+    "web_2fa_auto": "🔐 Web 2FA: Auto-detect",
+    "conversion_progress_header": "📊 <b>Conversion Progress</b>",
+    "progress_percent": "• Progress: {progress}% ({processed}/{total})",
+    "avg_speed": "• Avg speed: {speed:.1f}/s",
+    "remaining_time": "• Est. remaining: {minutes:.1f} min",
+    "processing_status_header": "⚡ <b>Processing Status</b>",
+    "file_type_display": "• File type: {type}",
+    "converting_in_progress": "API conversion in progress..."
   },
   "rename": {
     "title": "📝 <b>File Rename</b>",
@@ -732,7 +754,16 @@
     "account_frozen": "❌ Account frozen",
     "account_banned": "❌ Account banned",
     "invalid_2fa": "❌ Invalid 2FA password",
-    "session_expired": "❌ Session expired"
+    "session_expired": "❌ Session expired, please start over",
+    "processing_failed_with_error": "❌ <b>Processing Failed</b>\n\n{error}",
+    "failed_with_error": "❌ Failed: {error}",
+    "quantity_range": "❌ Quantity must be between 1-10, please re-enter",
+    "invalid_number": "❌ Please enter a valid number (1-10)",
+    "no_valid_names": "❌ No valid names found, please re-enter",
+    "parse_failed": "❌ Parse failed: {error}",
+    "no_valid_usernames": "❌ No valid usernames found, please re-enter",
+    "file_processing_failed": "❌ File processing failed: {error}",
+    "name_empty": "❌ Name cannot be empty, please re-enter"
   },
   "broadcast": {
     "title": "<b>📢 Broadcast Management</b>",
