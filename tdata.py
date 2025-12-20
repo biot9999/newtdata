@@ -8722,6 +8722,41 @@ class EnhancedBot:
         self.dp.add_handler(MessageHandler(Filters.photo, self.handle_photo))
         self.dp.add_handler(MessageHandler(Filters.text & ~Filters.command, self.handle_text))
     
+    def translate_status_code(self, status_code: str, user_id: int) -> str:
+        """
+        Translate status code to localized display text.
+        
+        Args:
+            status_code: Status code like 'unlimited', 'spam', 'frozen', 'banned', 'connection_error'
+            user_id: User ID for language preference
+            
+        Returns:
+            Localized status text
+        """
+        # Map status codes to translation keys in check_status section
+        status_key_map = {
+            'unlimited': 'check_status.unlimited',
+            'spam': 'check_status.spam',
+            'frozen': 'check_status.frozen',
+            'banned': 'check_status.banned',
+            'connection_error': 'check_status.connection_error',
+            'deactivated': 'check_status.deactivated',
+            'invalid': 'check_status.invalid',
+            'restricted': 'check_status.restricted',
+            'limited': 'check_status.limited',
+            'normal': 'check_status.normal'
+        }
+        
+        # Get translation key
+        translation_key = status_key_map.get(status_code, None)
+        
+        if translation_key:
+            # Use i18n to get translated text
+            return self.i18n.get(user_id, translation_key)
+        else:
+            # Fallback: return status code as-is if no translation found
+            return status_code
+    
     def safe_send_message(self, update, text, parse_mode=None, reply_markup=None, max_retries=None):
         """安全发送消息（带网络错误重试机制）
         
@@ -12047,13 +12082,15 @@ class EnhancedBot:
                         
                         # 检查实际的代理模式状态
                         actual_proxy_mode = self.proxy_manager.is_proxy_mode_active(self.db)
+                        # Translate status code to localized text
+                        status_display = self.translate_status_code(status, user_id)
                         with open(file_path, 'rb') as f:
                             mode_text = self.i18n.get(user_id, 'check_result.mode_proxy' if actual_proxy_mode else 'check_result.mode_local')
                             context.bot.send_document(
                                 chat_id=update.effective_chat.id,
                                 document=f,
                                 filename=f"{status}_{count}个.zip",
-                                caption=f"{self.i18n.get(user_id, 'file_ops.status_with_count', status=status, count=count)}\n\n"
+                                caption=f"{self.i18n.get(user_id, 'file_ops.status_with_count', status=status_display, count=count)}\n\n"
                                        f"{self.i18n.get(user_id, 'check_result.checking_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}\n"
                                        f"🔧 {self.i18n.get(user_id, 'check_result.detection_mode', mode=mode_text)}",
                                 parse_mode='HTML'
@@ -12070,12 +12107,14 @@ class EnhancedBot:
                         await asyncio.sleep(e.retry_after + 1)
                         # 重试发送
                         try:
+                            # Translate status code to localized text
+                            status_display = self.translate_status_code(status, user_id)
                             with open(file_path, 'rb') as f:
                                 context.bot.send_document(
                                     chat_id=update.effective_chat.id,
                                     document=f,
                                     filename=f"{status}_{count}个.zip",
-                                    caption=self.i18n.get(user_id, 'file_ops.status_with_count', status=status, count=count),
+                                    caption=self.i18n.get(user_id, 'file_ops.status_with_count', status=status_display, count=count),
                                     parse_mode='HTML'
                                 )
                             sent_count += 1
@@ -12286,7 +12325,9 @@ class EnhancedBot:
                     # 2. 发送 TXT 报告
                     if os.path.exists(txt_path):
                         with open(txt_path, 'rb') as f:
-                            caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status, count=count)
+                            # Translate status code to localized text
+                            status_display = self.translate_status_code(status, user_id)
+                            caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status_display, count=count)
                             update.message.reply_document(
                                 document=f,
                                 filename=os.path.basename(txt_path),
@@ -12582,7 +12623,9 @@ class EnhancedBot:
                     if os.path.exists(txt_path):
                         try:
                             with open(txt_path, 'rb') as f:
-                                caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status, count=count)
+                                # Translate status code to localized text
+                                status_display = self.translate_status_code(status, user_id)
+                                caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status_display, count=count)
                                 context.bot.send_document(
                                     chat_id=update.effective_chat.id,
                                     document=f,
