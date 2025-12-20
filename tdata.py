@@ -9710,7 +9710,7 @@ class EnhancedBot:
             test_speed = stats['total'] / total_time if total_time > 0 else 0
             
             final_text = f"""
-{self.i18n.get(user_id, \'proxy.test_complete\')}
+{self.i18n.get(user_id, 'proxy.test_complete')}
 
 📊 <b>测试结果</b>
 • 总计代理: {stats['total']} 个
@@ -11558,7 +11558,7 @@ class EnhancedBot:
         except Exception as e:
             logger.error(f"处理修改资料文件失败: {e}")
             try:
-                progress_msg.edit_text(self.i18n.get(user_id, \'error.processing_failed_with_error\', error=str(e)), parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'error.processing_failed_with_error', error=str(e)), parse_mode='HTML')
             except:
                 pass
 
@@ -11613,7 +11613,7 @@ class EnhancedBot:
         except Exception as e:
             print(f"❌ API阶段1失败: {e}")
             try:
-                progress_msg.edit_text(self.i18n.get(user_id, \'error.failed_with_error\', error=str(e)), parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'error.failed_with_error', error=str(e)), parse_mode='HTML')
             except:
                 pass
             if temp_zip and os.path.exists(temp_zip):
@@ -11822,7 +11822,7 @@ class EnhancedBot:
         except Exception as e:
             print(f"❌ API阶段2失败: {e}")
             try:
-                progress_msg.edit_text(self.i18n.get(user_id, \'error.failed_with_error\', error=str(e)), parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'error.failed_with_error', error=str(e)), parse_mode='HTML')
             except:
                 pass
         finally:
@@ -12121,7 +12121,7 @@ class EnhancedBot:
         except Exception as e:
             print(f"❌ 处理失败: {e}")
             try:
-                progress_msg.edit_text(self.i18n.get(user_id, \'error.processing_failed_with_error\', error=str(e)))
+                progress_msg.edit_text(self.i18n.get(user_id, 'error.processing_failed_with_error', error=str(e)))
             except:
                 pass
         finally:
@@ -12145,7 +12145,7 @@ class EnhancedBot:
         # 发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            self.i18n.get(user_id, \'common.processing_file\'),
+            self.i18n.get(user_id, 'common.processing_file'),
             'HTML'
         )
         
@@ -12216,12 +12216,12 @@ class EnhancedBot:
 🔄 <b>格式转换进行中...</b>
 
 📊 <b>当前进度</b>
-{self.i18n.get(user_id, \'common.processed_count\', processed=processed, total=total)}
-{self.i18n.get(user_id, \'common.speed_per_sec\', speed=speed)}
-{self.i18n.get(user_id, \'common.time_elapsed_sec\', seconds=int(elapsed))}
+{self.i18n.get(user_id, 'common.processed_count', processed=processed, total=total)}
+{self.i18n.get(user_id, 'common.speed_per_sec', speed=speed)}
+{self.i18n.get(user_id, 'common.time_elapsed_sec', seconds=int(elapsed))}
 
-{self.i18n.get(user_id, \'convert.conversion_success\', count=success_count)}
-{self.i18n.get(user_id, \'convert.conversion_error\', count=error_count)}
+{self.i18n.get(user_id, 'convert.conversion_success', count=success_count)}
+{self.i18n.get(user_id, 'convert.conversion_error', count=error_count)}
 
 ⏱️ 预计剩余: {int((total - processed) / speed) if speed > 0 else 0} 秒
                     """
@@ -12372,7 +12372,7 @@ class EnhancedBot:
         # 发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            self.i18n.get(user_id, \'common.processing_file\'),
+            self.i18n.get(user_id, 'common.processing_file'),
             'HTML'
         )
         
@@ -12502,12 +12502,12 @@ class EnhancedBot:
 🔐 <b>2FA密码修改进行中...</b>
 
 📊 <b>当前进度</b>
-{self.i18n.get(user_id, \'common.processed_count\', processed=processed, total=total)}
-{self.i18n.get(user_id, \'common.speed_per_sec\', speed=speed)}
-{self.i18n.get(user_id, \'common.time_elapsed_sec\', seconds=int(elapsed))}
+{self.i18n.get(user_id, 'common.processed_count', processed=processed, total=total)}
+{self.i18n.get(user_id, 'common.speed_per_sec', speed=speed)}
+{self.i18n.get(user_id, 'common.time_elapsed_sec', seconds=int(elapsed))}
 
-{self.i18n.get(user_id, \'modify.modify_success\', count=success_count)}
-{self.i18n.get(user_id, \'modify.modify_failed\', count=fail_count)}
+{self.i18n.get(user_id, 'modify.modify_success', count=success_count)}
+{self.i18n.get(user_id, 'modify.modify_failed', count=fail_count)}
 
 ⏱️ 预计剩余: {int((total - processed) / speed) if speed > 0 else 0} 秒
                     """
@@ -13343,7 +13343,7 @@ class EnhancedBot:
             
             # 完成消息
             completion_text = f"""
-{self.i18n.get(user_id, \'twofa_forget.process_complete\')}
+{self.i18n.get(user_id, 'twofa_forget.process_complete')}
 
 <b>📊 处理结果</b>
 • 总账号数: {total_files} 个
@@ -13460,7 +13460,7 @@ class EnhancedBot:
             
             # 提示用户输入2FA密码
             text = f"""
-{self.i18n.get(user_id, \'check.scan_complete\')}
+{self.i18n.get(user_id, 'check.scan_complete')}
 
 📊 <b>统计信息</b>
 • 总账号数: {total_files} 个
@@ -13555,7 +13555,7 @@ class EnhancedBot:
             elapsed = time.time() - task_info['start_time']
             
             summary_text = f"""
-{self.i18n.get(user_id, \'twofa_add.process_complete\')}
+{self.i18n.get(user_id, 'twofa_add.process_complete')}
 
 📊 <b>处理结果</b>
 • 成功: {success_count} 个
@@ -13760,7 +13760,7 @@ class EnhancedBot:
         # 发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            self.i18n.get(user_id, \'common.processing_file\'),
+            self.i18n.get(user_id, 'common.processing_file'),
             'HTML'
         )
         
@@ -13900,9 +13900,9 @@ class EnhancedBot:
 🗑️ <b>删除2FA密码进行中...</b>
 
 📊 <b>当前进度</b>
-{self.i18n.get(user_id, \'common.processed_count\', processed=processed, total=total)}
-{self.i18n.get(user_id, \'common.speed_per_sec\', speed=speed)}
-{self.i18n.get(user_id, \'common.time_elapsed_sec\', seconds=int(elapsed))}
+{self.i18n.get(user_id, 'common.processed_count', processed=processed, total=total)}
+{self.i18n.get(user_id, 'common.speed_per_sec', speed=speed)}
+{self.i18n.get(user_id, 'common.time_elapsed_sec', seconds=int(elapsed))}
 
 ✅ <b>删除成功</b>: {success_count}
 ❌ <b>删除失败</b>: {fail_count}
@@ -14160,7 +14160,7 @@ class EnhancedBot:
             
             # 提示选择拆分方式
             text = f"""
-{self.i18n.get(user_id, \'check.scan_complete\')}
+{self.i18n.get(user_id, 'check.scan_complete')}
 
 📊 <b>统计信息</b>
 • 总账号数: {total_count} 个
@@ -14185,7 +14185,7 @@ class EnhancedBot:
             import traceback
             traceback.print_exc()
             try:
-                progress_msg.edit_text(self.i18n.get(user_id, \'error.processing_failed_with_error\', error=str(e)), parse_mode='HTML')
+                progress_msg.edit_text(self.i18n.get(user_id, 'error.processing_failed_with_error', error=str(e)), parse_mode='HTML')
             except:
                 pass
             if temp_zip and os.path.exists(temp_zip):
@@ -18361,7 +18361,7 @@ game_lovers_group</code>
         query.answer()
         
         if user_id not in self.pending_batch_create:
-            self.safe_edit_message(query, self.i18n.get(user_id, \'error.session_expired\'))
+            self.safe_edit_message(query, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -18394,7 +18394,7 @@ game_lovers_group</code>
     def handle_batch_create_count_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理每账号创建数量输入"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.session_expired\'))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -18402,7 +18402,7 @@ game_lovers_group</code>
         try:
             count = int(text.strip())
             if count < 1 or count > 10:
-                self.safe_send_message(update, self.i18n.get(user_id, \'error.quantity_range\'))
+                self.safe_send_message(update, self.i18n.get(user_id, 'error.quantity_range'))
                 return
             
             task['count_per_account'] = count
@@ -18439,12 +18439,12 @@ admin3</code>
             self.db.save_user(user_id, "", "", "batch_create_admin")
             
         except ValueError:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.invalid_number\'))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.invalid_number'))
     
     def handle_batch_create_admin_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理管理员用户名输入（支持多个管理员，每行一个）"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.session_expired\'))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -18522,7 +18522,7 @@ admin3</code>
     def handle_batch_create_names_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理群组名称和简介输入"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.session_expired\'))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -18550,7 +18550,7 @@ admin3</code>
                     group_descriptions.append(desc)
             
             if not group_names:
-                self.safe_send_message(update, self.i18n.get(user_id, \'error.no_valid_names\'))
+                self.safe_send_message(update, self.i18n.get(user_id, 'error.no_valid_names'))
                 return
             
             task['group_names'] = group_names
@@ -18581,12 +18581,12 @@ admin3</code>
             self.safe_send_message(update, text, parse_mode='HTML', reply_markup=keyboard)
             
         except Exception as e:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.parse_failed\', error=str(e)))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.parse_failed', error=str(e)))
     
     def handle_batch_create_usernames_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理自定义用户名输入"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.session_expired\'))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -18606,7 +18606,7 @@ admin3</code>
                     custom_usernames.append(username)
             
             if not custom_usernames:
-                self.safe_send_message(update, self.i18n.get(user_id, \'error.no_valid_usernames\'))
+                self.safe_send_message(update, self.i18n.get(user_id, 'error.no_valid_usernames'))
                 return
             
             task['custom_usernames'] = custom_usernames
@@ -18615,7 +18615,7 @@ admin3</code>
             self._show_batch_create_confirm(update, user_id)
             
         except Exception as e:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.parse_failed\', error=str(e)))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.parse_failed', error=str(e)))
     
     def _show_batch_create_confirm(self, update: Update, user_id: int):
         """显示最终确认信息"""
@@ -18673,7 +18673,7 @@ admin3</code>
     def process_batch_create_names_file(self, update: Update, context: CallbackContext, document, user_id: int):
         """处理群组名称文件上传"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.session_expired\'))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         try:
@@ -18696,12 +18696,12 @@ admin3</code>
             
         except Exception as e:
             logger.error(f"处理名称文件失败: {e}")
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.file_processing_failed\', error=str(e)))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.file_processing_failed', error=str(e)))
     
     def process_batch_create_usernames_file(self, update: Update, context: CallbackContext, document, user_id: int):
         """处理用户名文件上传"""
         if user_id not in self.pending_batch_create:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.session_expired\'))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         try:
@@ -18724,7 +18724,7 @@ admin3</code>
             
         except Exception as e:
             logger.error(f"处理用户名文件失败: {e}")
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.file_processing_failed\', error=str(e)))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.file_processing_failed', error=str(e)))
     
 
     
@@ -19434,7 +19434,7 @@ admin3</code>
         # 解析姓名
         name_text = text.strip()
         if not name_text:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.name_empty\'))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.name_empty'))
             return
         
         parts = name_text.split(maxsplit=1)
@@ -20278,7 +20278,7 @@ admin3</code>
     def handle_reauthorize_old_password_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理旧密码输入（手动模式）"""
         if user_id not in self.pending_reauthorize:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.session_expired\'))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_reauthorize[user_id]
@@ -20303,7 +20303,7 @@ admin3</code>
     def handle_reauthorize_new_password_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理新密码输入"""
         if user_id not in self.pending_reauthorize:
-            self.safe_send_message(update, self.i18n.get(user_id, \'error.session_expired\'))
+            self.safe_send_message(update, self.i18n.get(user_id, 'error.session_expired'))
             return
         
         task = self.pending_reauthorize[user_id]
