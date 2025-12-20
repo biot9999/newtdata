@@ -40,6 +40,9 @@ from pathlib import Path
 from dataclasses import dataclass
 from collections import deque, namedtuple
 
+# 导入多语言管理器
+from i18n import I18n
+
 # 定义北京时区常量
 BEIJING_TZ = timezone(timedelta(hours=8))
 
@@ -8559,6 +8562,13 @@ class EnhancedBot:
             print("❌ 配置验证失败")
             sys.exit(1)
         
+        # 初始化多语言管理器
+        self.i18n = I18n(locales_dir='locales', default_lang='zh')
+        print("✅ 多语言管理器初始化完成")
+        
+        # 加载用户语言偏好
+        self.load_user_languages()
+        
         self.db = Database(config.DB_NAME)
         self.proxy_manager = ProxyManager(config.PROXY_FILE)
         self.proxy_tester = ProxyTester(self.proxy_manager)
@@ -8989,6 +8999,39 @@ class EnhancedBot:
             buttons.append(row)
         
         return InlineKeyboardMarkup(buttons)
+    
+    def load_user_languages(self):
+        """加载用户语言偏好"""
+        try:
+            if os.path.exists('user_languages.json'):
+                with open('user_languages.json', 'r', encoding='utf-8') as f:
+                    user_langs = json.load(f)
+                    for user_id_str, lang in user_langs.items():
+                        self.i18n.set_user_language(int(user_id_str), lang)
+                print(f"✅ 已加载 {len(user_langs)} 个用户语言偏好")
+        except Exception as e:
+            print(f"⚠️ 加载用户语言偏好失败: {e}")
+    
+    def save_user_language(self, user_id: int, lang: str):
+        """保存用户语言偏好"""
+        self.i18n.set_user_language(user_id, lang)
+        
+        try:
+            # 读取现有数据
+            user_langs = {}
+            if os.path.exists('user_languages.json'):
+                with open('user_languages.json', 'r', encoding='utf-8') as f:
+                    user_langs = json.load(f)
+            
+            # 更新
+            user_langs[str(user_id)] = lang
+            
+            # 保存
+            with open('user_languages.json', 'w', encoding='utf-8') as f:
+                json.dump(user_langs, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"❌ 保存用户语言偏好失败: {e}")
+    
     def start_command(self, update: Update, context: CallbackContext):
         """处理 /start 命令"""
         user_id = update.effective_user.id
@@ -9004,69 +9047,68 @@ class EnhancedBot:
         """显示主菜单（统一方法）"""
         # 获取用户信息
         if update.callback_query:
-            first_name = update.callback_query.from_user.first_name or "用户"
+            first_name = update.callback_query.from_user.first_name or self.i18n.get(user_id, 'start.user_label')
         else:
-            first_name = update.effective_user.first_name or "用户"
+            first_name = update.effective_user.first_name or self.i18n.get(user_id, 'start.user_label')
         
         # 获取会员状态（使用 check_membership 方法）
         is_member, level, expiry = self.db.check_membership(user_id)
         
         if self.db.is_admin(user_id):
-            member_status = "👑 管理员"
+            member_status = self.i18n.get(user_id, 'start.admin_status')
         elif is_member:
-            member_status = f"🎁 {level}"
+            member_status = self.i18n.get(user_id, 'start.member_status', level=level)
         else:
-            member_status = "❌ 无会员"
+            member_status = self.i18n.get(user_id, 'start.no_member')
         
-        welcome_text = f"""
-<b>🔍 Telegram账号机器人 V8.0</b>
-
-👤 <b>用户信息</b>
-• 昵称: {first_name}
-• ID: <code>{user_id}</code>
-• 会员: {member_status}
-• 到期: {expiry}
-
-📡 <b>代理状态</b>
-• 代理模式: {'🟢启用' if self.proxy_manager.is_proxy_mode_active(self.db) else '🔴本地连接'}
-• 代理数量: {len(self.proxy_manager.proxies)}个
-• 当前时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}
-        """
+        # 代理状态
+        proxy_status = self.i18n.get(user_id, 'start.proxy_enabled') if self.proxy_manager.is_proxy_mode_active(self.db) else self.i18n.get(user_id, 'start.proxy_local')
         
+        welcome_text = self.i18n.get(
+            user_id,
+            'start.welcome',
+            first_name=first_name,
+            uid=user_id,
+            member_status=member_status,
+            expiry=expiry,
+            proxy_status=proxy_status,
+            proxy_count=len(self.proxy_manager.proxies),
+            current_time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')
+        )
 
         # 创建横排2x2布局的主菜单按钮（在原有两行后新增一行"🔗 API转换"）
         buttons = [
             [
-                InlineKeyboardButton("🚀 账号检测", callback_data="start_check"),
-                InlineKeyboardButton("🔄 格式转换", callback_data="format_conversion")
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_check'), callback_data="start_check"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_convert'), callback_data="format_conversion")
             ],
             [
-                InlineKeyboardButton("👤 修改资料", callback_data="modify_profile"),
-                InlineKeyboardButton("📦 批量创建", callback_data="batch_create_start")
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_modify'), callback_data="modify_profile"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_batch'), callback_data="batch_create_start")
             ],
             [
-                InlineKeyboardButton("🔐 修改2FA", callback_data="change_2fa"),
-                InlineKeyboardButton("🔓 忘记2FA", callback_data="forget_2fa")
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_change_2fa'), callback_data="change_2fa"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_forget_2fa'), callback_data="forget_2fa")
             ],
             [
-                InlineKeyboardButton("❌ 删除2FA", callback_data="remove_2fa"),
-                InlineKeyboardButton("➕ 添加2FA", callback_data="add_2fa")
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_remove_2fa'), callback_data="remove_2fa"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_add_2fa'), callback_data="add_2fa")
             ],
             [
-                InlineKeyboardButton("📦 账号拆分", callback_data="classify_menu"),
-                InlineKeyboardButton("🔗 API转换", callback_data="api_conversion")
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_classify'), callback_data="classify_menu"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_api_convert'), callback_data="api_conversion")
             ],
             [
-                InlineKeyboardButton("📝 文件重命名", callback_data="rename_start"),
-                InlineKeyboardButton("🧩 账户合并", callback_data="merge_start")
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_rename'), callback_data="rename_start"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_merge'), callback_data="merge_start")
             ],
             [
-                InlineKeyboardButton("🧹 一键清理", callback_data="cleanup_start"),
-                InlineKeyboardButton("🔑 重新授权", callback_data="reauthorize_start")
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_cleanup'), callback_data="cleanup_start"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_reauthorize'), callback_data="reauthorize_start")
             ],
             [
-                InlineKeyboardButton("🕰️ 查询注册时间", callback_data="check_registration_start"),
-                InlineKeyboardButton("💳 开通/兑换会员", callback_data="vip_menu")
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_check_registration'), callback_data="check_registration_start"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_vip'), callback_data="vip_menu")
             ]
         ]
 
@@ -9074,13 +9116,14 @@ class EnhancedBot:
         # 管理员按钮
         if self.db.is_admin(user_id):
             buttons.append([
-                InlineKeyboardButton("👑 管理员面板", callback_data="admin_panel"),
-                InlineKeyboardButton("📡 代理管理", callback_data="proxy_panel")
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_admin'), callback_data="admin_panel"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'start.button_proxy'), callback_data="proxy_panel")
             ])
 
         # 底部功能按钮（如果已把“帮助”放到第三行左侧，可将这里的帮助去掉或改为“⚙️ 状态”）
         buttons.append([
-            InlineKeyboardButton("⚙️ 状态", callback_data="status")
+            InlineKeyboardButton(self.i18n.get(user_id, 'start.button_status'), callback_data="status"),
+            InlineKeyboardButton(self.i18n.get(user_id, 'start.button_settings'), callback_data="settings")
         ])
 
         
@@ -10253,7 +10296,7 @@ class EnhancedBot:
             self.handle_check_registration_start(query)
         elif data.startswith("check_reg_"):
             self.handle_check_registration_callbacks(update, context, query, data)
-        elif query.data == "back_to_main":
+        elif query.data == "back_to_main" or query.data == "back_main":
             self.show_main_menu(update, user_id)
             # 返回主菜单 - 横排2x2布局
             query.answer()
@@ -10338,6 +10381,13 @@ class EnhancedBot:
             self.handle_help_callback(query)
         elif data == "status":
             self.handle_status_callback(query)
+        elif data == "settings":
+            self.handle_settings(query)
+        elif data == "settings_language":
+            self.handle_language_selection(query)
+        elif data.startswith("set_lang_"):
+            lang_code = data.replace("set_lang_", "")
+            self.handle_set_language(query, lang_code)
         elif data == "admin_panel":
             self.handle_admin_panel(query)
         elif data == "proxy_panel":
@@ -10417,29 +10467,14 @@ class EnhancedBot:
         # 检查权限
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_edit_message(query, "❌ 需要会员权限才能使用检测功能")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.not_member'))
             return
         
         if not TELETHON_AVAILABLE:
-            self.safe_edit_message(query, "❌ 检测功能不可用\n\n原因: Telethon库未安装")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'error.system', error='Telethon库未安装'))
             return
         
-        proxy_info = ""
-        if config.USE_PROXY:
-            proxy_count = len(self.proxy_manager.proxies)
-            proxy_info = f"\n📡 代理模式: 启用 ({proxy_count}个代理)"
-        
-        text = f"""
-📤 <b>请上传您的账号文件</b>
-
-📁 <b>支持格式</b>
-• ZIP压缩包 (推荐)
-• 包含 Session 文件 (.session)
-• 包含 Session+JSON 文件 (.session + .json)
-• 包含 TData 文件夹{proxy_info}
-
-请选择您的ZIP文件并上传...
-        """
+        text = self.i18n.get(user_id, 'check.upload_prompt')
         
         self.safe_edit_message(query, text, 'HTML')
         
@@ -10455,39 +10490,19 @@ class EnhancedBot:
         # 检查权限
         is_member, level, _ = self.db.check_membership(user_id)
         if not is_member and not self.db.is_admin(user_id):
-            self.safe_edit_message(query, "❌ 需要会员权限才能使用格式转换功能")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.not_member'))
             return
         
         if not OPENTELE_AVAILABLE:
-            self.safe_edit_message(query, "❌ 格式转换功能不可用\n\n原因: opentele库未安装\n💡 请安装: pip install opentele")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'error.system', error='opentele库未安装'))
             return
         
-        text = """
-🔄 <b>格式转换功能</b>
-
-<b>📁 支持的转换</b>
-1️⃣ <b>Tdata → Session</b>
-   • 将Telegram Desktop的tdata格式转换为Session格式
-   • 适用于需要使用Session的工具
-
-2️⃣ <b>Session → Tdata</b>
-   • 将Session格式转换为Telegram Desktop的tdata格式
-   • 适用于Telegram Desktop客户端
-
-<b>⚡ 功能特点</b>
-• 批量并发转换，提高效率
-• 实时进度显示
-• 自动分类成功和失败
-• 完善的错误处理
-
-<b>📤 操作说明</b>
-请选择要执行的转换类型：
-        """
+        text = self.i18n.get(user_id, 'convert.title') + "\n\n" + self.i18n.get(user_id, 'convert.menu')
         
         buttons = [
-            [InlineKeyboardButton("📤 Tdata → Session", callback_data="convert_tdata_to_session")],
-            [InlineKeyboardButton("📥 Session → Tdata", callback_data="convert_session_to_tdata")],
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'convert.tdata_to_session'), callback_data="convert_tdata_to_session")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'convert.session_to_tdata'), callback_data="convert_session_to_tdata")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back_main'), callback_data="back_to_main")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -10498,25 +10513,7 @@ class EnhancedBot:
         query.answer()
         user_id = query.from_user.id
         
-        text = """
-📤 <b>Tdata → Session 转换</b>
-
-<b>📁 请准备以下文件</b>
-• ZIP压缩包，包含Tdata文件夹
-• 每个Tdata文件夹应包含 D877F783D5D3EF8C 目录
-
-<b>🔧 转换说明</b>
-• 系统将自动识别所有Tdata文件夹
-• 批量转换为Session格式
-• 生成对应的.session和.json文件
-
-<b>⚡ 高性能处理</b>
-• 并发转换，提高速度
-• 实时显示进度
-• 自动分类成功/失败
-
-请上传您的ZIP文件...
-        """
+        text = self.i18n.get(user_id, 'convert.upload_prompt')
         
         self.safe_edit_message(query, text, 'HTML')
         
@@ -10529,25 +10526,7 @@ class EnhancedBot:
         query.answer()
         user_id = query.from_user.id
         
-        text = """
-📥 <b>Session → Tdata 转换</b>
-
-<b>📁 请准备以下文件</b>
-• ZIP压缩包，包含.session文件
-• 可选：对应的.json配置文件
-
-<b>🔧 转换说明</b>
-• 系统将自动识别所有Session文件
-• 批量转换为Tdata格式
-• 生成对应的Tdata文件夹
-
-<b>⚡ 高性能处理</b>
-• 并发转换，提高速度
-• 实时显示进度
-• 自动分类成功/失败
-
-请上传您的ZIP文件...
-        """
+        text = self.i18n.get(user_id, 'convert.upload_prompt')
         
         self.safe_edit_message(query, text, 'HTML')
         
@@ -10791,6 +10770,75 @@ class EnhancedBot:
 """
         
         self.safe_edit_message(query, status_text, 'HTML')
+    
+    def handle_settings(self, query):
+        """设置菜单"""
+        user_id = query.from_user.id
+        query.answer()
+        
+        keyboard = [
+            [InlineKeyboardButton(
+                self.i18n.get(user_id, 'settings.language'),
+                callback_data='settings_language'
+            )],
+            [InlineKeyboardButton(
+                self.i18n.get(user_id, 'common.back_main'),
+                callback_data='back_main'
+            )]
+        ]
+        
+        current_lang = self.i18n.get_user_language(user_id)
+        lang_name = self.i18n.get_available_languages().get(current_lang, current_lang)
+        
+        text = (
+            self.i18n.get(user_id, 'settings.title') + "\n\n"
+            + self.i18n.get(user_id, 'settings.current_language', lang=lang_name)
+        )
+        
+        self.safe_edit_message(query, text, 'HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    def handle_language_selection(self, query):
+        """语言选择"""
+        user_id = query.from_user.id
+        query.answer()
+        
+        available_langs = self.i18n.get_available_languages()
+        keyboard = []
+        
+        for lang_code, lang_name in available_langs.items():
+            keyboard.append([InlineKeyboardButton(
+                lang_name,
+                callback_data=f'set_lang_{lang_code}'
+            )])
+        
+        keyboard.append([InlineKeyboardButton(
+            self.i18n.get(user_id, 'common.back'),
+            callback_data='settings'
+        )])
+        
+        text = self.i18n.get(user_id, 'settings.select_language')
+        
+        self.safe_edit_message(query, text, 'HTML', reply_markup=InlineKeyboardMarkup(keyboard))
+    
+    def handle_set_language(self, query, lang_code: str):
+        """设置语言"""
+        user_id = query.from_user.id
+        query.answer()
+        
+        if self.i18n.set_user_language(user_id, lang_code):
+            self.save_user_language(user_id, lang_code)
+            
+            lang_name = self.i18n.get_available_languages().get(lang_code, lang_code)
+            text = self.i18n.get(user_id, 'settings.language_changed', lang=lang_name)
+            
+            self.safe_edit_message(query, text, 'HTML')
+            
+            # 1秒后返回设置菜单
+            time.sleep(1)
+            self.handle_settings(query)
+        else:
+            text = self.i18n.get(user_id, 'common.error', error='Invalid language')
+            self.safe_edit_message(query, text, 'HTML')
     
     def handle_admin_panel(self, query):
         """管理员面板"""
@@ -19144,9 +19192,9 @@ admin3</code>
         if not PROFILE_MODIFIER_AVAILABLE:
             self.safe_edit_message(
                 query,
-                "❌ 资料修改功能不可用\n\n原因: profile_modifier模块未安装",
+                self.i18n.get(user_id, 'error.system', error='profile_modifier模块未安装'),
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="back_to_main")
                 ]])
             )
             return
@@ -19156,37 +19204,23 @@ admin3</code>
         if not is_member and not self.db.is_admin(user_id):
             self.safe_edit_message(
                 query,
-                "⚠️ 修改资料功能需要会员权限\n\n请先开通会员",
+                self.i18n.get(user_id, 'common.not_member'),
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
-                    InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'start.button_vip'), callback_data="vip_menu"),
+                    InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="back_to_main")
                 ]])
             )
             return
         
         keyboard = [
-            [InlineKeyboardButton("🎲 随机生成", callback_data='modify_random')],
-            [InlineKeyboardButton("✏️ 自定义配置", callback_data='modify_custom')],
-            [InlineKeyboardButton("🔙 返回", callback_data='back_to_main')]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'modify.mode_random'), callback_data='modify_random')],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'modify.mode_custom'), callback_data='modify_custom')],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data='back_to_main')]
         ]
         
-        text = (
-            "📱 *修改资料功能*\n\n"
-            "请选择模式：\n\n"
-            "💡 *随机生成说明*：\n"
-            "• 姓名：根据手机区号智能匹配\n"
-            "• 头像：自动清空现有头像\n"
-            "• 简介：对应语言随机生成或留空\n"
-            "• 支持40+国家/地区，12+种语言\n\n"
-            "💡 *自定义配置说明*：\n"
-            "• 手动指定姓名、头像、简介\n"
-            "• 支持批量上传配置文件\n\n"
-            "⚠️ *注意*：\n"
-            "• 优先使用代理连接\n"
-            "• 代理超时自动回退本地"
-        )
+        text = self.i18n.get(user_id, 'modify.title') + "\n\n" + self.i18n.get(user_id, 'modify.menu')
         
-        self.safe_edit_message(query, text, parse_mode='Markdown',
+        self.safe_edit_message(query, text, parse_mode='HTML',
                               reply_markup=InlineKeyboardMarkup(keyboard))
     
     def handle_modify_random(self, query):
