@@ -576,7 +576,7 @@
     "admin_info": "<b>👑 管理员信息</b>",
     "admin_count": "• 管理员数量: {count}个",
     "your_permission": "• 您的权限: {permission}",
-    "super_admin": "👑 超级管理员",
+    "super_admin": "👑 <code>{id}</code> (超级管理员)",
     "normal_admin": "🔧 普通管理员",
     "system_time": "• 系统时间: {time}",
     "quick_actions": "<b>🔧 快速操作</b>",
@@ -591,7 +591,14 @@
     "button_manual_activation": "👤 人工开通",
     "button_revoke_member": "撤销会员",
     "button_broadcast": "📢 群发通知",
-    "button_back_main": "🔙 返回主菜单"
+    "button_back_main": "🔙 返回主菜单",
+    "list_header": "<b>👑 管理员列表</b>",
+    "regular_admin": "🔧 <code>{id}</code>",
+    "config_file_admin": "配置文件管理员",
+    "system_built_in": "系统内置",
+    "total_admins": "<b>📊 总计: {count} 个管理员</b>",
+    "add_success": "✅ 成功添加管理员",
+    "usage_instructions": "📝 使用方法:"
   },
   "proxy": {
     "title": "📡 <b>代理管理</b>",
@@ -618,8 +625,8 @@
     "proxy_status": "📊 代理状态",
     "clean_proxy": "🧹 清理失效代理",
     "speed_optimization": "⚡ 速度优化",
-    "fast_mode_on": "🟢 快速模式",
-    "fast_mode_off": "🔴 常规模式",
+    "fast_mode_on": "开启",
+    "fast_mode_off": "关闭",
     "delete_card": "🗑️ 删除卡密",
     "card_list": "📋 卡密列表",
     "generate_card": "🎟️ 生成卡密",
@@ -659,7 +666,9 @@
     "test_failed_error": "❌ 代理测试失败: {e}",
     "no_cleanup": "❌ 没有可用的代理进行清理",
     "cleanup_success": "🎉 <b>代理清理成功！</b>",
-    "cleanup_failed": "❌ <b>代理清理失败</b>"
+    "cleanup_failed": "❌ <b>代理清理失败</b>",
+    "test_start_message": "�� 开始测试 {count} 个代理...\n⚡ 快速模式: {mode}\n🚀 并发数: {concurrent}\n\n请稍等，测试结果将自动发送...",
+    "test_in_progress": "🧪 <b>代理测试中...</b>\n\n📊 正在初始化测试环境..."
   },
   "settings": {
     "title": "⚙️ <b>设置</b>",

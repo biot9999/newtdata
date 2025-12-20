@@ -576,7 +576,7 @@
     "admin_info": "<b>👑 Admin Info</b>",
     "admin_count": "• Admin Count: {count}",
     "your_permission": "• Your Permission: {permission}",
-    "super_admin": "👑 Super Admin",
+    "super_admin": "👑 <code>{id}</code> (Super Admin)",
     "normal_admin": "🔧 Normal Admin",
     "system_time": "• System Time: {time}",
     "quick_actions": "<b>🔧 Quick Actions</b>",
@@ -591,7 +591,14 @@
     "button_manual_activation": "👤 Manual Activation",
     "button_revoke_member": "Revoke Membership",
     "button_broadcast": "📢 Broadcast",
-    "button_back_main": "🔙 Back to Main"
+    "button_back_main": "🔙 Back to Main",
+    "list_header": "<b>👑 Admin List</b>",
+    "regular_admin": "🔧 <code>{id}</code>",
+    "config_file_admin": "Config File Admin",
+    "system_built_in": "System Built-in",
+    "total_admins": "<b>📊 Total: {count} admins</b>",
+    "add_success": "✅ Successfully added admin",
+    "usage_instructions": "📝 Usage:"
   },
   "proxy": {
     "title": "📡 <b>Proxy Management</b>",
@@ -618,8 +625,8 @@
     "proxy_status": "📊 Proxy Status",
     "clean_proxy": "🧹 Clean Failed Proxies",
     "speed_optimization": "⚡ Speed Optimization",
-    "fast_mode_on": "🟢 Fast Mode",
-    "fast_mode_off": "🔴 Normal Mode",
+    "fast_mode_on": "On",
+    "fast_mode_off": "Off",
     "delete_card": "🗑️ Delete Card",
     "card_list": "📋 Card List",
     "generate_card": "🎟️ Generate Card",
@@ -659,7 +666,9 @@
     "test_failed_error": "❌ Proxy test failed: {e}",
     "no_cleanup": "❌ No proxies available for cleanup",
     "cleanup_success": "🎉 <b>Proxy Cleanup Successful!</b>",
-    "cleanup_failed": "❌ <b>Proxy Cleanup Failed</b>"
+    "cleanup_failed": "❌ <b>Proxy Cleanup Failed</b>",
+    "test_start_message": "🧪 Starting test for {count} proxies...\n⚡ Fast mode: {mode}\n🚀 Concurrent: {concurrent}\n\nPlease wait, test results will be sent automatically...",
+    "test_in_progress": "🧪 <b>Proxy Testing...</b>\n\n📊 Initializing test environment..."
   },
   "settings": {
     "title": "⚙️ <b>Settings</b>",

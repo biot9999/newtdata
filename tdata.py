@@ -9517,24 +9517,24 @@ class EnhancedBot:
             self.safe_send_message(update, self.i18n.get(user_id, "admin.no_admins"))
             return
         
-        admin_text = "<b>👑 管理员列表</b>\n\n"
+        admin_text = f"{self.i18n.get(user_id, 'admin.list_header')}\n\n"
         
         for i, (admin_id, username, first_name, added_time) in enumerate(admins, 1):
             admin_text += f"<b>{i}.</b> "
             if admin_id in config.ADMIN_IDS:
-                admin_text += f"👑 <code>{admin_id}</code> (超级管理员)\n"
+                admin_text += f"{self.i18n.get(user_id, 'admin.super_admin', id=admin_id)}\n"
             else:
-                admin_text += f"🔧 <code>{admin_id}</code>\n"
+                admin_text += f"{self.i18n.get(user_id, 'admin.regular_admin', id=admin_id)}\n"
             
-            if username and username != "配置文件管理员":
+            if username and username != self.i18n.get(user_id, 'admin.config_file_admin'):
                 admin_text += f"   📝 @{username}\n"
             if first_name and first_name != "":
                 admin_text += f"   🏷️ {first_name}\n"
-            if added_time != "系统内置":
+            if added_time != self.i18n.get(user_id, 'admin.system_built_in'):
                 admin_text += f"   ⏰ {added_time}\n"
             admin_text += "\n"
         
-        admin_text += f"<b>📊 总计: {len(admins)} 个管理员</b>"
+        admin_text += self.i18n.get(user_id, 'admin.total_admins', count=len(admins))
         
         self.safe_send_message(update, admin_text, 'HTML')
     
@@ -9655,12 +9655,13 @@ class EnhancedBot:
         thread = threading.Thread(target=process_test)
         thread.start()
         
+        mode_text = self.i18n.get(user_id, 'proxy.fast_mode_on' if config.PROXY_FAST_MODE else 'proxy.fast_mode_off')
         self.safe_send_message(
             update, 
-            f"🧪 开始测试 {len(self.proxy_manager.proxies)} 个代理...\n"
-            f"⚡ 快速模式: {'开启' if config.PROXY_FAST_MODE else '关闭'}\n"
-            f"🚀 并发数: {config.PROXY_CHECK_CONCURRENT}\n\n"
-            "请稍等，测试结果将自动发送..."
+            self.i18n.get(user_id, 'proxy.test_start_message', 
+                         count=len(self.proxy_manager.proxies),
+                         mode=mode_text,
+                         concurrent=config.PROXY_CHECK_CONCURRENT)
         )
     
     async def process_proxy_test(self, update, context):
@@ -9669,7 +9670,7 @@ class EnhancedBot:
             # 发送进度消息
             progress_msg = self.safe_send_message(
                 update,
-                "🧪 <b>代理测试中...</b>\n\n📊 正在初始化测试环境...",
+                self.i18n.get(user_id, 'proxy.test_in_progress'),
                 'HTML'
             )
             
