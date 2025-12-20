@@ -64,7 +64,21 @@
     "file_scan_failed": "❌ File scan failed: {error}",
     "skip_duplicate_tdata": "⚠️ Skipping duplicate TData directory: {dir_name}",
     "tdata_path_warning": "⚠️ Warning: TData path not properly set, skipping: {dir_name}",
-    "cannot_read_d877": "⚠️ Cannot read D877F783D5D3EF8C subdirectory: {error}"
+    "cannot_read_d877": "⚠️ Cannot read D877F783D5D3EF8C subdirectory: {error}",
+    "final_result_title": "✅ <b>Detection Complete! Auto-sending files...</b>",
+    "final_result_header": "📊 <b>Final Results</b>",
+    "total_accounts": "• Total Accounts: {count}",
+    "unrestricted": "• 🟢 Unrestricted: {count}",
+    "spam": "• 🟡 Spam: {count}",
+    "frozen": "• 🔴 Frozen: {count}",
+    "banned": "• 🟠 Banned: {count}",
+    "connection_error": "• ⚫ Connection Error: {count}",
+    "proxy_connection": "📡 Proxy Connection: {count}",
+    "local_connection": "🏠 Local Connection: {count}",
+    "performance_stats": "⚡ <b>Performance Stats</b>",
+    "detection_time": "• Detection Time: {seconds}s ({minutes}min)",
+    "average_speed": "• Average Speed: {speed} accounts/s",
+    "sending_files": "🚀 Auto-sending classification files, please wait..."
   },
   "convert": {
     "title": "🔄 <b>Format Conversion</b>",
@@ -170,7 +184,12 @@
     "notes_desc": "• Supports TData and Session formats\n• File size limit: 100MB\n• Auto-identify phone and country info",
     "button_start": "📤 Start Upload",
     "button_back": "◀️ Back to Main",
-    "unavailable": "❌ Account classification unavailable\n\nPlease check if dependencies are installed correctly"
+    "unavailable": "❌ Account classification unavailable\n\nPlease check if dependencies are installed correctly",
+    "classification_complete": "✅ <b>Classification Complete!</b>",
+    "total_accounts_label": "• Total Accounts: {count}",
+    "files_sent": "• Files Sent: {count}",
+    "per_pack_quantity": "• Per Pack: {count}",
+    "use_again_prompt": "To use again, click /start"
   },
   "batch": {
     "title": "📦 <b>Batch Account Creation</b>",
@@ -223,7 +242,16 @@
     "usage_step2": "2. System auto-analyzes account info",
     "usage_step3": "3. Generate API format file and verification links",
     "usage_step4": "4. Download and use results",
-    "please_upload": "Please upload your file..."
+    "please_upload": "Please upload your file...",
+    "conversion_complete": "🎉 <b>API Format Conversion Complete!</b>",
+    "conversion_stats": "📊 <b>Conversion Statistics</b>",
+    "total_files": "• Total: {count}",
+    "success_count": "• ✅ Success: {count} ({rate}%)",
+    "failed_count": "• ❌ Failed: {count} ({rate}%)",
+    "elapsed_time": "• ⏱️ Time: {seconds}s",
+    "conversion_speed": "• 🚀 Speed: {speed}/s",
+    "sending_txt": "📄 Sending TXT file...",
+    "api_link_caption": "📋 API Links (Phone + Link)"
   },
   "rename": {
     "title": "📝 <b>File Rename</b>",
@@ -264,7 +292,18 @@
     "upload_multiple": "• Can upload multiple ZIP files\n• System auto-extracts and scans content",
     "finish_note": "Click '✅ Finish Merge' when upload is complete",
     "button_finish": "✅ Finish Merge",
-    "button_cancel": "❌ Cancel"
+    "button_cancel": "❌ Cancel",
+    "merge_complete": "✅ <b>Account File Merge Complete!</b>",
+    "processing_results": "<b>📊 Processing Results</b>",
+    "zip_files_extracted": "• ZIP Files Extracted: {count}",
+    "tdata_accounts": "• TData Accounts: {count}",
+    "session_files": "• Session Files: {count} (supports pure Session or Session+JSON)",
+    "duplicate_handling": "<b>🔄 Duplicate File Handling</b>",
+    "tdata_duplicates": "• TData Duplicates: {count}",
+    "session_duplicates": "• Session Duplicates: {count}",
+    "duplicate_note": "• Packaged separately, not mixed with normal files",
+    "generated_files": "<b>📦 Generated Files</b>",
+    "total_generated": "Total {count} files (normal and duplicate files packaged separately)"
   },
   "cleanup": {
     "title": "🧹 <b>One-Click Cleanup</b>",
@@ -334,7 +373,18 @@
     "upload_section": "📤 <b>Please Upload Account Files</b>",
     "supported_formats": "Supported formats: .session / TData folder / .zip archive",
     "button_back": "◀️ Back",
-    "button_vip": "💳 Activate Membership"
+    "button_vip": "💳 Activate Membership",
+    "reauth_complete": "✅ <b>Reauthorization Complete</b>",
+    "statistics_info": "<b>Statistics:</b>",
+    "total_count": "• Total: {count}",
+    "success_label": "• ✅ Success: {count}",
+    "frozen_label": "• ❄️ Frozen: {count}",
+    "banned_label": "• 🚫 Banned: {count}",
+    "wrong_pwd_label": "• 🔐 Wrong Password: {count}",
+    "network_error_label": "• 🌐 Network Error: {count}",
+    "other_error_label": "• ❌ Other Errors: {count}",
+    "success_rate": "<b>Success Rate:</b> {rate}%",
+    "detailed_report": "📄 Detailed report in files below"
   },
   "registration": {
     "title": "🕰️ <b>Check Registration Time</b>",
@@ -363,7 +413,12 @@
     "upload_session": "• Session format: Upload .session files (can be packaged as zip)",
     "upload_tdata": "• TData format: Upload zip containing tdata directory",
     "button_back": "🔙 Back to Main",
-    "button_vip": "💳 Activate Membership"
+    "button_vip": "💳 Activate Membership",
+    "regcheck_complete": "✅ <b>Registration Time Query Complete</b>",
+    "statistics_header": "<b>Statistics:</b>",
+    "reg_by_date": "<b>By Registration Date:</b>",
+    "more_dates": "• ... {count} more dates",
+    "detailed_report_below": "📄 Detailed report in files below"
   },
   "vip": {
     "title": "💳 <b>VIP Membership</b>",

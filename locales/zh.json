@@ -64,7 +64,21 @@
     "file_scan_failed": "❌ 文件扫描失败: {error}",
     "skip_duplicate_tdata": "⚠️ 跳过重复TData目录: {dir_name}",
     "tdata_path_warning": "⚠️ 警告: TData路径未正确设置，跳过: {dir_name}",
-    "cannot_read_d877": "⚠️ 无法读取D877F783D5D3EF8C子目录: {error}"
+    "cannot_read_d877": "⚠️ 无法读取D877F783D5D3EF8C子目录: {error}",
+    "final_result_title": "✅ <b>检测完成！正在自动发送文件...</b>",
+    "final_result_header": "📊 <b>最终结果</b>",
+    "total_accounts": "• 总计账号: {count}个",
+    "unrestricted": "• 🟢 无限制: {count}个",
+    "spam": "• 🟡 垃圾邮件: {count}个",
+    "frozen": "• 🔴 冻结: {count}个",
+    "banned": "• 🟠 封禁: {count}个",
+    "connection_error": "• ⚫ 连接错误: {count}个",
+    "proxy_connection": "📡 代理连接: {count}个",
+    "local_connection": "🏠 本地连接: {count}个",
+    "performance_stats": "⚡ <b>性能统计</b>",
+    "detection_time": "• 检测时间: {seconds}秒 ({minutes}分钟)",
+    "average_speed": "• 平均速度: {speed} 账号/秒",
+    "sending_files": "🚀 正在自动发送分类文件，请稍等..."
   },
   "convert": {
     "title": "🔄 <b>格式转换功能</b>",
@@ -170,7 +184,12 @@
     "notes_desc": "• 支持TData和Session两种格式\n• 文件大小限制100MB\n• 自动识别手机号和国家信息",
     "button_start": "📤 开始上传",
     "button_back": "◀️ 返回主菜单",
-    "unavailable": "❌ 账号分类功能不可用\n\n请检查依赖库是否正确安装"
+    "unavailable": "❌ 账号分类功能不可用\n\n请检查依赖库是否正确安装",
+    "classification_complete": "✅ <b>分类完成！</b>",
+    "total_accounts_label": "• 总账号: {count} 个",
+    "files_sent": "• 已发送: {count} 个文件",
+    "per_pack_quantity": "• 每包数量: {count} 个",
+    "use_again_prompt": "如需再次使用，请点击 /start"
   },
   "batch": {
     "title": "📦 <b>批量创建账号</b>",
@@ -223,7 +242,16 @@
     "usage_step2": "2. 系统自动分析账号信息",
     "usage_step3": "3. 生成API格式文件和验证链接",
     "usage_step4": "4. 下载结果使用",
-    "please_upload": "请上传您的文件..."
+    "please_upload": "请上传您的文件...",
+    "conversion_complete": "🎉 <b>API格式转换完成！</b>",
+    "conversion_stats": "📊 <b>转换统计</b>",
+    "total_files": "• 总计: {count} 个",
+    "success_count": "• ✅ 成功: {count} 个 ({rate}%)",
+    "failed_count": "• ❌ 失败: {count} 个 ({rate}%)",
+    "elapsed_time": "• ⏱️ 用时: {seconds} 秒",
+    "conversion_speed": "• 🚀 速度: {speed} 个/秒",
+    "sending_txt": "📄 正在发送TXT文件...",
+    "api_link_caption": "📋 API链接（手机号 + 链接）"
   },
   "rename": {
     "title": "📝 <b>文件重命名</b>",
@@ -264,7 +292,18 @@
     "upload_multiple": "• 可上传多个 ZIP 文件\n• 系统会自动解压并扫描内容",
     "finish_note": "上传完成后点击'✅ 完成合并'",
     "button_finish": "✅ 完成合并",
-    "button_cancel": "❌ 取消"
+    "button_cancel": "❌ 取消",
+    "merge_complete": "✅ <b>账户文件合并完成！</b>",
+    "processing_results": "<b>📊 处理结果</b>",
+    "zip_files_extracted": "• 解压 ZIP 文件: {count} 个",
+    "tdata_accounts": "• TData 账户: {count} 个",
+    "session_files": "• Session 文件: {count} 个 (支持纯Session或Session+JSON)",
+    "duplicate_handling": "<b>🔄 重复文件处理</b>",
+    "tdata_duplicates": "• TData 重复: {count} 个",
+    "session_duplicates": "• Session 重复: {count} 个",
+    "duplicate_note": "• 已单独打包，不与正常文件混合",
+    "generated_files": "<b>📦 生成文件</b>",
+    "total_generated": "共 {count} 个文件（正常文件和重复文件分开打包）"
   },
   "cleanup": {
     "title": "🧹 <b>一键清理</b>",
@@ -334,7 +373,18 @@
     "upload_section": "📤 <b>请上传账号文件</b>",
     "supported_formats": "支持格式：.session / TData文件夹 / .zip压缩包",
     "button_back": "◀️ 返回",
-    "button_vip": "💳 开通会员"
+    "button_vip": "💳 开通会员",
+    "reauth_complete": "✅ <b>重新授权完成</b>",
+    "statistics_info": "<b>统计信息：</b>",
+    "total_count": "• 总数：{count}",
+    "success_label": "• ✅ 成功：{count}",
+    "frozen_label": "• ❄️ 冻结：{count}",
+    "banned_label": "• 🚫 封禁：{count}",
+    "wrong_pwd_label": "• 🔐 密码错误：{count}",
+    "network_error_label": "• 🌐 网络错误：{count}",
+    "other_error_label": "• ❌ 其他错误：{count}",
+    "success_rate": "<b>成功率：</b> {rate}%",
+    "detailed_report": "📄 详细报告见下方文件"
   },
   "registration": {
     "title": "🕰️ <b>查询注册时间</b>",
@@ -363,7 +413,12 @@
     "upload_session": "• Session格式：上传.session文件（可打包成zip）",
     "upload_tdata": "• TData格式：上传包含tdata目录的zip文件",
     "button_back": "🔙 返回主菜单",
-    "button_vip": "💳 开通会员"
+    "button_vip": "💳 开通会员",
+    "regcheck_complete": "✅ <b>注册时间查询完成</b>",
+    "statistics_header": "<b>统计信息：</b>",
+    "reg_by_date": "<b>按注册日期分类：</b>",
+    "more_dates": "• ... 还有 {count} 个日期",
+    "detailed_report_below": "📄 详细报告见下方文件"
   },
   "vip": {
     "title": "💳 <b>开通/兑换会员</b>",

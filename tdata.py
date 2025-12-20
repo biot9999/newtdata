@@ -11746,17 +11746,16 @@ class EnhancedBot:
             success_rate = (len(api_accounts) / total_files * 100) if total_files > 0 else 0
             
             # 发送结果（TXT）
-            summary_text = f"""
-🎉 <b>API格式转换完成！</b>
+            summary_text = f"""{self.i18n.get(user_id, 'api.conversion_complete')}
 
-📊 <b>转换统计</b>
-• 总计: {total_files} 个
-• ✅ 成功: {len(api_accounts)} 个 ({success_rate:.1f}%)
-• ❌ 失败: {len(failed_accounts)} 个 ({100-success_rate:.1f}%)
-• ⏱️ 用时: {int(elapsed_time)} 秒
-• 🚀 速度: {total_files/elapsed_time:.1f} 个/秒{failure_detail}
+{self.i18n.get(user_id, 'api.conversion_stats')}
+{self.i18n.get(user_id, 'api.total_files', count=total_files)}
+{self.i18n.get(user_id, 'api.success_count', count=len(api_accounts), rate=f'{success_rate:.1f}')}
+{self.i18n.get(user_id, 'api.failed_count', count=len(failed_accounts), rate=f'{100-success_rate:.1f}')}
+{self.i18n.get(user_id, 'api.elapsed_time', seconds=int(elapsed_time))}
+{self.i18n.get(user_id, 'api.conversion_speed', speed=f'{total_files/elapsed_time:.1f}')}{failure_detail}
 
-📄 正在发送TXT文件...
+{self.i18n.get(user_id, 'api.sending_txt')}
             """
             try:
                 progress_msg.edit_text(summary_text, parse_mode='HTML')
@@ -11767,7 +11766,7 @@ class EnhancedBot:
                 if os.path.exists(file_path):
                     try:
                         with open(file_path, 'rb') as f:
-                            caption = "📋 API链接（手机号 + 链接）"
+                            caption = self.i18n.get(user_id, 'api.api_link_caption')
                             context.bot.send_document(
                                 chat_id=update.effective_chat.id,
                                 document=f,
@@ -11973,29 +11972,28 @@ class EnhancedBot:
             if config.USE_PROXY:
                 stats = self.checker.get_proxy_usage_stats()
                 if stats['total'] > 0:
-                    proxy_stats = f"\n\n📡 <b>代理使用统计</b>\n• 已使用代理: {stats['proxy_success']}个\n• 回退本地: {stats['local_fallback']}个\n• 失败代理: {stats['proxy_failed']}个\n• 仅本地: {stats['local_only']}个"
+                    proxy_stats = f"\n\n{self.i18n.get(user_id, 'check.proxy_connection', count=stats['proxy_success'])}\n{self.i18n.get(user_id, 'check.local_connection', count=stats['local_fallback'])}"
                 else:
                     # 回退到简单统计
-                    proxy_used_count = sum(1 for _, _, info in sum(results.values(), []) if "代理" in info)
+                    proxy_used_count = sum(1 for _, _, info in sum(results.values(), []) if "代理" in info or "Proxy" in info)
                     local_used_count = total_accounts - proxy_used_count
-                    proxy_stats = f"\n\n📡 代理连接: {proxy_used_count}个\n🏠 本地连接: {local_used_count}个"
+                    proxy_stats = f"\n\n{self.i18n.get(user_id, 'check.proxy_connection', count=proxy_used_count)}\n{self.i18n.get(user_id, 'check.local_connection', count=local_used_count)}"
             
-            final_text = f"""
-✅ <b>检测完成！正在自动发送文件...</b>
+            final_text = f"""{self.i18n.get(user_id, 'check.final_result_title')}
 
-📊 <b>最终结果</b>
-• 总计账号: {total_accounts}个
-• 🟢 无限制: {len(results['无限制'])}个
-• 🟡 垃圾邮件: {len(results['垃圾邮件'])}个
-• 🔴 冻结: {len(results['冻结'])}个
-• 🟠 封禁: {len(results['封禁'])}个
-• ⚫ 连接错误: {len(results['连接错误'])}个{proxy_stats}
+{self.i18n.get(user_id, 'check.final_result_header')}
+{self.i18n.get(user_id, 'check.total_accounts', count=total_accounts)}
+{self.i18n.get(user_id, 'check.unrestricted', count=len(results['无限制']))}
+{self.i18n.get(user_id, 'check.spam', count=len(results['垃圾邮件']))}
+{self.i18n.get(user_id, 'check.frozen', count=len(results['冻结']))}
+{self.i18n.get(user_id, 'check.banned', count=len(results['封禁']))}
+{self.i18n.get(user_id, 'check.connection_error', count=len(results['连接错误']))}{proxy_stats}
 
-⚡ <b>性能统计</b>
-• 检测时间: {int(total_time)}秒 ({total_time/60:.1f}分钟)
-• 平均速度: {final_speed:.1f} 账号/秒
+{self.i18n.get(user_id, 'check.performance_stats')}
+{self.i18n.get(user_id, 'check.detection_time', seconds=int(total_time), minutes=f'{total_time/60:.1f}')}
+{self.i18n.get(user_id, 'check.average_speed', speed=f'{final_speed:.1f}')}
 
-🚀 正在自动发送分类文件，请稍等...
+{self.i18n.get(user_id, 'check.sending_files')}
             """
             
             # 最终状态按钮
@@ -14254,11 +14252,11 @@ class EnhancedBot:
             # 完成提示
             self.safe_send_message(
                 update,
-                f"✅ <b>分类完成！</b>\n\n"
-                f"• 总账号: {total} 个\n"
-                f"• 已发送: {sent} 个文件\n"
-                f"• 每包数量: {qty} 个\n\n"
-                f"如需再次使用，请点击 /start",
+                f"{self.i18n.get(user_id, 'classify.classification_complete')}\n\n"
+                f"{self.i18n.get(user_id, 'classify.total_accounts_label', count=total)}\n"
+                f"{self.i18n.get(user_id, 'classify.files_sent', count=sent)}\n"
+                f"{self.i18n.get(user_id, 'classify.per_pack_quantity', count=qty)}\n\n"
+                f"{self.i18n.get(user_id, 'classify.use_again_prompt')}",
                 'HTML'
             )
             
@@ -16892,23 +16890,21 @@ class EnhancedBot:
         # 发送结果
         duplicate_info = ""
         if duplicates_removed > 0:
-            duplicate_info = f"""
-<b>🔄 重复文件处理</b>
-• TData 重复: {total_tdata_duplicates} 个
-• Session 重复: {total_session_duplicates} 个
-• 已单独打包，不与正常文件混合
+            duplicate_info = f"""{self.i18n.get(user_id, 'merge.duplicate_handling')}
+{self.i18n.get(user_id, 'merge.tdata_duplicates', count=total_tdata_duplicates)}
+{self.i18n.get(user_id, 'merge.session_duplicates', count=total_session_duplicates)}
+{self.i18n.get(user_id, 'merge.duplicate_note')}
 """
         
-        summary = f"""
-✅ <b>账户文件合并完成！</b>
+        summary = f"""{self.i18n.get(user_id, 'merge.merge_complete')}
 
-<b>📊 处理结果</b>
-• 解压 ZIP 文件: {len(files)} 个
-• TData 账户: {total_tdata} 个
-• Session 文件: {total_session_json} 个 (支持纯Session或Session+JSON)
+{self.i18n.get(user_id, 'merge.processing_results')}
+{self.i18n.get(user_id, 'merge.zip_files_extracted', count=len(files))}
+{self.i18n.get(user_id, 'merge.tdata_accounts', count=total_tdata)}
+{self.i18n.get(user_id, 'merge.session_files', count=total_session_json)}
 {duplicate_info}
-<b>📦 生成文件</b>
-共 {len(zip_files_created)} 个文件（正常文件和重复文件分开打包）
+{self.i18n.get(user_id, 'merge.generated_files')}
+{self.i18n.get(user_id, 'merge.total_generated', count=len(zip_files_created))}
         """
         
         context.bot.send_message(chat_id=user_id, text=summary, parse_mode='HTML')
@@ -21557,21 +21553,20 @@ admin3</code>
                     print(f"❌ 打包{category_name}账号失败: {e}", flush=True)
         
         # 发送统计信息 - 添加异常保护
-        summary = f"""
-✅ <b>重新授权完成</b>
+        summary = f"""{self.i18n.get(user_id, 'reauthorize.reauth_complete')}
 
-<b>统计信息：</b>
-• 总数：{total}
-• ✅ 成功：{success_count}
-• ❄️ 冻结：{frozen_count}
-• 🚫 封禁：{banned_count}
-• 🔐 密码错误：{wrong_pwd_count}
-• 🌐 网络错误：{network_error_count}
-• ❌ 其他错误：{other_error_count}
+{self.i18n.get(user_id, 'reauthorize.statistics_info')}
+{self.i18n.get(user_id, 'reauthorize.total_count', count=total)}
+{self.i18n.get(user_id, 'reauthorize.success_label', count=success_count)}
+{self.i18n.get(user_id, 'reauthorize.frozen_label', count=frozen_count)}
+{self.i18n.get(user_id, 'reauthorize.banned_label', count=banned_count)}
+{self.i18n.get(user_id, 'reauthorize.wrong_pwd_label', count=wrong_pwd_count)}
+{self.i18n.get(user_id, 'reauthorize.network_error_label', count=network_error_count)}
+{self.i18n.get(user_id, 'reauthorize.other_error_label', count=other_error_count)}
 
-<b>成功率：</b> {int(success_count/total*100) if total > 0 else 0}%
+{self.i18n.get(user_id, 'reauthorize.success_rate', rate=int(success_count/total*100) if total > 0 else 0)}
 
-📄 详细报告见下方文件
+{self.i18n.get(user_id, 'reauthorize.detailed_report')}
 """
         
         try:
@@ -22855,15 +22850,14 @@ admin3</code>
                 print(f"❌ 打包失败账号失败: {e}", flush=True)
         
         # 发送统计信息
-        summary = f"""
-✅ <b>注册时间查询完成</b>
+        summary = f"""{self.i18n.get(user_id, 'registration.regcheck_complete')}
 
-<b>统计信息：</b>
-• 总数：{total}
-• ✅ 成功：{success_count}
-• ❌ 失败：{error_count}
+{self.i18n.get(user_id, 'registration.statistics_header')}
+{self.i18n.get(user_id, 'registration.total_count', count=total)}
+{self.i18n.get(user_id, 'registration.success_label', count=success_count)}
+{self.i18n.get(user_id, 'registration.error_processing', error=error_count)}
 
-<b>按注册日期分类：</b>
+{self.i18n.get(user_id, 'registration.reg_by_date')}
 """
         # 显示前10个日期的统计
         sorted_dates = sorted(by_date.keys())
@@ -22871,9 +22865,9 @@ admin3</code>
             summary += f"• {reg_date}: {len(by_date[reg_date])} 个\n"
         
         if len(sorted_dates) > 10:
-            summary += f"• ... 还有 {len(sorted_dates) - 10} 个日期\n"
+            summary += f"{self.i18n.get(user_id, 'registration.more_dates', count=len(sorted_dates) - 10)}\n"
         
-        summary += "\n📄 详细报告见下方文件"
+        summary += f"\n{self.i18n.get(user_id, 'registration.detailed_report_below')}"
         
         try:
             context.bot.edit_message_text(
