@@ -9214,28 +9214,27 @@ class EnhancedBot:
             self.safe_edit_message(query, self.i18n.get(user_id, "api.unavailable_flask"))
             return
 
-        text = """
-🔗 <b>API格式转换</b>
+        text = f"""{self.i18n.get(user_id, 'api.intro_title')}
 
-<b>🎯 核心功能</b>
-• 📱 提取手机号信息
-• 🔐 自动检测2FA密码
-• 🌐 生成验证码接收链接
-• 📋 输出标准API格式
+{self.i18n.get(user_id, 'api.intro_features')}
+{self.i18n.get(user_id, 'api.intro_extract_phone')}
+{self.i18n.get(user_id, 'api.intro_auto_2fa')}
+{self.i18n.get(user_id, 'api.intro_generate_link')}
+{self.i18n.get(user_id, 'api.intro_api_format')}
 
-<b>🌐 验证码接收特性</b>
-• 每个账号生成独立验证链接
-• 实时显示验证码，自动刷新
-• 支持HTTP API调用获取验证码
-• 5分钟自动过期保护
+{self.i18n.get(user_id, 'api.verification_title')}
+{self.i18n.get(user_id, 'api.verification_unique_link')}
+{self.i18n.get(user_id, 'api.verification_realtime')}
+{self.i18n.get(user_id, 'api.verification_api')}
+{self.i18n.get(user_id, 'api.verification_expire')}
 
-<b>📤 使用方法</b>
-1. 上传ZIP文件（包含TData或Session）
-2. 系统自动分析账号信息
-3. 生成API格式文件和验证链接
-4. 下载结果使用
+{self.i18n.get(user_id, 'api.usage_title')}
+{self.i18n.get(user_id, 'api.usage_step1')}
+{self.i18n.get(user_id, 'api.usage_step2')}
+{self.i18n.get(user_id, 'api.usage_step3')}
+{self.i18n.get(user_id, 'api.usage_step4')}
 
-请上传您的文件...
+{self.i18n.get(user_id, 'api.please_upload')}
         """
 
         self.safe_edit_message(query, text, 'HTML')
@@ -10733,58 +10732,60 @@ class EnhancedBot:
         user_id = query.from_user.id
         
         if not self.db.is_admin(user_id):
-            query.answer("❌ 仅管理员可访问")
+            query.answer(self.i18n.get(user_id, 'admin.admin_only_access'))
             return
         
         # 获取统计信息
         stats = self.db.get_user_statistics()
         admin_count = len(self.db.get_all_admins()) if self.db.get_all_admins() else 0
         
-        admin_text = f"""
-<b>👑 管理员控制面板</b>
+        # 判断权限类型
+        permission = self.i18n.get(user_id, 'admin.super_admin') if user_id in config.ADMIN_IDS else self.i18n.get(user_id, 'admin.normal_admin')
+        
+        admin_text = f"""{self.i18n.get(user_id, 'admin.panel_title')}
 
-<b>📊 系统统计</b>
-• 总用户数: {stats.get('total_users', 0)}
-• 今日活跃: {stats.get('today_active', 0)}
-• 本周活跃: {stats.get('week_active', 0)}
-• 有效会员: {stats.get('active_members', 0)}
-• 体验会员: {stats.get('trial_members', 0)}
-• 近期新用户: {stats.get('recent_users', 0)}
+{self.i18n.get(user_id, 'admin.system_stats')}
+{self.i18n.get(user_id, 'admin.total_users', count=stats.get('total_users', 0))}
+{self.i18n.get(user_id, 'admin.today_active', count=stats.get('today_active', 0))}
+{self.i18n.get(user_id, 'admin.week_active', count=stats.get('week_active', 0))}
+{self.i18n.get(user_id, 'admin.active_members', count=stats.get('active_members', 0))}
+{self.i18n.get(user_id, 'admin.trial_members', count=stats.get('trial_members', 0))}
+{self.i18n.get(user_id, 'admin.recent_users', count=stats.get('recent_users', 0))}
 
-<b>👑 管理员信息</b>
-• 管理员数量: {admin_count}个
-• 您的权限: {'👑 超级管理员' if user_id in config.ADMIN_IDS else '🔧 普通管理员'}
-• 系统时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}
+{self.i18n.get(user_id, 'admin.admin_info')}
+{self.i18n.get(user_id, 'admin.admin_count', count=admin_count)}
+{self.i18n.get(user_id, 'admin.your_permission', permission=permission)}
+{self.i18n.get(user_id, 'admin.system_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}
 
-<b>🔧 快速操作</b>
-点击下方按钮进行管理操作
+{self.i18n.get(user_id, 'admin.quick_actions')}
+{self.i18n.get(user_id, 'admin.quick_actions_prompt')}
         """
         
         # 创建管理按钮
         buttons = [
             [
-                InlineKeyboardButton("👥 用户管理", callback_data="admin_users"),
-                InlineKeyboardButton("📊 用户统计", callback_data="admin_stats")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_user_manage'), callback_data="admin_users"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_user_stats'), callback_data="admin_stats")
             ],
             [
-                InlineKeyboardButton("📡 代理管理", callback_data="proxy_panel"),
-                InlineKeyboardButton("👑 管理员管理", callback_data="admin_manage")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_proxy_manage'), callback_data="proxy_panel"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_admin_manage'), callback_data="admin_manage")
             ],
             [
-                InlineKeyboardButton("🔍 搜索用户", callback_data="admin_search"),
-                InlineKeyboardButton("📋 最近用户", callback_data="admin_recent")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_search_user'), callback_data="admin_search"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_recent_users'), callback_data="admin_recent")
             ],
             [
-                InlineKeyboardButton("💳 卡密开通", callback_data="admin_card_menu"),
-                InlineKeyboardButton("👤 人工开通", callback_data="admin_manual_menu")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_card_activation'), callback_data="admin_card_menu"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_manual_activation'), callback_data="admin_manual_menu")
             ],
             [
-                InlineKeyboardButton("撤销会员", callback_data="admin_revoke_menu")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_revoke_member'), callback_data="admin_revoke_menu")
             ],
             [
-                InlineKeyboardButton("📢 群发通知", callback_data="broadcast_menu")
+                InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_broadcast'), callback_data="broadcast_menu")
             ],
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'admin.button_back_main'), callback_data="back_to_main")]
         ]
         
         keyboard = InlineKeyboardMarkup(buttons)
@@ -11747,17 +11748,16 @@ class EnhancedBot:
             success_rate = (len(api_accounts) / total_files * 100) if total_files > 0 else 0
             
             # 发送结果（TXT）
-            summary_text = f"""
-🎉 <b>API格式转换完成！</b>
+            summary_text = f"""{self.i18n.get(user_id, 'api.conversion_complete')}
 
-📊 <b>转换统计</b>
-• 总计: {total_files} 个
-• ✅ 成功: {len(api_accounts)} 个 ({success_rate:.1f}%)
-• ❌ 失败: {len(failed_accounts)} 个 ({100-success_rate:.1f}%)
-• ⏱️ 用时: {int(elapsed_time)} 秒
-• 🚀 速度: {total_files/elapsed_time:.1f} 个/秒{failure_detail}
+{self.i18n.get(user_id, 'api.conversion_stats')}
+{self.i18n.get(user_id, 'api.total_files', count=total_files)}
+{self.i18n.get(user_id, 'api.success_count', count=len(api_accounts), rate=f'{success_rate:.1f}')}
+{self.i18n.get(user_id, 'api.failed_count', count=len(failed_accounts), rate=f'{100-success_rate:.1f}')}
+{self.i18n.get(user_id, 'api.elapsed_time', seconds=int(elapsed_time))}
+{self.i18n.get(user_id, 'api.conversion_speed', speed=f'{total_files/elapsed_time:.1f}')}{failure_detail}
 
-📄 正在发送TXT文件...
+{self.i18n.get(user_id, 'api.sending_txt')}
             """
             try:
                 progress_msg.edit_text(summary_text, parse_mode='HTML')
@@ -11768,7 +11768,7 @@ class EnhancedBot:
                 if os.path.exists(file_path):
                     try:
                         with open(file_path, 'rb') as f:
-                            caption = "📋 API链接（手机号 + 链接）"
+                            caption = self.i18n.get(user_id, 'api.api_link_caption')
                             context.bot.send_document(
                                 chat_id=update.effective_chat.id,
                                 document=f,
@@ -11974,29 +11974,28 @@ class EnhancedBot:
             if config.USE_PROXY:
                 stats = self.checker.get_proxy_usage_stats()
                 if stats['total'] > 0:
-                    proxy_stats = f"\n\n📡 <b>代理使用统计</b>\n• 已使用代理: {stats['proxy_success']}个\n• 回退本地: {stats['local_fallback']}个\n• 失败代理: {stats['proxy_failed']}个\n• 仅本地: {stats['local_only']}个"
+                    proxy_stats = f"\n\n{self.i18n.get(user_id, 'check.proxy_connection', count=stats['proxy_success'])}\n{self.i18n.get(user_id, 'check.local_connection', count=stats['local_fallback'])}"
                 else:
                     # 回退到简单统计
-                    proxy_used_count = sum(1 for _, _, info in sum(results.values(), []) if "代理" in info)
+                    proxy_used_count = sum(1 for _, _, info in sum(results.values(), []) if "代理" in info or "Proxy" in info)
                     local_used_count = total_accounts - proxy_used_count
-                    proxy_stats = f"\n\n📡 代理连接: {proxy_used_count}个\n🏠 本地连接: {local_used_count}个"
+                    proxy_stats = f"\n\n{self.i18n.get(user_id, 'check.proxy_connection', count=proxy_used_count)}\n{self.i18n.get(user_id, 'check.local_connection', count=local_used_count)}"
             
-            final_text = f"""
-✅ <b>检测完成！正在自动发送文件...</b>
+            final_text = f"""{self.i18n.get(user_id, 'check.final_result_title')}
 
-📊 <b>最终结果</b>
-• 总计账号: {total_accounts}个
-• 🟢 无限制: {len(results['无限制'])}个
-• 🟡 垃圾邮件: {len(results['垃圾邮件'])}个
-• 🔴 冻结: {len(results['冻结'])}个
-• 🟠 封禁: {len(results['封禁'])}个
-• ⚫ 连接错误: {len(results['连接错误'])}个{proxy_stats}
+{self.i18n.get(user_id, 'check.final_result_header')}
+{self.i18n.get(user_id, 'check.total_accounts', count=total_accounts)}
+{self.i18n.get(user_id, 'check.unrestricted', count=len(results['无限制']))}
+{self.i18n.get(user_id, 'check.spam', count=len(results['垃圾邮件']))}
+{self.i18n.get(user_id, 'check.frozen', count=len(results['冻结']))}
+{self.i18n.get(user_id, 'check.banned', count=len(results['封禁']))}
+{self.i18n.get(user_id, 'check.connection_error', count=len(results['连接错误']))}{proxy_stats}
 
-⚡ <b>性能统计</b>
-• 检测时间: {int(total_time)}秒 ({total_time/60:.1f}分钟)
-• 平均速度: {final_speed:.1f} 账号/秒
+{self.i18n.get(user_id, 'check.performance_stats')}
+{self.i18n.get(user_id, 'check.detection_time', seconds=int(total_time), minutes=f'{total_time/60:.1f}')}
+{self.i18n.get(user_id, 'check.average_speed', speed=f'{final_speed:.1f}')}
 
-🚀 正在自动发送分类文件，请稍等...
+{self.i18n.get(user_id, 'check.sending_files')}
             """
             
             # 最终状态按钮
@@ -13079,45 +13078,36 @@ class EnhancedBot:
             return
         
         if not CLASSIFY_AVAILABLE or not self.classifier:
-            msg = "❌ 账号分类功能不可用\n\n请检查依赖库是否正确安装"
+            msg = self.i18n.get(user_id, "classify.unavailable")
             if query:
                 self.safe_edit_message(query, msg)
             else:
                 self.safe_send_message(update, msg)
             return
         
-        text = """
-📦 <b>账号文件分类</b>
+        # Build intro text using i18n
+        text = f"""{self.i18n.get(user_id, 'classify.intro_title')}
 
-🎯 <b>功能说明</b>
-支持上传包含多个账号的ZIP文件（TData目录或Session+JSON文件），自动识别并分类打包：
+{self.i18n.get(user_id, 'classify.intro_features')}
+{self.i18n.get(user_id, 'classify.intro_description')}
 
-📋 <b>支持的分类方式</b>
-1️⃣ <b>按国家区号拆分</b>
-   • 自动识别手机号→区号→国家
-   • 每个国家生成一个ZIP
-   • 命名：国家+区号+数量
+{self.i18n.get(user_id, 'classify.modes_title')}
+{self.i18n.get(user_id, 'classify.mode_country')}
+{self.i18n.get(user_id, 'classify.mode_country_desc')}
 
-2️⃣ <b>按数量拆分</b>
-   • 支持单个或多个数量
-   • 混合国家命名"混合+000+数量
-   • 全未知命名"未知+000+数量
+{self.i18n.get(user_id, 'classify.mode_quantity')}
+{self.i18n.get(user_id, 'classify.mode_quantity_desc')}
 
-💡 <b>使用步骤</b>
-1. 点击下方按钮开始
-2. 上传包含账号的ZIP文件
-3. 选择拆分方式
-4. 等待处理并接收结果
+{self.i18n.get(user_id, 'classify.steps_title')}
+{self.i18n.get(user_id, 'classify.steps_desc')}
 
-⚠️ <b>注意事项</b>
-• 支持TData和Session两种格式
-• 文件大小限制100MB
-• 自动识别手机号和国家信息
+{self.i18n.get(user_id, 'classify.notes_title')}
+{self.i18n.get(user_id, 'classify.notes_desc')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📤 开始上传", callback_data="classify_start")],
-            [InlineKeyboardButton("◀️ 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.button_start'), callback_data="classify_start")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.button_back'), callback_data="back_to_main")]
         ])
         
         if query:
@@ -14264,11 +14254,11 @@ class EnhancedBot:
             # 完成提示
             self.safe_send_message(
                 update,
-                f"✅ <b>分类完成！</b>\n\n"
-                f"• 总账号: {total} 个\n"
-                f"• 已发送: {sent} 个文件\n"
-                f"• 每包数量: {qty} 个\n\n"
-                f"如需再次使用，请点击 /start",
+                f"{self.i18n.get(user_id, 'classify.classification_complete')}\n\n"
+                f"{self.i18n.get(user_id, 'classify.total_accounts_label', count=total)}\n"
+                f"{self.i18n.get(user_id, 'classify.files_sent', count=sent)}\n"
+                f"{self.i18n.get(user_id, 'classify.per_pack_quantity', count=qty)}\n\n"
+                f"{self.i18n.get(user_id, 'classify.use_again_prompt')}",
                 'HTML'
             )
             
@@ -14534,30 +14524,29 @@ class EnhancedBot:
         is_member, level, expiry = self.db.check_membership(user_id)
         
         if self.db.is_admin(user_id):
-            member_status = "👑 管理员（永久有效）"
+            member_status = self.i18n.get(user_id, 'vip.status_admin')
         elif is_member:
-            member_status = f"💎 {level}\n• 到期时间: {expiry}"
+            member_status = self.i18n.get(user_id, 'vip.status_member', level=level, expiry=expiry)
         else:
-            member_status = "❌ 暂无会员"
+            member_status = self.i18n.get(user_id, 'vip.status_no_member')
         
-        text = f"""
-<b>💳 会员中心</b>
+        text = f"""{self.i18n.get(user_id, 'vip.center_title')}
 
-<b>📊 当前状态</b>
+{self.i18n.get(user_id, 'vip.current_status_header')}
 {member_status}
 
-<b>💡 功能说明</b>
-• 兑换卡密即可开通会员
-• 会员时长自动累加
-• 支持多次兑换叠加
+{self.i18n.get(user_id, 'vip.features_header')}
+{self.i18n.get(user_id, 'vip.feature_redeem')}
+{self.i18n.get(user_id, 'vip.feature_accumulate')}
+{self.i18n.get(user_id, 'vip.feature_multiple')}
 
-<b>🎯 操作选项</b>
-请选择您要执行的操作
+{self.i18n.get(user_id, 'vip.operations_header')}
+{self.i18n.get(user_id, 'vip.operations_prompt')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🎟️ 兑换卡密", callback_data="vip_redeem")],
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'vip.button_redeem'), callback_data="vip_redeem")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'vip.button_back_main'), callback_data="back_to_main")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -14575,21 +14564,20 @@ class EnhancedBot:
             "waiting_redeem_code"
         )
         
-        text = """
-<b>🎟️ 兑换卡密</b>
+        text = f"""{self.i18n.get(user_id, 'vip.redeem_title')}
 
-<b>📋 请输入卡密（10位以内）</b>
+{self.i18n.get(user_id, 'vip.redeem_input')}
 
-💡 提示：
-• 请输入您获得的卡密
-• 卡密不区分大小写
-• 兑换成功后时长自动累加
+{self.i18n.get(user_id, 'vip.redeem_hints')}
+{self.i18n.get(user_id, 'vip.hint_enter_code')}
+{self.i18n.get(user_id, 'vip.hint_case_insensitive')}
+{self.i18n.get(user_id, 'vip.hint_accumulate')}
 
-⏰ <i>5分钟内未输入将自动取消</i>
+{self.i18n.get(user_id, 'vip.timeout_5min')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="vip_menu")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'vip.button_cancel'), callback_data="vip_menu")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16361,22 +16349,21 @@ class EnhancedBot:
             "waiting_rename_file"
         )
         
-        text = """
-<b>📝 文件重命名</b>
+        text = f"""{self.i18n.get(user_id, 'rename.intro_title')}
 
-<b>💡 功能说明</b>
-• 支持任意格式文件
-• 保留原始文件扩展名
-• 自动清理非法字符
-• 无需电脑即可重命名
+{self.i18n.get(user_id, 'rename.intro_features')}
+{self.i18n.get(user_id, 'rename.feature_any_format')}
+{self.i18n.get(user_id, 'rename.feature_keep_ext')}
+{self.i18n.get(user_id, 'rename.feature_clean_chars')}
+{self.i18n.get(user_id, 'rename.feature_no_computer')}
 
-<b>📤 请上传需要重命名的文件</b>
+{self.i18n.get(user_id, 'rename.upload_file')}
 
-⏰ <i>5分钟内未上传将自动取消</i>
+{self.i18n.get(user_id, 'rename.timeout_note')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'rename.button_cancel'), callback_data="back_to_main")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16517,27 +16504,25 @@ class EnhancedBot:
             "waiting_merge_files"
         )
         
-        text = """
-<b>🧩 账户文件合并</b>
+        text = f"""{self.i18n.get(user_id, 'merge.intro_title')}
 
-<b>💡 功能说明</b>
-• 自动解压所有 ZIP 文件
-• 递归扫描识别 TData 账户
-• 递归扫描识别 Session 文件 (支持纯.session或session+json配对)
-• 智能分类归档
+{self.i18n.get(user_id, 'merge.intro_features')}
+{self.i18n.get(user_id, 'merge.feature_auto_extract')}
+{self.i18n.get(user_id, 'merge.feature_scan_tdata')}
+{self.i18n.get(user_id, 'merge.feature_scan_session')}
+{self.i18n.get(user_id, 'merge.feature_classify')}
 
-<b>📤 请上传 ZIP 文件</b>
+{self.i18n.get(user_id, 'merge.upload_zip')}
 
-<b>⚠️ 仅接受 .zip 文件</b>
-• 可上传多个 ZIP 文件
-• 系统会自动解压并扫描内容
+{self.i18n.get(user_id, 'merge.zip_only')}
+{self.i18n.get(user_id, 'merge.upload_multiple')}
 
-上传完成后点击"✅ 完成合并"
+{self.i18n.get(user_id, 'merge.finish_note')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 完成合并", callback_data="merge_finish")],
-            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'merge.button_finish'), callback_data="merge_finish")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'merge.button_cancel'), callback_data="back_to_main")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16905,23 +16890,21 @@ class EnhancedBot:
         # 发送结果
         duplicate_info = ""
         if duplicates_removed > 0:
-            duplicate_info = f"""
-<b>🔄 重复文件处理</b>
-• TData 重复: {total_tdata_duplicates} 个
-• Session 重复: {total_session_duplicates} 个
-• 已单独打包，不与正常文件混合
+            duplicate_info = f"""{self.i18n.get(user_id, 'merge.duplicate_handling')}
+{self.i18n.get(user_id, 'merge.tdata_duplicates', count=total_tdata_duplicates)}
+{self.i18n.get(user_id, 'merge.session_duplicates', count=total_session_duplicates)}
+{self.i18n.get(user_id, 'merge.duplicate_note')}
 """
         
-        summary = f"""
-✅ <b>账户文件合并完成！</b>
+        summary = f"""{self.i18n.get(user_id, 'merge.merge_complete')}
 
-<b>📊 处理结果</b>
-• 解压 ZIP 文件: {len(files)} 个
-• TData 账户: {total_tdata} 个
-• Session 文件: {total_session_json} 个 (支持纯Session或Session+JSON)
+{self.i18n.get(user_id, 'merge.processing_results')}
+{self.i18n.get(user_id, 'merge.zip_files_extracted', count=len(files))}
+{self.i18n.get(user_id, 'merge.tdata_accounts', count=total_tdata)}
+{self.i18n.get(user_id, 'merge.session_files', count=total_session_json)}
 {duplicate_info}
-<b>📦 生成文件</b>
-共 {len(zip_files_created)} 个文件（正常文件和重复文件分开打包）
+{self.i18n.get(user_id, 'merge.generated_files')}
+{self.i18n.get(user_id, 'merge.total_generated', count=len(zip_files_created))}
         """
         
         context.bot.send_message(chat_id=user_id, text=summary, parse_mode='HTML')
@@ -16992,31 +16975,30 @@ class EnhancedBot:
             "waiting_cleanup_file"
         )
         
-        text = """
-<b>🧹 一键清理功能</b>
+        text = f"""{self.i18n.get(user_id, 'cleanup.intro_title')}
 
-<b>⚠️ 重要提示</b>
-此功能会对上传的账号执行以下操作：
-• 🚪 离开所有群组和频道
-• 🗑️ 删除所有聊天记录（尽可能撤回）
-• 📇 清除所有联系人
-• 📁 归档剩余对话
+{self.i18n.get(user_id, 'cleanup.intro_warning')}
+{self.i18n.get(user_id, 'cleanup.warning_desc')}
+{self.i18n.get(user_id, 'cleanup.warning_leave')}
+{self.i18n.get(user_id, 'cleanup.warning_delete')}
+{self.i18n.get(user_id, 'cleanup.warning_contacts')}
+{self.i18n.get(user_id, 'cleanup.warning_archive')}
 
-<b>🔴 不可逆操作</b>
-一旦开始清理，无法撤销！请谨慎使用。
+{self.i18n.get(user_id, 'cleanup.irreversible_title')}
+{self.i18n.get(user_id, 'cleanup.irreversible_desc')}
 
-<b>✅ 安全保障</b>
-• 验证码记录（接码记录）将被保留
-• 自动处理 Telegram 限速
-• 生成详细的清理报告
+{self.i18n.get(user_id, 'cleanup.safety_title')}
+{self.i18n.get(user_id, 'cleanup.safety_preserve')}
+{self.i18n.get(user_id, 'cleanup.safety_ratelimit')}
+{self.i18n.get(user_id, 'cleanup.safety_report')}
 
-<b>📤 请上传 Session 或 TData ZIP 文件</b>
+{self.i18n.get(user_id, 'cleanup.upload_file')}
 
-⏰ <i>5分钟内未上传将自动取消</i>
+{self.i18n.get(user_id, 'cleanup.timeout_note')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'cleanup.button_cancel'), callback_data="back_to_main")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -20027,49 +20009,48 @@ admin3</code>
         if not is_member and not self.db.is_admin(user_id):
             self.safe_edit_message(
                 query,
-                "⚠️ 重新授权功能需要会员权限\n\n请先开通会员",
+                self.i18n.get(user_id, "reauthorize.member_required"),
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
-                    InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.button_vip'), callback_data="vip_menu"),
+                    InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.button_back'), callback_data="back_to_main")
                 ]])
             )
             return
         
-        text = """
-📱 <b>重新授权功能</b>
+        text = f"""{self.i18n.get(user_id, 'reauthorize.intro_title')}
 
-<b>功能说明：</b>
-• 踢掉账号在其他设备的所有登录
-• 确保只有新创建的会话有效
-• 防止账号被多人同时使用
-• 支持自动删除旧密码并设置新密码
-• 支持代理连接（超时回退本地）
-• 使用随机设备参数防止风控
+{self.i18n.get(user_id, 'reauthorize.intro_features')}
+{self.i18n.get(user_id, 'reauthorize.feature_logout_others')}
+{self.i18n.get(user_id, 'reauthorize.feature_ensure_valid')}
+{self.i18n.get(user_id, 'reauthorize.feature_prevent_sharing')}
+{self.i18n.get(user_id, 'reauthorize.feature_auto_password')}
+{self.i18n.get(user_id, 'reauthorize.feature_proxy')}
+{self.i18n.get(user_id, 'reauthorize.feature_random_device')}
 
-<b>工作流程：</b>
-1. 上传账户文件（Session/TData/ZIP）
-2. 输入旧密码（或自动识别JSON中的2FA）
-3. 输入新密码
-4. 系统自动完成重新授权
-5. 结果分类打包（成功/失败）
+{self.i18n.get(user_id, 'reauthorize.workflow_title')}
+{self.i18n.get(user_id, 'reauthorize.workflow_step1')}
+{self.i18n.get(user_id, 'reauthorize.workflow_step2')}
+{self.i18n.get(user_id, 'reauthorize.workflow_step3')}
+{self.i18n.get(user_id, 'reauthorize.workflow_step4')}
+{self.i18n.get(user_id, 'reauthorize.workflow_step5')}
 
-<b>失败分类：</b>
-• 冻结：账号已被冻结
-• 封禁：账号已被封禁
-• 旧密码错误：旧密码不正确
-• 网络错误：连接超时或网络问题
+{self.i18n.get(user_id, 'reauthorize.failure_title')}
+{self.i18n.get(user_id, 'reauthorize.failure_frozen')}
+{self.i18n.get(user_id, 'reauthorize.failure_banned')}
+{self.i18n.get(user_id, 'reauthorize.failure_wrong_password')}
+{self.i18n.get(user_id, 'reauthorize.failure_network')}
 
-<b>注意事项：</b>
-⚠️ 重新授权后，旧会话将立即失效
-⚠️ 请确保提供正确的旧密码
-⚠️ 建议设置新密码以提高账号安全性
+{self.i18n.get(user_id, 'reauthorize.notes_title')}
+{self.i18n.get(user_id, 'reauthorize.note_invalidate')}
+{self.i18n.get(user_id, 'reauthorize.note_correct_password')}
+{self.i18n.get(user_id, 'reauthorize.note_new_password')}
 
-📤 <b>请上传账号文件</b>
-支持格式：.session / TData文件夹 / .zip压缩包
+{self.i18n.get(user_id, 'reauthorize.upload_section')}
+{self.i18n.get(user_id, 'reauthorize.supported_formats')}
 """
         
         keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+            InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.button_back'), callback_data="back_to_main")
         ]])
         
         self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -21572,21 +21553,20 @@ admin3</code>
                     print(f"❌ 打包{category_name}账号失败: {e}", flush=True)
         
         # 发送统计信息 - 添加异常保护
-        summary = f"""
-✅ <b>重新授权完成</b>
+        summary = f"""{self.i18n.get(user_id, 'reauthorize.reauth_complete')}
 
-<b>统计信息：</b>
-• 总数：{total}
-• ✅ 成功：{success_count}
-• ❄️ 冻结：{frozen_count}
-• 🚫 封禁：{banned_count}
-• 🔐 密码错误：{wrong_pwd_count}
-• 🌐 网络错误：{network_error_count}
-• ❌ 其他错误：{other_error_count}
+{self.i18n.get(user_id, 'reauthorize.statistics_info')}
+{self.i18n.get(user_id, 'reauthorize.total_count', count=total)}
+{self.i18n.get(user_id, 'reauthorize.success_label', count=success_count)}
+{self.i18n.get(user_id, 'reauthorize.frozen_label', count=frozen_count)}
+{self.i18n.get(user_id, 'reauthorize.banned_label', count=banned_count)}
+{self.i18n.get(user_id, 'reauthorize.wrong_pwd_label', count=wrong_pwd_count)}
+{self.i18n.get(user_id, 'reauthorize.network_error_label', count=network_error_count)}
+{self.i18n.get(user_id, 'reauthorize.other_error_label', count=other_error_count)}
 
-<b>成功率：</b> {int(success_count/total*100) if total > 0 else 0}%
+{self.i18n.get(user_id, 'reauthorize.success_rate', rate=int(success_count/total*100) if total > 0 else 0)}
 
-📄 详细报告见下方文件
+{self.i18n.get(user_id, 'reauthorize.detailed_report')}
 """
         
         try:
@@ -21612,7 +21592,7 @@ admin3</code>
                         chat_id=user_id,
                         document=f,
                         filename=report_filename,
-                        caption="📊 重新授权详细报告",
+                        caption=self.i18n.get(user_id, 'reauthorize.detailed_report_caption'),
                         timeout=60  # 60秒超时
                     )
                 logger.info("✅ 报告文件已发送")
@@ -21637,14 +21617,14 @@ admin3</code>
             
             try:
                 type_names = {
-                    'success': '成功',
-                    'frozen': '冻结',
-                    'banned': '封禁',
-                    'wrong_password': '密码错误',
-                    'network_error': '网络错误',
-                    'other_error': '其他错误'
+                    'success': self.i18n.get(user_id, 'reauthorize.category_success'),
+                    'frozen': self.i18n.get(user_id, 'reauthorize.category_frozen'),
+                    'banned': self.i18n.get(user_id, 'reauthorize.category_banned'),
+                    'wrong_password': self.i18n.get(user_id, 'reauthorize.category_wrong_password'),
+                    'network_error': self.i18n.get(user_id, 'reauthorize.category_network_error'),
+                    'other_error': self.i18n.get(user_id, 'reauthorize.category_other_error')
                 }
-                caption = f"📦 {type_names.get(zip_type, zip_type)}的账号 ({count} 个)"
+                caption = self.i18n.get(user_id, 'reauthorize.accounts_with_status', status=type_names.get(zip_type, zip_type), count=count)
                 
                 # 尝试发送，带重试机制
                 max_retries = 3
@@ -21717,39 +21697,38 @@ admin3</code>
                 query.edit_message_text(
                     text=self.i18n.get(user_id, "registration.member_only"),
                     reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
-                        InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")
+                        InlineKeyboardButton(self.i18n.get(user_id, 'registration.button_vip'), callback_data="vip_menu"),
+                        InlineKeyboardButton(self.i18n.get(user_id, 'registration.button_back'), callback_data="back_to_main")
                     ]]),
                     parse_mode='HTML'
                 )
                 return
         
-        text = """
-<b>🕰️ 查询注册时间</b>
+        text = f"""{self.i18n.get(user_id, 'registration.intro_title')}
 
-该功能将查询账号的准确注册时间，并按日期分类：
-• 📅 按完整日期（年-月-日）分类
-• 🎯 多种方法获取最准确的注册时间
+{self.i18n.get(user_id, 'registration.intro_description')}
+{self.i18n.get(user_id, 'registration.intro_classify_date')}
+{self.i18n.get(user_id, 'registration.intro_accurate')}
 
-<b>📊 数据获取方法（按优先级）：</b>
-1. ✅ 从与@Telegram官方对话获取第一条消息时间（最准确）
-2. ✅ 从收藏夹(Saved Messages)获取第一条消息时间（较准确）
-3. 📊 基于用户ID估算（仅作为后备方案）
+{self.i18n.get(user_id, 'registration.methods_title')}
+{self.i18n.get(user_id, 'registration.method_telegram')}
+{self.i18n.get(user_id, 'registration.method_saved')}
+{self.i18n.get(user_id, 'registration.method_userid')}
 
-<b>⚠️ 注意事项：</b>
-1. 支持 Session 和 TData 格式
-2. 需要使用官方 Telegram API
-3. 查询速度取决于账号数量和网络状况
-4. 建议批量处理不超过100个账号
-5. 会自动使用最准确的方法获取注册时间
+{self.i18n.get(user_id, 'registration.notes_title')}
+{self.i18n.get(user_id, 'registration.note_formats')}
+{self.i18n.get(user_id, 'registration.note_api')}
+{self.i18n.get(user_id, 'registration.note_speed')}
+{self.i18n.get(user_id, 'registration.note_limit')}
+{self.i18n.get(user_id, 'registration.note_accurate_method')}
 
-<b>📤 请上传账号文件：</b>
-• Session格式：上传.session文件（可打包成zip）
-• TData格式：上传包含tdata目录的zip文件
+{self.i18n.get(user_id, 'registration.upload_title')}
+{self.i18n.get(user_id, 'registration.upload_session')}
+{self.i18n.get(user_id, 'registration.upload_tdata')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'registration.button_back'), callback_data="back_to_main")]
         ])
         
         query.edit_message_text(
@@ -22871,15 +22850,14 @@ admin3</code>
                 print(f"❌ 打包失败账号失败: {e}", flush=True)
         
         # 发送统计信息
-        summary = f"""
-✅ <b>注册时间查询完成</b>
+        summary = f"""{self.i18n.get(user_id, 'registration.regcheck_complete')}
 
-<b>统计信息：</b>
-• 总数：{total}
-• ✅ 成功：{success_count}
-• ❌ 失败：{error_count}
+{self.i18n.get(user_id, 'registration.statistics_header')}
+{self.i18n.get(user_id, 'registration.total_count', count=total)}
+{self.i18n.get(user_id, 'registration.success_label', count=success_count)}
+{self.i18n.get(user_id, 'registration.error_processing', error=error_count)}
 
-<b>按注册日期分类：</b>
+{self.i18n.get(user_id, 'registration.reg_by_date')}
 """
         # 显示前10个日期的统计
         sorted_dates = sorted(by_date.keys())
@@ -22887,9 +22865,9 @@ admin3</code>
             summary += f"• {reg_date}: {len(by_date[reg_date])} 个\n"
         
         if len(sorted_dates) > 10:
-            summary += f"• ... 还有 {len(sorted_dates) - 10} 个日期\n"
+            summary += f"{self.i18n.get(user_id, 'registration.more_dates', count=len(sorted_dates) - 10)}\n"
         
-        summary += "\n📄 详细报告见下方文件"
+        summary += f"\n{self.i18n.get(user_id, 'registration.detailed_report_below')}"
         
         try:
             context.bot.edit_message_text(
@@ -22940,9 +22918,9 @@ admin3</code>
             try:
                 # 根据ZIP类型设置不同的标题
                 if zip_type == "failed":
-                    caption = f"❌ 查询失败的账号 (共 {count} 个，含详细失败原因说明)"
+                    caption = self.i18n.get(user_id, 'registration.query_failed_caption', count=count)
                 else:
-                    caption = f"📦 注册时间分类账号 (共 {count} 个账号，按日期分类到不同文件夹)"
+                    caption = self.i18n.get(user_id, 'registration.classified_by_date_caption', count=count)
                 
                 max_retries = 3
                 for attempt in range(max_retries):
