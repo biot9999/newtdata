@@ -1080,7 +1080,7 @@ class SpamBotChecker:
                 "some phone numbers may trigger a harsh response",
                 "phone numbers may trigger",
             ],
-            "无限制": [
+            "unlimited": [
                 "good news, no limits are currently applied",
                 "you're free as a bird",
                 "no limits",
@@ -1095,7 +1095,7 @@ class SpamBotChecker:
                 "正常",
                 "没有限制",
                 "一切正常",
-                "无限制"
+                "unlimited"
             ],
             "临时限制": [
                 # 临时限制的关键指标（优先级最高）
@@ -1116,7 +1116,7 @@ class SpamBotChecker:
                 "临时限制",
                 "暂时受限"
             ],
-            "垃圾邮件": [
+            "spam": [
                 # 真正的限制 - "actions can trigger" 表示账号行为触发了限制
                 "actions can trigger a harsh response from our anti-spam systems",
                 "account was limited",
@@ -1127,7 +1127,7 @@ class SpamBotChecker:
                 # 中文关键词
                 "违规",
             ],
-            "冻结": [
+            "frozen": [
                 # 永久限制的关键指标
                 "permanently banned",
                 "account has been frozen permanently",
@@ -1249,7 +1249,7 @@ class SpamBotChecker:
         4. SpamBot检查
         """
         if not TELETHON_AVAILABLE:
-            return "连接错误", "Telethon未安装", account_name
+            return "connection_error", "Telethon未安装", account_name
         
         async with self.semaphore:
             start_time = time.time()
@@ -1260,7 +1260,7 @@ class SpamBotChecker:
                 # 1. 先进行快速连接测试
                 can_connect = await self._quick_connection_test(session_path)
                 if not can_connect:
-                    return "连接错误", "无法连接到Telegram服务器（session文件无效或不存在）", account_name
+                    return "connection_error", "无法连接到Telegram服务器（session文件无效或不存在）", account_name
                 
                 # 检查是否应使用代理
                 proxy_enabled = db.get_proxy_enabled() if db else True
@@ -1288,11 +1288,11 @@ class SpamBotChecker:
                     
                     # 记录尝试结果
                     elapsed = time.time() - start_time
-                    attempt_result = "success" if result[0] not in ["连接错误", "封禁"] else "failed"
+                    attempt_result = "success" if result[0] not in ["connection_error", "banned"] else "failed"
                     
                     # 检查是否为超时错误
                     is_timeout = "timeout" in result[1].lower() or "超时" in result[1]
-                    if not is_timeout and result[0] == "连接错误":
+                    if not is_timeout and result[0] == "connection_error":
                         all_timeout = False  # 有非超时的连接错误
                     
                     if proxy_info:
@@ -1306,7 +1306,7 @@ class SpamBotChecker:
                         })
                     
                     # 如果成功，记录并返回
-                    if result[0] != "连接错误":
+                    if result[0] != "connection_error":
                         # 创建使用记录
                         usage_record = ProxyUsageRecord(
                             account_name=account_name,
@@ -1351,9 +1351,9 @@ class SpamBotChecker:
                     usage_record = ProxyUsageRecord(
                         account_name=account_name,
                         proxy_attempted=None,
-                        attempt_result="success" if result[0] != "连接错误" else "failed",
+                        attempt_result="success" if result[0] != "connection_error" else "failed",
                         fallback_used=True,
-                        error=result[1] if result[0] == "连接错误" else None,
+                        error=result[1] if result[0] == "connection_error" else None,
                         is_residential=False,
                         elapsed=elapsed
                     )
@@ -1361,10 +1361,10 @@ class SpamBotChecker:
                     
                     return result
                 
-                return "连接错误", f"检查失败 (重试{max_proxy_attempts}次): 多次尝试后仍然失败", account_name
+                return "connection_error", f"检查失败 (重试{max_proxy_attempts}次): 多次尝试后仍然失败", account_name
                 
             except Exception as e:
-                return "连接错误", f"检查失败: {str(e)}", proxy_used
+                return "connection_error", f"检查失败: {str(e)}", proxy_used
     
     async def _single_check_with_proxy(self, session_path: str, account_name: str, db: 'Database',
                                         proxy_info: Optional[Dict], attempt: int) -> Tuple[str, str, str]:
@@ -1393,14 +1393,14 @@ class SpamBotChecker:
             if config.PROXY_FAST_MODE and attempt == 0:
                 quick_result = await self._quick_connection_test(session_path)
                 if not quick_result:
-                    return "连接错误", "快速连接测试失败", account_name
+                    return "connection_error", "快速连接测试失败", account_name
             
             # 创建代理字典（如果提供了proxy_info）
             proxy_dict = None
             if proxy_info:
                 proxy_dict = self.create_proxy_dict(proxy_info)
                 if not proxy_dict:
-                    return "连接错误", f"{proxy_used} | 代理配置错误", account_name
+                    return "connection_error", f"{proxy_used} | 代理配置错误", account_name
             
             # 根据代理类型调整超时时间
             if proxy_info and proxy_info.get('is_residential', False):
@@ -1442,12 +1442,12 @@ class SpamBotChecker:
             except asyncio.TimeoutError:
                 last_error = "连接超时"
                 error_reason = "timeout" if config.PROXY_SHOW_FAILURE_REASON else "连接超时"
-                return "连接错误", f"{proxy_used} | {error_reason}", account_name
+                return "connection_error", f"{proxy_used} | {error_reason}", account_name
             except Exception as e:
                 error_msg = str(e).lower()
                 # 检测冻结账户相关错误
                 if "deactivated" in error_msg or "banned" in error_msg:
-                    return "冻结", f"{proxy_used} | 账号已被冻结/停用", account_name
+                    return "frozen", f"{proxy_used} | 账号已被冻结/停用", account_name
                 
                 # 分类错误原因
                 if "timeout" in error_msg:
@@ -1462,47 +1462,47 @@ class SpamBotChecker:
                     error_reason = "network_error"
                 
                 if config.PROXY_SHOW_FAILURE_REASON:
-                    return "连接错误", f"{proxy_used} | {error_reason}", account_name
+                    return "connection_error", f"{proxy_used} | {error_reason}", account_name
                 else:
-                    return "连接错误", f"{proxy_used} | 连接失败", account_name
+                    return "connection_error", f"{proxy_used} | 连接失败", account_name
             
             # 2. 检查账号是否登录/授权（带超时）
             try:
                 is_authorized = await asyncio.wait_for(client.is_user_authorized(), timeout=15)
                 if not is_authorized:
-                    return "封禁", "账号未登录或已失效", account_name
+                    return "banned", "账号未登录或已失效", account_name
             except asyncio.TimeoutError:
-                return "连接错误", f"{proxy_used} | 授权检查超时", account_name
+                return "connection_error", f"{proxy_used} | 授权检查超时", account_name
             except Exception as e:
                 error_msg = str(e).lower()
                 # 检测冻结账户相关错误
                 if "deactivated" in error_msg or "banned" in error_msg or "deleted" in error_msg:
-                    return "冻结", f"{proxy_used} | 账号已被冻结/删除", account_name
+                    return "frozen", f"{proxy_used} | 账号已被冻结/删除", account_name
                 if "auth key" in error_msg or "unregistered" in error_msg:
-                    return "封禁", f"{proxy_used} | 会话密钥无效", account_name
-                return "连接错误", f"{proxy_used} | 授权检查失败: {str(e)[:30]}", account_name
+                    return "banned", f"{proxy_used} | 会话密钥无效", account_name
+                return "connection_error", f"{proxy_used} | 授权检查失败: {str(e)[:30]}", account_name
             
             # 3. 获取账号基本信息验证（带超时）
             user_info = "账号"
             try:
                 me = await asyncio.wait_for(client.get_me(), timeout=15)
                 if not me:
-                    return "封禁", "无法获取账号信息", account_name
+                    return "banned", "无法获取账号信息", account_name
                 user_info = f"ID:{me.id}"
                 if me.username:
                     user_info += f" @{me.username}"
                 if me.first_name:
                     user_info += f" {me.first_name}"
             except asyncio.TimeoutError:
-                return "连接错误", f"{proxy_used} | 获取账号信息超时", account_name
+                return "connection_error", f"{proxy_used} | 获取账号信息超时", account_name
             except Exception as e:
                 error_msg = str(e).lower()
                 # 检测冻结账户相关错误
                 if "deactivated" in error_msg or "banned" in error_msg or "deleted" in error_msg:
-                    return "冻结", f"{proxy_used} | 账号已被冻结/删除", account_name
+                    return "frozen", f"{proxy_used} | 账号已被冻结/删除", account_name
                 # 快速模式下用户信息获取失败不算严重错误
                 if not config.PROXY_FAST_MODE:
-                    return "封禁", f"账号信息获取失败: {str(e)[:30]}", account_name
+                    return "banned", f"账号信息获取失败: {str(e)[:30]}", account_name
             
             # 4. 发送消息给 SpamBot（带超时）
             try:
@@ -1538,36 +1538,36 @@ class SpamBotChecker:
                     
                     return status, info_str, account_name
                 else:
-                    return "连接错误", f"{user_info} | {proxy_used} | SpamBot无响应", account_name
+                    return "connection_error", f"{user_info} | {proxy_used} | SpamBot无响应", account_name
                     
             except asyncio.TimeoutError:
                 last_error = "SpamBot通信超时"
-                return "连接错误", f"{user_info} | {proxy_used} | SpamBot通信超时", account_name
+                return "connection_error", f"{user_info} | {proxy_used} | SpamBot通信超时", account_name
             except Exception as e:
                 error_str = str(e).lower()
                 # 检测冻结账户相关错误
                 if "deactivated" in error_str or "banned" in error_str or "deleted" in error_str:
-                    return "冻结", f"{user_info} | {proxy_used} | 账号已被冻结", account_name
+                    return "frozen", f"{user_info} | {proxy_used} | 账号已被冻结", account_name
                 if any(word in error_str for word in ["restricted", "limited", "blocked", "flood"]):
-                    return "封禁", f"{user_info} | {proxy_used} | 账号受限制", account_name
+                    return "banned", f"{user_info} | {proxy_used} | 账号受限制", account_name
                 if "peer" in error_str and "access" in error_str:
-                    return "封禁", f"{user_info} | {proxy_used} | 无法访问SpamBot", account_name
+                    return "banned", f"{user_info} | {proxy_used} | 无法访问SpamBot", account_name
                 last_error = str(e)
-                return "连接错误", f"{user_info} | {proxy_used} | SpamBot通信失败: {str(e)[:20]}", account_name
+                return "connection_error", f"{user_info} | {proxy_used} | SpamBot通信失败: {str(e)[:20]}", account_name
             
         except asyncio.TimeoutError:
             last_error = "连接超时"
-            return "连接错误", f"{proxy_used} | 连接超时", account_name
+            return "connection_error", f"{proxy_used} | 连接超时", account_name
             
         except ConnectionError as e:
             last_error = f"连接错误: {str(e)}"
-            return "连接错误", f"{proxy_used} | 连接错误: {str(e)[:30]}", account_name
+            return "connection_error", f"{proxy_used} | 连接错误: {str(e)[:30]}", account_name
             
         except Exception as e:
             error_msg = str(e).lower()
             # 检测冻结账户相关错误
             if "deactivated" in error_msg or "banned" in error_msg or "deleted" in error_msg:
-                return "冻结", f"{proxy_used} | 账号已被冻结/删除", account_name
+                return "frozen", f"{proxy_used} | 账号已被冻结/删除", account_name
             
             # 分类错误原因
             if "timeout" in error_msg:
@@ -1581,9 +1581,9 @@ class SpamBotChecker:
             
             last_error = str(e)
             if config.PROXY_SHOW_FAILURE_REASON:
-                return "连接错误", f"{proxy_used} | {error_reason}", account_name
+                return "connection_error", f"{proxy_used} | {error_reason}", account_name
             else:
-                return "连接错误", f"{proxy_used} | 检测失败", account_name
+                return "connection_error", f"{proxy_used} | 检测失败", account_name
         finally:
             if client:
                 try:
@@ -1633,13 +1633,13 @@ class SpamBotChecker:
         for pattern in self.status_patterns["地理限制"]:
             pattern_lower = pattern.lower()
             if pattern_lower in response_lower or pattern_lower in response_en:
-                return "无限制"
+                return "unlimited"
         
         # 2. 检查冻结/永久限制状态（最严重）
-        for pattern in self.status_patterns["冻结"]:
+        for pattern in self.status_patterns["frozen"]:
             pattern_lower = pattern.lower()
             if pattern_lower in response_lower or pattern_lower in response_en:
-                return "冻结"
+                return "frozen"
         
         # 3. 检查临时限制状态
         for pattern in self.status_patterns["临时限制"]:
@@ -1648,10 +1648,10 @@ class SpamBotChecker:
                 return "临时限制"
         
         # 4. 检查一般垃圾邮件限制
-        for pattern in self.status_patterns["垃圾邮件"]:
+        for pattern in self.status_patterns["spam"]:
             pattern_lower = pattern.lower()
             if pattern_lower in response_lower or pattern_lower in response_en:
-                return "垃圾邮件"
+                return "spam"
         
         # 5. 检查等待验证状态
         for pattern in self.status_patterns["等待验证"]:
@@ -1660,13 +1660,13 @@ class SpamBotChecker:
                 return "等待验证"
         
         # 6. 检查无限制（正常状态）
-        for pattern in self.status_patterns["无限制"]:
+        for pattern in self.status_patterns["unlimited"]:
             pattern_lower = pattern.lower()
             if pattern_lower in response_lower or pattern_lower in response_en:
-                return "无限制"
+                return "unlimited"
         
         # 7. 未知响应 - 返回无限制作为默认值（保持向后兼容）
-        return "无限制"
+        return "unlimited"
     
     def get_proxy_usage_stats(self) -> Dict[str, int]:
         """
@@ -1709,7 +1709,7 @@ class SpamBotChecker:
     async def check_tdata_with_spambot(self, tdata_path: str, tdata_name: str, db: 'Database') -> Tuple[str, str, str]:
         """基于opentele的真正TData SpamBot检测（带代理支持）"""
         if not OPENTELE_AVAILABLE:
-            return "连接错误", "opentele库未安装", tdata_name
+            return "connection_error", "opentele库未安装", tdata_name
         
         # 检查是否应使用代理
         proxy_enabled = db.get_proxy_enabled() if db else True
@@ -1739,11 +1739,11 @@ class SpamBotChecker:
             
             # 检查是否为超时错误
             is_timeout = "timeout" in result[1].lower() or "超时" in result[1]
-            if not is_timeout and result[0] == "连接错误":
+            if not is_timeout and result[0] == "connection_error":
                 all_timeout = False  # 有非超时的连接错误
             
             # 如果成功，返回
-            if result[0] != "连接错误":
+            if result[0] != "connection_error":
                 return result
             
             # 如果到达最后一次尝试，跳出循环
@@ -1765,7 +1765,7 @@ class SpamBotChecker:
         if last_result:
             return last_result
         
-        return "连接错误", f"检查失败 (重试{max_proxy_attempts}次): 多次尝试后仍然失败", tdata_name
+        return "connection_error", f"检查失败 (重试{max_proxy_attempts}次): 多次尝试后仍然失败", tdata_name
     
     async def _single_tdata_check_with_proxy(self, tdata_path: str, tdata_name: str, 
                                               proxy_info: Optional[Dict], attempt: int) -> Tuple[str, str, str]:
@@ -1785,7 +1785,7 @@ class SpamBotChecker:
             tdesk = TDesktop(tdata_path)
             
             if not tdesk.isLoaded():
-                return "连接错误", f"{proxy_used} | TData未授权或无效", tdata_name
+                return "connection_error", f"{proxy_used} | TData未授权或无效", tdata_name
             
             # 临时session文件保存在sessions/temp目录
             os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
@@ -1798,7 +1798,7 @@ class SpamBotChecker:
             if proxy_info:
                 proxy_dict = self.create_proxy_dict(proxy_info)
                 if not proxy_dict:
-                    return "连接错误", f"{proxy_used} | 代理配置错误", tdata_name
+                    return "connection_error", f"{proxy_used} | 代理配置错误", tdata_name
             
             # 根据代理类型调整超时时间
             if proxy_info and proxy_info.get('is_residential', False):
@@ -1832,11 +1832,11 @@ class SpamBotChecker:
             try:
                 await asyncio.wait_for(client.connect(), timeout=connect_timeout)
             except asyncio.TimeoutError:
-                return "连接错误", f"{proxy_used} | 连接超时", tdata_name
+                return "connection_error", f"{proxy_used} | 连接超时", tdata_name
             except Exception as e:
                 error_msg = str(e).lower()
                 if "deactivated" in error_msg or "banned" in error_msg:
-                    return "冻结", f"{proxy_used} | 账号已被冻结/停用", tdata_name
+                    return "frozen", f"{proxy_used} | 账号已被冻结/停用", tdata_name
                 
                 if "timeout" in error_msg:
                     error_reason = "timeout"
@@ -1850,24 +1850,24 @@ class SpamBotChecker:
                     error_reason = "network_error"
                 
                 if config.PROXY_SHOW_FAILURE_REASON:
-                    return "连接错误", f"{proxy_used} | {error_reason}", tdata_name
+                    return "connection_error", f"{proxy_used} | {error_reason}", tdata_name
                 else:
-                    return "连接错误", f"{proxy_used} | 连接失败", tdata_name
+                    return "connection_error", f"{proxy_used} | 连接失败", tdata_name
             
             # 3. 检查授权状态（带超时）
             try:
                 is_authorized = await asyncio.wait_for(client.is_user_authorized(), timeout=15)
                 if not is_authorized:
-                    return "封禁", f"{proxy_used} | 账号未授权", tdata_name
+                    return "banned", f"{proxy_used} | 账号未授权", tdata_name
             except asyncio.TimeoutError:
-                return "连接错误", f"{proxy_used} | 授权检查超时", tdata_name
+                return "connection_error", f"{proxy_used} | 授权检查超时", tdata_name
             except Exception as e:
                 error_msg = str(e).lower()
                 if "deactivated" in error_msg or "banned" in error_msg or "deleted" in error_msg:
-                    return "冻结", f"{proxy_used} | 账号已被冻结/删除", tdata_name
+                    return "frozen", f"{proxy_used} | 账号已被冻结/删除", tdata_name
                 if "auth key" in error_msg or "unregistered" in error_msg:
-                    return "封禁", f"{proxy_used} | 会话密钥无效", tdata_name
-                return "连接错误", f"{proxy_used} | 授权检查失败: {str(e)[:30]}", tdata_name
+                    return "banned", f"{proxy_used} | 会话密钥无效", tdata_name
+                return "connection_error", f"{proxy_used} | 授权检查失败: {str(e)[:30]}", tdata_name
             
             # 4. 获取手机号（带超时）
             try:
@@ -1889,7 +1889,7 @@ class SpamBotChecker:
             except Exception as e:
                 error_str = str(e).lower()
                 if 'flood' in error_str:
-                    return "冻结", f"手机号:{phone} | {proxy_used} | 账号冻结", tdata_name
+                    return "frozen", f"手机号:{phone} | {proxy_used} | 账号冻结", tdata_name
             
             # 6. SpamBot检测（带超时）
             # 定义快速模式等待时间为常量
@@ -1910,7 +1910,7 @@ class SpamBotChecker:
                         'some phone numbers may trigger a harsh response',
                         'phone numbers may trigger'
                     ]):
-                        return "无限制", f"手机号:{phone} | {proxy_used} | 正常无限制（地理限制提示）", tdata_name
+                        return "unlimited", f"手机号:{phone} | {proxy_used} | 正常无限制（地理限制提示）", tdata_name
                     
                     # 2. 检查临时限制（垃圾邮件）
                     if any(keyword in english_text for keyword in [
@@ -1921,7 +1921,7 @@ class SpamBotChecker:
                         'you will not be able to send messages',
                         'actions can trigger a harsh response'
                     ]):
-                        return "垃圾邮件", f"手机号:{phone} | {proxy_used} | 垃圾邮件限制", tdata_name
+                        return "spam", f"手机号:{phone} | {proxy_used} | 垃圾邮件限制", tdata_name
                     
                     # 3. 然后检查永久冻结
                     elif any(keyword in english_text for keyword in [
@@ -1930,37 +1930,37 @@ class SpamBotChecker:
                         'blocked for violations', 'terms of service', 'violations of the telegram',
                         'account was blocked', 'banned', 'suspended'
                     ]):
-                        return "冻结", f"手机号:{phone} | {proxy_used} | 账号被冻结/封禁", tdata_name
+                        return "frozen", f"手机号:{phone} | {proxy_used} | 账号被冻结/封禁", tdata_name
                     
                     # 4. 检查无限制状态
                     elif any(keyword in english_text for keyword in [
                         'no limits', 'free as a bird', 'no restrictions', 'good news'
                     ]):
-                        return "无限制", f"手机号:{phone} | {proxy_used} | 正常无限制", tdata_name
+                        return "unlimited", f"手机号:{phone} | {proxy_used} | 正常无限制", tdata_name
                     
                     # 5. 默认返回无限制
                     else:
-                        return "无限制", f"手机号:{phone} | {proxy_used} | 正常无限制", tdata_name
+                        return "unlimited", f"手机号:{phone} | {proxy_used} | 正常无限制", tdata_name
                 
                 # 如果没有消息回复
-                return "封禁", f"手机号:{phone} | {proxy_used} | SpamBot无回复", tdata_name
+                return "banned", f"手机号:{phone} | {proxy_used} | SpamBot无回复", tdata_name
         
             except asyncio.TimeoutError:
-                return "连接错误", f"手机号:{phone} | {proxy_used} | SpamBot检测超时", tdata_name
+                return "connection_error", f"手机号:{phone} | {proxy_used} | SpamBot检测超时", tdata_name
             except Exception as e:
                 error_str = str(e).lower()
                 if any(word in error_str for word in ['restricted', 'banned', 'blocked']):
-                    return "封禁", f"手机号:{phone} | {proxy_used} | 账号受限", tdata_name
-                return "封禁", f"手机号:{phone} | {proxy_used} | SpamBot检测失败: {str(e)[:30]}", tdata_name
+                    return "banned", f"手机号:{phone} | {proxy_used} | 账号受限", tdata_name
+                return "banned", f"手机号:{phone} | {proxy_used} | SpamBot检测失败: {str(e)[:30]}", tdata_name
                 
         except Exception as e:
             error_str = str(e).lower()
             if 'database is locked' in error_str:
-                return "连接错误", f"{proxy_used} | TData文件被占用", tdata_name
+                return "connection_error", f"{proxy_used} | TData文件被占用", tdata_name
             elif 'timeout' in error_str or 'connection' in error_str:
-                return "连接错误", f"{proxy_used} | 连接超时", tdata_name
+                return "connection_error", f"{proxy_used} | 连接超时", tdata_name
             else:
-                return "连接错误", f"{proxy_used} | 连接失败: {str(e)[:30]}", tdata_name
+                return "connection_error", f"{proxy_used} | 连接失败: {str(e)[:30]}", tdata_name
         finally:
             # 清理资源
             if client:
@@ -2950,7 +2950,7 @@ class FileProcessor:
         所有操作都会先通过代理连接
         """
         if not OPENTELE_AVAILABLE:
-            return "连接错误", "opentele库未安装，无法转换TData", tdata_name
+            return "connection_error", "opentele库未安装，无法转换TData", tdata_name
         
         temp_session_path = None
         temp_client = None
@@ -2960,7 +2960,7 @@ class FileProcessor:
             tdesk = TDesktop(tdata_path)
             
             if not tdesk.isLoaded():
-                return "连接错误", "TData未授权或无效", tdata_name
+                return "connection_error", "TData未授权或无效", tdata_name
             
             # 2. 创建临时Session文件
             os.makedirs(config.SESSIONS_BAK_DIR, exist_ok=True)
@@ -2984,7 +2984,7 @@ class FileProcessor:
                 # 检查Session文件是否生成
                 session_file = f"{temp_session_path}.session"
                 if not os.path.exists(session_file):
-                    return "连接错误", "Session转换失败：文件未生成", tdata_name
+                    return "connection_error", "Session转换失败：文件未生成", tdata_name
                 
                 # 获取代理配置
                 proxy_enabled = self.db.get_proxy_enabled() if self.db else True
@@ -3025,7 +3025,7 @@ class FileProcessor:
                     print(f"ℹ️ [{tdata_name}] 代理未启用或无可用代理，使用本地连接")
                     
             except Exception as e:
-                return "连接错误", f"TData转换失败: {str(e)[:50]}", tdata_name
+                return "connection_error", f"TData转换失败: {str(e)[:50]}", tdata_name
             
             # 4. 使用Session检查方法（带代理支持）
             # 这里会自动使用代理进行完整的账号检查
@@ -3038,9 +3038,9 @@ class FileProcessor:
         except Exception as e:
             error_msg = str(e)
             if 'database is locked' in error_msg.lower():
-                return "连接错误", "TData文件被占用", tdata_name
+                return "connection_error", "TData文件被占用", tdata_name
             else:
-                return "连接错误", f"TData处理失败: {error_msg[:50]}", tdata_name
+                return "connection_error", f"TData处理失败: {error_msg[:50]}", tdata_name
         finally:
             # 清理临时客户端连接
             if temp_client:
@@ -3354,11 +3354,11 @@ class FileProcessor:
     async def check_accounts_with_realtime_updates(self, files: List[Tuple[str, str]], file_type: str, update_callback) -> Dict[str, List[Tuple[str, str, str]]]:
         """实时更新检查"""
         results = {
-            "无限制": [],
-            "垃圾邮件": [],
-            "冻结": [],
-            "封禁": [],
-            "连接错误": []
+            "unlimited": [],
+            "spam": [],
+            "frozen": [],
+            "banned": [],
+            "connection_error": []
         }
         
         # 状态映射：将各种限制状态映射到正确的分类
@@ -3366,9 +3366,9 @@ class FileProcessor:
         # 等待验证是账号需要验证，归类为封禁
         # 无响应是网络问题，归类为连接错误
         status_mapping = {
-            "临时限制": "垃圾邮件",
-            "等待验证": "封禁",
-            "无响应": "连接错误",
+            "临时限制": "spam",
+            "等待验证": "banned",
+            "无响应": "connection_error",
         }
         
         total = len(files)
@@ -3397,7 +3397,7 @@ class FileProcessor:
                 # 如果状态不在结果字典中，记录警告并归类为连接错误
                 if mapped_status not in results:
                     print(f"⚠️ 未知状态 '{mapped_status}'，归类为连接错误: {file_name}")
-                    mapped_status = "连接错误"
+                    mapped_status = "connection_error"
                 
                 results[mapped_status].append((file_path, file_name, info))
                 processed += 1
@@ -3419,7 +3419,7 @@ class FileProcessor:
                         last_update_time = current_time
                 
             except Exception as e:
-                results["连接错误"].append((file_path, file_name, f"异常: {str(e)[:20]}"))
+                results["connection_error"].append((file_path, file_name, f"异常: {str(e)[:20]}"))
                 processed += 1
                 print(f"❌ 检测失败 {processed}/{total}: {file_name} -> {str(e)}")
         
@@ -3439,16 +3439,16 @@ class FileProcessor:
             maps_path = os.path.join(d877_path, "maps")
             
             if not os.path.exists(maps_path):
-                return "连接错误", "TData结构无效", tdata_name
+                return "connection_error", "TData结构无效", tdata_name
             
             maps_size = os.path.getsize(maps_path)
             if maps_size < 30:
-                return "连接错误", "TData数据不完整", tdata_name
+                return "connection_error", "TData数据不完整", tdata_name
             
-            return "无限制", f"TData有效 | {maps_size}字节", tdata_name
+            return "unlimited", f"TData有效 | {maps_size}字节", tdata_name
             
         except Exception as e:
-            return "连接错误", f"TData检查失败", tdata_name
+            return "connection_error", f"TData检查失败", tdata_name
     
     def translate_spambot_reply(self, text: str) -> str:
         """智能翻译SpamBot回复"""
@@ -8988,11 +8988,11 @@ class EnhancedBot:
         buttons = []
         
         status_info = [
-            ("无限制", "🟢", len(results['无限制'])),
-            ("垃圾邮件", "🟡", len(results['垃圾邮件'])),
-            ("冻结", "🔴", len(results['冻结'])),
-            ("封禁", "🟠", len(results['封禁'])),
-            ("连接错误", "⚫", len(results['连接错误']))
+            ("unlimited", "🟢", len(results['无限制'])),
+            ("spam", "🟡", len(results['垃圾邮件'])),
+            ("frozen", "🔴", len(results['冻结'])),
+            ("banned", "🟠", len(results['封禁'])),
+            ("connection_error", "⚫", len(results['连接错误']))
         ]
         
         # 每一行显示：状态名称 | 数量
@@ -12016,13 +12016,14 @@ class EnhancedBot:
                         # 检查实际的代理模式状态
                         actual_proxy_mode = self.proxy_manager.is_proxy_mode_active(self.db)
                         with open(file_path, 'rb') as f:
+                            mode_text = self.i18n.get(user_id, 'check_result.mode_proxy' if actual_proxy_mode else 'check_result.mode_local')
                             context.bot.send_document(
                                 chat_id=update.effective_chat.id,
                                 document=f,
                                 filename=f"{status}_{count}个.zip",
-                                caption=f"📋 <b>{status}</b> - {count}个账号\n\n"
-                                       f"⏰ 检测时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n"
-                                       f"🔧 检测模式: {'代理模式' if actual_proxy_mode else '本地模式'}",
+                                caption=f"{self.i18n.get(user_id, 'file_ops.status_with_count', status=status, count=count)}\n\n"
+                                       f"{self.i18n.get(user_id, 'check_result.checking_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}\n"
+                                       f"🔧 {self.i18n.get(user_id, 'check_result.detection_mode', mode=mode_text)}",
                                 parse_mode='HTML'
                             )
                         
@@ -12042,7 +12043,7 @@ class EnhancedBot:
                                     chat_id=update.effective_chat.id,
                                     document=f,
                                     filename=f"{status}_{count}个.zip",
-                                    caption=f"📋 <b>{status}</b> - {count}个账号",
+                                    caption=self.i18n.get(user_id, 'file_ops.status_with_count', status=status, count=count),
                                     parse_mode='HTML'
                                 )
                             sent_count += 1
@@ -12240,7 +12241,7 @@ class EnhancedBot:
                     # 1. 发送 ZIP 文件
                     if os.path.exists(zip_path):
                         with open(zip_path, 'rb') as f:
-                            caption = f"📦 <b>{status}</b> ({count}个账号)\n\n⏰ 处理时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}"
+                            caption = f"📦 <b>{status}</b> ({self.i18n.get(user_id, 'statistics.accounts_count', count=count)})\n\n{self.i18n.get(user_id, 'twofa_result.processing_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}"
                             update.message.reply_document(
                                 document=f,
                                 filename=os.path.basename(zip_path),
@@ -12253,7 +12254,7 @@ class EnhancedBot:
                     # 2. 发送 TXT 报告
                     if os.path.exists(txt_path):
                         with open(txt_path, 'rb') as f:
-                            caption = f"📋 <b>{status} 详细报告</b>\n\n包含 {count} 个账号的详细信息"
+                            caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status, count=count)
                             update.message.reply_document(
                                 document=f,
                                 filename=os.path.basename(txt_path),
@@ -17843,7 +17844,7 @@ class EnhancedBot:
                 
                 for idx, detail in enumerate(results_summary['detailed_results'], 1):
                     status_icon = "✅" if detail['status'] == 'success' else ("❄️" if detail['status'] == 'frozen' else "❌")
-                    status_text = "成功" if detail['status'] == 'success' else ("冻结" if detail['status'] == 'frozen' else "失败")
+                    status_text = "成功" if detail['status'] == 'success' else ("frozen" if detail['status'] == 'frozen' else "失败")
                     
                     f.write(f"{idx}. {status_icon} {detail['file_name']} - {status_text}\n")
                     
