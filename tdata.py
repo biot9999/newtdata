@@ -9214,28 +9214,27 @@ class EnhancedBot:
             self.safe_edit_message(query, self.i18n.get(user_id, "api.unavailable_flask"))
             return
 
-        text = """
-🔗 <b>API格式转换</b>
+        text = f"""{self.i18n.get(user_id, 'api.intro_title')}
 
-<b>🎯 核心功能</b>
-• 📱 提取手机号信息
-• 🔐 自动检测2FA密码
-• 🌐 生成验证码接收链接
-• 📋 输出标准API格式
+{self.i18n.get(user_id, 'api.intro_features')}
+{self.i18n.get(user_id, 'api.intro_extract_phone')}
+{self.i18n.get(user_id, 'api.intro_auto_2fa')}
+{self.i18n.get(user_id, 'api.intro_generate_link')}
+{self.i18n.get(user_id, 'api.intro_api_format')}
 
-<b>🌐 验证码接收特性</b>
-• 每个账号生成独立验证链接
-• 实时显示验证码，自动刷新
-• 支持HTTP API调用获取验证码
-• 5分钟自动过期保护
+{self.i18n.get(user_id, 'api.verification_title')}
+{self.i18n.get(user_id, 'api.verification_unique_link')}
+{self.i18n.get(user_id, 'api.verification_realtime')}
+{self.i18n.get(user_id, 'api.verification_api')}
+{self.i18n.get(user_id, 'api.verification_expire')}
 
-<b>📤 使用方法</b>
-1. 上传ZIP文件（包含TData或Session）
-2. 系统自动分析账号信息
-3. 生成API格式文件和验证链接
-4. 下载结果使用
+{self.i18n.get(user_id, 'api.usage_title')}
+{self.i18n.get(user_id, 'api.usage_step1')}
+{self.i18n.get(user_id, 'api.usage_step2')}
+{self.i18n.get(user_id, 'api.usage_step3')}
+{self.i18n.get(user_id, 'api.usage_step4')}
 
-请上传您的文件...
+{self.i18n.get(user_id, 'api.please_upload')}
         """
 
         self.safe_edit_message(query, text, 'HTML')
@@ -13079,45 +13078,36 @@ class EnhancedBot:
             return
         
         if not CLASSIFY_AVAILABLE or not self.classifier:
-            msg = "❌ 账号分类功能不可用\n\n请检查依赖库是否正确安装"
+            msg = self.i18n.get(user_id, "classify.unavailable")
             if query:
                 self.safe_edit_message(query, msg)
             else:
                 self.safe_send_message(update, msg)
             return
         
-        text = """
-📦 <b>账号文件分类</b>
+        # Build intro text using i18n
+        text = f"""{self.i18n.get(user_id, 'classify.intro_title')}
 
-🎯 <b>功能说明</b>
-支持上传包含多个账号的ZIP文件（TData目录或Session+JSON文件），自动识别并分类打包：
+{self.i18n.get(user_id, 'classify.intro_features')}
+{self.i18n.get(user_id, 'classify.intro_description')}
 
-📋 <b>支持的分类方式</b>
-1️⃣ <b>按国家区号拆分</b>
-   • 自动识别手机号→区号→国家
-   • 每个国家生成一个ZIP
-   • 命名：国家+区号+数量
+{self.i18n.get(user_id, 'classify.modes_title')}
+{self.i18n.get(user_id, 'classify.mode_country')}
+{self.i18n.get(user_id, 'classify.mode_country_desc')}
 
-2️⃣ <b>按数量拆分</b>
-   • 支持单个或多个数量
-   • 混合国家命名"混合+000+数量
-   • 全未知命名"未知+000+数量
+{self.i18n.get(user_id, 'classify.mode_quantity')}
+{self.i18n.get(user_id, 'classify.mode_quantity_desc')}
 
-💡 <b>使用步骤</b>
-1. 点击下方按钮开始
-2. 上传包含账号的ZIP文件
-3. 选择拆分方式
-4. 等待处理并接收结果
+{self.i18n.get(user_id, 'classify.steps_title')}
+{self.i18n.get(user_id, 'classify.steps_desc')}
 
-⚠️ <b>注意事项</b>
-• 支持TData和Session两种格式
-• 文件大小限制100MB
-• 自动识别手机号和国家信息
+{self.i18n.get(user_id, 'classify.notes_title')}
+{self.i18n.get(user_id, 'classify.notes_desc')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📤 开始上传", callback_data="classify_start")],
-            [InlineKeyboardButton("◀️ 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.button_start'), callback_data="classify_start")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'classify.button_back'), callback_data="back_to_main")]
         ])
         
         if query:
@@ -16361,22 +16351,21 @@ class EnhancedBot:
             "waiting_rename_file"
         )
         
-        text = """
-<b>📝 文件重命名</b>
+        text = f"""{self.i18n.get(user_id, 'rename.intro_title')}
 
-<b>💡 功能说明</b>
-• 支持任意格式文件
-• 保留原始文件扩展名
-• 自动清理非法字符
-• 无需电脑即可重命名
+{self.i18n.get(user_id, 'rename.intro_features')}
+{self.i18n.get(user_id, 'rename.feature_any_format')}
+{self.i18n.get(user_id, 'rename.feature_keep_ext')}
+{self.i18n.get(user_id, 'rename.feature_clean_chars')}
+{self.i18n.get(user_id, 'rename.feature_no_computer')}
 
-<b>📤 请上传需要重命名的文件</b>
+{self.i18n.get(user_id, 'rename.upload_file')}
 
-⏰ <i>5分钟内未上传将自动取消</i>
+{self.i18n.get(user_id, 'rename.timeout_note')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'rename.button_cancel'), callback_data="back_to_main")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16517,27 +16506,25 @@ class EnhancedBot:
             "waiting_merge_files"
         )
         
-        text = """
-<b>🧩 账户文件合并</b>
+        text = f"""{self.i18n.get(user_id, 'merge.intro_title')}
 
-<b>💡 功能说明</b>
-• 自动解压所有 ZIP 文件
-• 递归扫描识别 TData 账户
-• 递归扫描识别 Session 文件 (支持纯.session或session+json配对)
-• 智能分类归档
+{self.i18n.get(user_id, 'merge.intro_features')}
+{self.i18n.get(user_id, 'merge.feature_auto_extract')}
+{self.i18n.get(user_id, 'merge.feature_scan_tdata')}
+{self.i18n.get(user_id, 'merge.feature_scan_session')}
+{self.i18n.get(user_id, 'merge.feature_classify')}
 
-<b>📤 请上传 ZIP 文件</b>
+{self.i18n.get(user_id, 'merge.upload_zip')}
 
-<b>⚠️ 仅接受 .zip 文件</b>
-• 可上传多个 ZIP 文件
-• 系统会自动解压并扫描内容
+{self.i18n.get(user_id, 'merge.zip_only')}
+{self.i18n.get(user_id, 'merge.upload_multiple')}
 
-上传完成后点击"✅ 完成合并"
+{self.i18n.get(user_id, 'merge.finish_note')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ 完成合并", callback_data="merge_finish")],
-            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'merge.button_finish'), callback_data="merge_finish")],
+            [InlineKeyboardButton(self.i18n.get(user_id, 'merge.button_cancel'), callback_data="back_to_main")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -16992,31 +16979,30 @@ class EnhancedBot:
             "waiting_cleanup_file"
         )
         
-        text = """
-<b>🧹 一键清理功能</b>
+        text = f"""{self.i18n.get(user_id, 'cleanup.intro_title')}
 
-<b>⚠️ 重要提示</b>
-此功能会对上传的账号执行以下操作：
-• 🚪 离开所有群组和频道
-• 🗑️ 删除所有聊天记录（尽可能撤回）
-• 📇 清除所有联系人
-• 📁 归档剩余对话
+{self.i18n.get(user_id, 'cleanup.intro_warning')}
+{self.i18n.get(user_id, 'cleanup.warning_desc')}
+{self.i18n.get(user_id, 'cleanup.warning_leave')}
+{self.i18n.get(user_id, 'cleanup.warning_delete')}
+{self.i18n.get(user_id, 'cleanup.warning_contacts')}
+{self.i18n.get(user_id, 'cleanup.warning_archive')}
 
-<b>🔴 不可逆操作</b>
-一旦开始清理，无法撤销！请谨慎使用。
+{self.i18n.get(user_id, 'cleanup.irreversible_title')}
+{self.i18n.get(user_id, 'cleanup.irreversible_desc')}
 
-<b>✅ 安全保障</b>
-• 验证码记录（接码记录）将被保留
-• 自动处理 Telegram 限速
-• 生成详细的清理报告
+{self.i18n.get(user_id, 'cleanup.safety_title')}
+{self.i18n.get(user_id, 'cleanup.safety_preserve')}
+{self.i18n.get(user_id, 'cleanup.safety_ratelimit')}
+{self.i18n.get(user_id, 'cleanup.safety_report')}
 
-<b>📤 请上传 Session 或 TData ZIP 文件</b>
+{self.i18n.get(user_id, 'cleanup.upload_file')}
 
-⏰ <i>5分钟内未上传将自动取消</i>
+{self.i18n.get(user_id, 'cleanup.timeout_note')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ 取消", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'cleanup.button_cancel'), callback_data="back_to_main")]
         ])
         
         self.safe_edit_message(query, text, 'HTML', keyboard)
@@ -20027,49 +20013,48 @@ admin3</code>
         if not is_member and not self.db.is_admin(user_id):
             self.safe_edit_message(
                 query,
-                "⚠️ 重新授权功能需要会员权限\n\n请先开通会员",
+                self.i18n.get(user_id, "reauthorize.member_required"),
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
-                    InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+                    InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.button_vip'), callback_data="vip_menu"),
+                    InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.button_back'), callback_data="back_to_main")
                 ]])
             )
             return
         
-        text = """
-📱 <b>重新授权功能</b>
+        text = f"""{self.i18n.get(user_id, 'reauthorize.intro_title')}
 
-<b>功能说明：</b>
-• 踢掉账号在其他设备的所有登录
-• 确保只有新创建的会话有效
-• 防止账号被多人同时使用
-• 支持自动删除旧密码并设置新密码
-• 支持代理连接（超时回退本地）
-• 使用随机设备参数防止风控
+{self.i18n.get(user_id, 'reauthorize.intro_features')}
+{self.i18n.get(user_id, 'reauthorize.feature_logout_others')}
+{self.i18n.get(user_id, 'reauthorize.feature_ensure_valid')}
+{self.i18n.get(user_id, 'reauthorize.feature_prevent_sharing')}
+{self.i18n.get(user_id, 'reauthorize.feature_auto_password')}
+{self.i18n.get(user_id, 'reauthorize.feature_proxy')}
+{self.i18n.get(user_id, 'reauthorize.feature_random_device')}
 
-<b>工作流程：</b>
-1. 上传账户文件（Session/TData/ZIP）
-2. 输入旧密码（或自动识别JSON中的2FA）
-3. 输入新密码
-4. 系统自动完成重新授权
-5. 结果分类打包（成功/失败）
+{self.i18n.get(user_id, 'reauthorize.workflow_title')}
+{self.i18n.get(user_id, 'reauthorize.workflow_step1')}
+{self.i18n.get(user_id, 'reauthorize.workflow_step2')}
+{self.i18n.get(user_id, 'reauthorize.workflow_step3')}
+{self.i18n.get(user_id, 'reauthorize.workflow_step4')}
+{self.i18n.get(user_id, 'reauthorize.workflow_step5')}
 
-<b>失败分类：</b>
-• 冻结：账号已被冻结
-• 封禁：账号已被封禁
-• 旧密码错误：旧密码不正确
-• 网络错误：连接超时或网络问题
+{self.i18n.get(user_id, 'reauthorize.failure_title')}
+{self.i18n.get(user_id, 'reauthorize.failure_frozen')}
+{self.i18n.get(user_id, 'reauthorize.failure_banned')}
+{self.i18n.get(user_id, 'reauthorize.failure_wrong_password')}
+{self.i18n.get(user_id, 'reauthorize.failure_network')}
 
-<b>注意事项：</b>
-⚠️ 重新授权后，旧会话将立即失效
-⚠️ 请确保提供正确的旧密码
-⚠️ 建议设置新密码以提高账号安全性
+{self.i18n.get(user_id, 'reauthorize.notes_title')}
+{self.i18n.get(user_id, 'reauthorize.note_invalidate')}
+{self.i18n.get(user_id, 'reauthorize.note_correct_password')}
+{self.i18n.get(user_id, 'reauthorize.note_new_password')}
 
-📤 <b>请上传账号文件</b>
-支持格式：.session / TData文件夹 / .zip压缩包
+{self.i18n.get(user_id, 'reauthorize.upload_section')}
+{self.i18n.get(user_id, 'reauthorize.supported_formats')}
 """
         
         keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("◀️ 返回", callback_data="back_to_main")
+            InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.button_back'), callback_data="back_to_main")
         ]])
         
         self.safe_edit_message(query, text, parse_mode='HTML', reply_markup=keyboard)
@@ -21717,39 +21702,38 @@ admin3</code>
                 query.edit_message_text(
                     text=self.i18n.get(user_id, "registration.member_only"),
                     reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
-                        InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")
+                        InlineKeyboardButton(self.i18n.get(user_id, 'registration.button_vip'), callback_data="vip_menu"),
+                        InlineKeyboardButton(self.i18n.get(user_id, 'registration.button_back'), callback_data="back_to_main")
                     ]]),
                     parse_mode='HTML'
                 )
                 return
         
-        text = """
-<b>🕰️ 查询注册时间</b>
+        text = f"""{self.i18n.get(user_id, 'registration.intro_title')}
 
-该功能将查询账号的准确注册时间，并按日期分类：
-• 📅 按完整日期（年-月-日）分类
-• 🎯 多种方法获取最准确的注册时间
+{self.i18n.get(user_id, 'registration.intro_description')}
+{self.i18n.get(user_id, 'registration.intro_classify_date')}
+{self.i18n.get(user_id, 'registration.intro_accurate')}
 
-<b>📊 数据获取方法（按优先级）：</b>
-1. ✅ 从与@Telegram官方对话获取第一条消息时间（最准确）
-2. ✅ 从收藏夹(Saved Messages)获取第一条消息时间（较准确）
-3. 📊 基于用户ID估算（仅作为后备方案）
+{self.i18n.get(user_id, 'registration.methods_title')}
+{self.i18n.get(user_id, 'registration.method_telegram')}
+{self.i18n.get(user_id, 'registration.method_saved')}
+{self.i18n.get(user_id, 'registration.method_userid')}
 
-<b>⚠️ 注意事项：</b>
-1. 支持 Session 和 TData 格式
-2. 需要使用官方 Telegram API
-3. 查询速度取决于账号数量和网络状况
-4. 建议批量处理不超过100个账号
-5. 会自动使用最准确的方法获取注册时间
+{self.i18n.get(user_id, 'registration.notes_title')}
+{self.i18n.get(user_id, 'registration.note_formats')}
+{self.i18n.get(user_id, 'registration.note_api')}
+{self.i18n.get(user_id, 'registration.note_speed')}
+{self.i18n.get(user_id, 'registration.note_limit')}
+{self.i18n.get(user_id, 'registration.note_accurate_method')}
 
-<b>📤 请上传账号文件：</b>
-• Session格式：上传.session文件（可打包成zip）
-• TData格式：上传包含tdata目录的zip文件
+{self.i18n.get(user_id, 'registration.upload_title')}
+{self.i18n.get(user_id, 'registration.upload_session')}
+{self.i18n.get(user_id, 'registration.upload_tdata')}
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 返回主菜单", callback_data="back_to_main")]
+            [InlineKeyboardButton(self.i18n.get(user_id, 'registration.button_back'), callback_data="back_to_main")]
         ])
         
         query.edit_message_text(
