@@ -21592,7 +21592,7 @@ admin3</code>
                         chat_id=user_id,
                         document=f,
                         filename=report_filename,
-                        caption="📊 重新授权详细报告",
+                        caption=self.i18n.get(user_id, 'reauthorize.detailed_report_caption'),
                         timeout=60  # 60秒超时
                     )
                 logger.info("✅ 报告文件已发送")
@@ -21617,14 +21617,14 @@ admin3</code>
             
             try:
                 type_names = {
-                    'success': '成功',
-                    'frozen': '冻结',
-                    'banned': '封禁',
-                    'wrong_password': '密码错误',
-                    'network_error': '网络错误',
-                    'other_error': '其他错误'
+                    'success': self.i18n.get(user_id, 'reauthorize.category_success'),
+                    'frozen': self.i18n.get(user_id, 'reauthorize.category_frozen'),
+                    'banned': self.i18n.get(user_id, 'reauthorize.category_banned'),
+                    'wrong_password': self.i18n.get(user_id, 'reauthorize.category_wrong_password'),
+                    'network_error': self.i18n.get(user_id, 'reauthorize.category_network_error'),
+                    'other_error': self.i18n.get(user_id, 'reauthorize.category_other_error')
                 }
-                caption = f"📦 {type_names.get(zip_type, zip_type)}的账号 ({count} 个)"
+                caption = self.i18n.get(user_id, 'reauthorize.accounts_with_status', status=type_names.get(zip_type, zip_type), count=count)
                 
                 # 尝试发送，带重试机制
                 max_retries = 3
@@ -22918,9 +22918,9 @@ admin3</code>
             try:
                 # 根据ZIP类型设置不同的标题
                 if zip_type == "failed":
-                    caption = f"❌ 查询失败的账号 (共 {count} 个，含详细失败原因说明)"
+                    caption = self.i18n.get(user_id, 'registration.query_failed_caption', count=count)
                 else:
-                    caption = f"📦 注册时间分类账号 (共 {count} 个账号，按日期分类到不同文件夹)"
+                    caption = self.i18n.get(user_id, 'registration.classified_by_date_caption', count=count)
                 
                 max_retries = 3
                 for attempt in range(max_retries):

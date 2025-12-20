@@ -384,7 +384,15 @@
     "network_error_label": "• 🌐 Network Error: {count}",
     "other_error_label": "• ❌ Other Errors: {count}",
     "success_rate": "<b>Success Rate:</b> {rate}%",
-    "detailed_report": "📄 Detailed report in files below"
+    "detailed_report": "📄 Detailed report in files below",
+    "category_success": "Success",
+    "category_frozen": "Frozen",
+    "category_banned": "Banned",
+    "category_wrong_password": "Wrong Password",
+    "category_network_error": "Network Error",
+    "category_other_error": "Other Errors",
+    "accounts_with_status": "📦 {status} Accounts ({count})",
+    "detailed_report_caption": "📊 Reauthorization Detailed Report"
   },
   "registration": {
     "title": "🕰️ <b>Check Registration Time</b>",
@@ -418,7 +426,9 @@
     "statistics_header": "<b>Statistics:</b>",
     "reg_by_date": "<b>By Registration Date:</b>",
     "more_dates": "• ... {count} more dates",
-    "detailed_report_below": "📄 Detailed report in files below"
+    "detailed_report_below": "📄 Detailed report in files below",
+    "query_failed_caption": "❌ Query Failed Accounts (Total {count}, with detailed failure reasons)",
+    "classified_by_date_caption": "📦 Registration Time Classified Accounts (Total {count} accounts, classified by date into folders)"
   },
   "vip": {
     "title": "💳 <b>VIP Membership</b>",

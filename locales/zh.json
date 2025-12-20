@@ -384,7 +384,15 @@
     "network_error_label": "• 🌐 网络错误：{count}",
     "other_error_label": "• ❌ 其他错误：{count}",
     "success_rate": "<b>成功率：</b> {rate}%",
-    "detailed_report": "📄 详细报告见下方文件"
+    "detailed_report": "📄 详细报告见下方文件",
+    "category_success": "成功",
+    "category_frozen": "冻结",
+    "category_banned": "封禁",
+    "category_wrong_password": "密码错误",
+    "category_network_error": "网络错误",
+    "category_other_error": "其他错误",
+    "accounts_with_status": "📦 {status}的账号 ({count} 个)",
+    "detailed_report_caption": "📊 重新授权详细报告"
   },
   "registration": {
     "title": "🕰️ <b>查询注册时间</b>",
@@ -418,7 +426,9 @@
     "statistics_header": "<b>统计信息：</b>",
     "reg_by_date": "<b>按注册日期分类：</b>",
     "more_dates": "• ... 还有 {count} 个日期",
-    "detailed_report_below": "📄 详细报告见下方文件"
+    "detailed_report_below": "📄 详细报告见下方文件",
+    "query_failed_caption": "❌ 查询失败的账号 (共 {count} 个，含详细失败原因说明)",
+    "classified_by_date_caption": "📦 注册时间分类账号 (共 {count} 个账号，按日期分类到不同文件夹)"
   },
   "vip": {
     "title": "💳 <b>开通/兑换会员</b>",
