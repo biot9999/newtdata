@@ -78,7 +78,25 @@
     "performance_stats": "⚡ <b>Performance Stats</b>",
     "detection_time": "• Detection Time: {seconds}s ({minutes}min)",
     "average_speed": "• Average Speed: {speed} accounts/s",
-    "sending_files": "🚀 Auto-sending classification files, please wait..."
+    "sending_files": "🚀 Auto-sending classification files, please wait...",
+    "found_accounts": "📁 <b>Found {count} account files</b>",
+    "start_checking": "🔍 <b>Starting check for {count} accounts...</b>",
+    "file_type_label": "📊 File type: {type}",
+    "concurrent_threads": "⚡ Concurrent threads: {count}",
+    "please_wait": "Please wait, showing detection progress in real-time...",
+    "no_valid_files": "❌ <b>No valid account files found</b>",
+    "conversion_failed": "❌ <b>Conversion Failed</b>\n\nError: {error}",
+    "file_type_error_need_tdata": "❌ <b>File Type Error</b>\n\nNeeds Tdata files, but found {type} format",
+    "file_type_error_need_session": "❌ <b>File Type Error</b>\n\nNeeds Session files, but found {type} format",
+    "processing_file_failed": "❌ <b>File Processing Failed</b>\n\nError: {error}",
+    "time_remaining": "⏱️ Est. remaining: {seconds}s",
+    "no_files_to_send": "❌ No files to send",
+    "valid_format_reminder": "Please ensure ZIP contains correct format",
+    "valid_account_format_reminder": "Please ensure ZIP contains Session or TData format account files",
+    "ensure_zip_contains": "Please ensure ZIP file contains:",
+    "session_file_types": "• Session files (.session)",
+    "session_json_files": "• Session+JSON files (.session + .json)",
+    "tdata_folders": "• TData folders"
   },
   "convert": {
     "title": "🔄 <b>Format Conversion</b>",
@@ -139,7 +157,10 @@
     "setting_avatar": "Setting avatar: {emoji}",
     "deleting_old_avatar": "Deleting old avatars...",
     "avatar_deleted": "✅ Deleted {count} old avatars",
-    "avatar_set": "✅ Avatar set successfully"
+    "avatar_set": "✅ Avatar set successfully",
+    "enter_web_2fa_prompt": "🔐 Please enter 2FA password to display on web:",
+    "enter_2fa_example": "• Send 2FA password directly, e.g.: <code>My2FA@2024</code>",
+    "or_skip_auto": "• Or reply <code>skip</code> to use auto-detection"
   },
   "twofa": {
     "change_title": "🔐 <b>Change 2FA Password</b>",
@@ -158,7 +179,8 @@
     "error": "❌ Operation failed: {error}",
     "unavailable_telethon": "❌ 2FA modification unavailable\n\nReason: Telethon library not installed",
     "no_add_task": "❌ No pending 2FA add task, please start over",
-    "no_pending": "❌ No pending 2FA task"
+    "no_pending": "❌ No pending 2FA task",
+    "web_2fa_label": "🔐 Web 2FA: <code>{password}</code>"
   },
   "classify": {
     "title": "📦 <b>Account Classification</b>",
@@ -211,12 +233,14 @@
     "input_multiple": "🔢 <b>Enter Multiple Quantities (space-separated)</b>\n\nExample: 10 20 30\n\n💡 Tip:\n• Split by multiple quantities, e.g. 10 20 30",
     "upload_prompt": "📤 <b>Please Upload Account Files</b>\n\n📁 <b>Supported Formats</b>\n• ZIP archive (recommended)\n• Session files (.session)\n• TData folders",
     "quantity_mode": "🔢 <b>Select Quantity Mode:</b>\n\nChoose how to allocate account quantities",
-    "input_quantities_multi": "🔢 <b>Enter Multiple Quantities (space-separated)</b>\n\nExample: 10 20 30\n\n💡 Tip:\n• Split by multiple quantities, e.g. 10 20 30"
+    "input_quantities_multi": "🔢 <b>Enter Multiple Quantities (space-separated)</b>\n\nExample: 10 20 30\n\n💡 Tip:\n• Split by multiple quantities, e.g. 10 20 30",
+    "step_2_of_5": "Step 2/5: Configure Name",
+    "select_name_config": "Please select name configuration method:"
   },
   "api": {
     "title": "🔗 <b>API Conversion</b>",
     "upload_prompt": "Please upload account files (ZIP)",
-    "processing": "⏳ Converting...\n\nProgress: {current}/{total}",
+    "processing": "Processing...",
     "complete": "✅ Conversion Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
     "error": "❌ Conversion failed: {error}",
     "not_available": "❌ API conversion unavailable\n\nReason: Flask library not installed\n💡 Install: pip install flask jinja2",
@@ -245,13 +269,21 @@
     "please_upload": "Please upload your file...",
     "conversion_complete": "🎉 <b>API Format Conversion Complete!</b>",
     "conversion_stats": "📊 <b>Conversion Statistics</b>",
-    "total_files": "• Total: {count}",
+    "total_files": "Total files: {count}",
     "success_count": "• ✅ Success: {count} ({rate}%)",
     "failed_count": "• ❌ Failed: {count} ({rate}%)",
     "elapsed_time": "• ⏱️ Time: {seconds}s",
     "conversion_speed": "• 🚀 Speed: {speed}/s",
     "sending_txt": "📄 Sending TXT file...",
-    "api_link_caption": "📋 API Links (Phone + Link)"
+    "api_link_caption": "📋 API Links (Phone + Link)",
+    "start_conversion": "🔄 <b>Starting API conversion...</b>",
+    "time_elapsed": "• Time elapsed: {time:.1f}s",
+    "twofa_setting": "2FA Setting",
+    "custom": "Custom",
+    "auto_detect": "Auto-detect",
+    "concurrent_batch": "Concurrent: {concurrent} | Batch: {batch}",
+    "start_conversion_to_api": "🔄 <b>Starting conversion to API format...</b>",
+    "web_2fa_auto": "🔐 Web 2FA: Auto-detect"
   },
   "rename": {
     "title": "📝 <b>File Rename</b>",
@@ -603,7 +635,9 @@
     "no_available": "❌ No proxies available",
     "no_test": "❌ No proxies available for testing",
     "test_failed_error": "❌ Proxy test failed: {e}",
-    "no_cleanup": "❌ No proxies available for cleanup"
+    "no_cleanup": "❌ No proxies available for cleanup",
+    "cleanup_success": "🎉 <b>Proxy Cleanup Successful!</b>",
+    "cleanup_failed": "❌ <b>Proxy Cleanup Failed</b>"
   },
   "settings": {
     "title": "⚙️ <b>Settings</b>",
@@ -647,11 +681,15 @@
     "operation_mismatch": "❌ Operation type mismatch",
     "no_pending_task": "❌ No pending task",
     "no_valid_files": "❌ <b>No Valid Files Found</b>\n\nPlease ensure ZIP contains Session or TData format files",
-    "processing_failed": "❌ <b>Processing Failed</b>\n\n{error}",
+    "processing_failed": "❌ <b>Processing Failed</b>",
     "no_avatar_task": "❌ No avatar upload task in progress",
     "no_images": "❌ No images uploaded yet, please upload first",
     "quantity_positive": "❌ All quantities must be greater than 0",
-    "invalid_number": "❌ Please enter a valid number"
+    "invalid_number": "❌ Please enter a valid number",
+    "cancel_return_start": "To cancel, click /start to return to main menu",
+    "type_label": "Type",
+    "timeout_5min": "⏰ 5 minute timeout",
+    "processing_file": "📥 <b>Processing your file...</b>"
   },
   "file": {
     "uploading": "⬆️ Uploading file...",
@@ -882,7 +920,19 @@
     "intro_interactive": "• ✏️ <b>Interactive Password Input</b>\n  - System prompts for password after file upload\n  - Supports two formats: New password only (recommended) or Old+New password\n  - System prioritizes auto-detection of old password, no manual input needed\n  - 5-minute input timeout protection",
     "intro_auto_update": "• 🔄 <b>Automatic Password File Update</b>\n  - Session format: Unified use of twofa field, delete other password fields\n  - TData format: Auto-update 2fa.txt and other password files\n  - Files immediately synced after successful modification\n  - No manual config file editing required",
     "intro_notes": "<b>⚠️ Important Notes</b>\n• System will first attempt to auto-detect existing password\n• Recommended to use new password only format, let system auto-detect old password\n• If auto-detection fails, will use your input old password\n• Please input password within 5 minutes, otherwise task will be cancelled\n• Ensure account is logged in and session file is valid\n• Password files will be auto-updated and included in result ZIP after successful modification",
-    "upload_prompt": "🚀Please upload your ZIP file..."
+    "upload_prompt": "🚀Please upload your ZIP file...",
+    "enter_password_prompt": "🔐 <b>Please enter password information:</b>",
+    "format1_recommended": "<b>Format 1 (Recommended):</b> New password only",
+    "format1_example": "<code>NewPassword123</code>",
+    "auto_detect_old": "<i>System will auto-detect old password</i>",
+    "format2_label": "<b>Format 2:</b> Old password New password",
+    "format2_example": "<code>OldPass456 NewPassword123</code>",
+    "use_provided_old": "<i>If auto-detect fails, will use your provided old password</i>",
+    "tips_header": "💡 <b>Tips:</b>",
+    "tip_recommend_format1": "• Recommended to use Format 1 for auto-detection",
+    "tip_password_chars": "• Password can contain letters, numbers, special characters",
+    "tip_space_separator": "• Separate two passwords with a space",
+    "send_within_5min": "⏰ Please send password within 5 minutes..."
   },
   "twofa_forget": {
     "intro_title": "🔓 <b>Forgot 2FA Password</b>",
@@ -914,7 +964,9 @@
     "intro_interactive": "• ✏️ <b>Interactive Password Input</b>\n  - Choose auto-detection or manual input after file upload\n  - Auto-detection: Read current password from files\n  - Manual input: User enters current 2FA password\n  - 5-minute input timeout protection",
     "intro_auto_update": "• 🔄 <b>Automatic Password File Update</b>\n  - Session format: Unified use of twofa field and clear it, delete other password fields\n  - TData format: Auto-delete or clear 2fa.txt and other password files\n  - Files immediately synced after successful deletion\n  - No manual config file editing required",
     "intro_notes": "<b>⚠️ Important Notes</b>\n• After removing 2FA, account will no longer require two-factor verification password\n• System prioritizes auto-detection of existing password\n• If auto-detection fails, please select manual input mode\n• Please complete operation within 5 minutes, otherwise task will be cancelled\n• Ensure account is logged in and session file is valid\n• Password files will be auto-updated and included in result ZIP after successful deletion",
-    "upload_prompt": "🚀Please upload your ZIP file..."
+    "upload_prompt": "🚀Please upload your ZIP file...",
+    "enter_current_2fa": "🔐 <b>Please enter current 2FA password:</b>",
+    "enter_2fa_instructions": "• Enter your current 2FA password\n• System will verify and remove 2FA\n• Please send password within 5 minutes..."
   },
   "check_status": {
     "unlimited": "🟢 Unlimited",

@@ -9824,7 +9824,7 @@ class EnhancedBot:
                 if progress_msg:
                     try:
                         progress_msg.edit_text(
-                            f"🎉 <b>代理清理成功！</b>\n\n{result_msg}",
+                            f"{self.i18n.get(user_id, 'proxy.cleanup_success')}\n\n{result_msg}",
                             parse_mode='HTML'
                         )
                     except:
@@ -9853,7 +9853,7 @@ class EnhancedBot:
                 if progress_msg:
                     try:
                         progress_msg.edit_text(
-                            f"❌ <b>代理清理失败</b>\n\n{result_msg}",
+                            f"{self.i18n.get(user_id, 'proxy.cleanup_failed')}\n\n{result_msg}",
                             parse_mode='HTML'
                         )
                     except:
@@ -10258,12 +10258,10 @@ class EnhancedBot:
                         progress_msg = task_info['progress_msg']
                         total_files = len(task_info['files'])
                         progress_msg.edit_text(
-                            f"📁 <b>已找到 {total_files} 个账号文件</b>\n\n"
-                            f"🔐 <b>请输入当前的2FA密码：</b>\n\n"
-                            f"• 输入您当前使用的2FA密码\n"
-                            f"• 系统将验证密码并删除2FA\n"
-                            f"• 请在5分钟内发送密码...\n\n"
-                            f"💡 如需取消，请点击 /start 返回主菜单",
+                            f"{self.i18n.get(user_id, 'check.found_accounts', count=total_files)}\n\n"
+                            f"{self.i18n.get(user_id, 'twofa_remove.enter_current_2fa')}\n\n"
+                            f"{self.i18n.get(user_id, 'twofa_remove.enter_2fa_instructions')}\n\n"
+                            f"💡 {self.i18n.get(user_id, 'common.cancel_return_start')}",
                             parse_mode='HTML'
                         )
                         # 设置用户状态为等待输入密码
@@ -11519,9 +11517,9 @@ class EnhancedBot:
                 self.pending_modify_tasks[user_id]['custom_state'] = 'config_name'
                 
                 text = (
-                    f"✅ <b>已接收 {total_files} 个账号</b>\n\n"
-                    f"步骤 2/5: 配置姓名\n\n"
-                    f"请选择姓名配置方式："
+                    f"{self.i18n.get(user_id, 'file_ops.received_files', count=total_files)}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.step_2_of_5')}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.select_name_config')}"
                 )
                 
                 keyboard = InlineKeyboardMarkup([
@@ -11590,12 +11588,12 @@ class EnhancedBot:
             total_files = len(files)
             try:
                 progress_msg.edit_text(
-                    f"✅ <b>已找到 {total_files} 个账号文件</b>\n"
-                    f"📊 类型: {file_type.upper()}\n\n"
-                    f"🔐 请输入将在网页上显示的 2FA 密码：\n"
-                    f"• 直接发送 2FA 密码，例如: <code>My2FA@2024</code>\n"
-                    f"• 或回复 <code>跳过</code> 使用自动识别\n\n"
-                    f"⏰ 5分钟超时",
+                    f"{self.i18n.get(user_id, 'check.found_accounts', count=total_files)}\n"
+                    f"📊 {self.i18n.get(user_id, 'common.type_label')}: {file_type.upper()}\n\n"
+                    f"{self.i18n.get(user_id, 'modify.enter_web_2fa_prompt')}\n"
+                    f"{self.i18n.get(user_id, 'modify.enter_2fa_example')}\n"
+                    f"{self.i18n.get(user_id, 'modify.or_skip_auto')}\n\n"
+                    f"{self.i18n.get(user_id, 'common.timeout_5min')}",
                     parse_mode='HTML'
                 )
             except:
@@ -11642,11 +11640,11 @@ class EnhancedBot:
 
         # 更新提示
         try:
-            tip = "🔄 <b>开始转换为API格式...</b>\n\n"
+            tip = f"{self.i18n.get(user_id, 'api.start_conversion_to_api')}\n\n"
             if override_two_fa:
-                tip += f"🔐 网页2FA: <code>{override_two_fa}</code>\n"
+                tip += f"{self.i18n.get(user_id, 'twofa.web_2fa_label', password=override_two_fa)}\n"
             else:
-                tip += "🔐 网页2FA: 自动识别\n"
+                tip += f"{self.i18n.get(user_id, 'api.web_2fa_auto')}\n"
             progress_msg.edit_text(tip, parse_mode='HTML')
         except:
             pass
@@ -11668,12 +11666,12 @@ class EnhancedBot:
             # =================== 进度提示 ===================
             try:
                 progress_msg.edit_text(
-                    f"🔄 <b>开始API转换...</b>\n\n"
-                    f"📊 总文件: {total_files} 个\n"
-                    f"📁 类型: {file_type.upper()}\n"
-                    f"🔐 2FA设置: {'自定义' if override_two_fa else '自动检测'}\n"
-                    f"🚀 并发数: {max_concurrent} | 批次: {batch_size}\n\n"
-                    f"正在处理...",
+                    f"{self.i18n.get(user_id, 'api.start_conversion')}\n\n"
+                    f"📊 {self.i18n.get(user_id, 'api.total_files', count=total_files)}\n"
+                    f"📁 {self.i18n.get(user_id, 'common.type_label')}: {file_type.upper()}\n"
+                    f"🔐 {self.i18n.get(user_id, 'api.twofa_setting')}: {self.i18n.get(user_id, 'api.custom' if override_two_fa else 'api.auto_detect')}\n"
+                    f"🚀 {self.i18n.get(user_id, 'api.concurrent_batch', concurrent=max_concurrent, batch=batch_size)}\n\n"
+                    f"{self.i18n.get(user_id, 'api.processing')}",
                     parse_mode='HTML'
                 )
             except:
@@ -11879,7 +11877,7 @@ class EnhancedBot:
         # 安全发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            "📥 <b>正在处理您的文件...</b>",
+            self.i18n.get(user_id, 'common.processing_file'),
             'HTML'
         )
         
@@ -11903,11 +11901,11 @@ class EnhancedBot:
             if not files:
                 try:
                     progress_msg.edit_text(
-                        "❌ <b>未找到有效的账号文件</b>\n\n"
-                        "请确保ZIP文件包含:\n"
-                        "• Session 文件 (.session)\n"
-                        "• Session+JSON 文件 (.session + .json)\n"
-                        "• TData 文件夹",
+                        f"{self.i18n.get(user_id, 'check.no_valid_files')}\n\n"
+                        f"{self.i18n.get(user_id, 'check.ensure_zip_contains')}\n"
+                        f"{self.i18n.get(user_id, 'check.session_file_types')}\n"
+                        f"{self.i18n.get(user_id, 'check.session_json_files')}\n"
+                        f"{self.i18n.get(user_id, 'check.tdata_folders')}",
                         parse_mode='HTML'
                     )
                 except:
@@ -11921,11 +11919,11 @@ class EnhancedBot:
             # 开始检测提示
             try:
                 progress_msg.edit_text(
-                    f"🔍 <b>开始检测 {total_accounts} 个账号...</b>\n\n"
-                    f"📊 文件类型: {file_type.upper()}\n"
+                    f"{self.i18n.get(user_id, 'check.start_checking', count=total_accounts)}\n\n"
+                    f"{self.i18n.get(user_id, 'check.file_type_label', type=file_type.upper())}\n"
                     f"{proxy_status}\n"
-                    f"⚡ 并发线程: {config.MAX_CONCURRENT_CHECKS}个\n\n"
-                    f"请稍等，实时显示检测进度...",
+                    f"{self.i18n.get(user_id, 'check.concurrent_threads', count=config.MAX_CONCURRENT_CHECKS)}\n\n"
+                    f"{self.i18n.get(user_id, 'check.please_wait')}",
                     parse_mode='HTML'
                 )
             except:
@@ -12146,7 +12144,7 @@ class EnhancedBot:
         # 发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            "📥 <b>正在处理您的文件...</b>",
+            self.i18n.get(user_id, \'common.processing_file\'),
             'HTML'
         )
         
@@ -12373,7 +12371,7 @@ class EnhancedBot:
         # 发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            "📥 <b>正在处理您的文件...</b>",
+            self.i18n.get(user_id, \'common.processing_file\'),
             'HTML'
         )
         
@@ -12419,20 +12417,20 @@ class EnhancedBot:
             # 请求用户输入密码
             try:
                 progress_msg.edit_text(
-                    f"📁 <b>已找到 {total_files} 个账号文件</b>\n\n"
-                    f"📊 文件类型: {file_type.upper()}\n\n"
-                    f"🔐 <b>请输入密码信息：</b>\n\n"
-                    f"<b>格式1（推荐）：</b> 仅新密码\n"
-                    f"<code>NewPassword123</code>\n"
-                    f"<i>系统会自动检测旧密码</i>\n\n"
-                    f"<b>格式2：</b> 旧密码 新密码\n"
-                    f"<code>OldPass456 NewPassword123</code>\n"
-                    f"<i>如果自动检测失败，将使用您提供的旧密码</i>\n\n"
-                    f"💡 <b>提示：</b>\n"
-                    f"• 推荐使用格式1，让系统自动检测\n"
-                    f"• 密码可包含字母、数字、特殊字符\n"
-                    f"• 两个密码之间用空格分隔\n\n"
-                    f"⏰ 请在5分钟内发送密码...",
+                    f"{self.i18n.get(user_id, 'check.found_accounts', count=total_files)}\n\n"
+                    f"{self.i18n.get(user_id, 'check.file_type_label', type=file_type.upper())}\n\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.enter_password_prompt')}\n\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.format1_recommended')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.format1_example')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.auto_detect_old')}\n\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.format2_label')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.format2_example')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.use_provided_old')}\n\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.tips_header')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.tip_recommend_format1')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.tip_password_chars')}\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.tip_space_separator')}\n\n"
+                    f"{self.i18n.get(user_id, 'twofa_change.send_within_5min')}",
                     parse_mode='HTML'
                 )
             except:
@@ -13761,7 +13759,7 @@ class EnhancedBot:
         # 发送进度消息
         progress_msg = self.safe_send_message(
             update,
-            "📥 <b>正在处理您的文件...</b>",
+            self.i18n.get(user_id, \'common.processing_file\'),
             'HTML'
         )
         
