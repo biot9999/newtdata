@@ -8575,6 +8575,20 @@ class EnhancedBot:
         'PHONENUMBERBANNED'
     ]
     
+    # 状态码到翻译键的映射
+    STATUS_TRANSLATION_MAP = {
+        'unlimited': 'check_status.unlimited',
+        'spam': 'check_status.spam',
+        'frozen': 'check_status.frozen',
+        'banned': 'check_status.banned',
+        'connection_error': 'check_status.connection_error',
+        'deactivated': 'check_status.deactivated',
+        'invalid': 'check_status.invalid',
+        'restricted': 'check_status.restricted',
+        'limited': 'check_status.limited',
+        'normal': 'check_status.normal'
+    }
+    
     # 消息发送重试相关常量
     MESSAGE_RETRY_MAX = 3       # 默认最大重试次数
     MESSAGE_RETRY_BACKOFF = 2   # 指数退避基数
@@ -8733,29 +8747,11 @@ class EnhancedBot:
         Returns:
             Localized status text
         """
-        # Map status codes to translation keys in check_status section
-        status_key_map = {
-            'unlimited': 'check_status.unlimited',
-            'spam': 'check_status.spam',
-            'frozen': 'check_status.frozen',
-            'banned': 'check_status.banned',
-            'connection_error': 'check_status.connection_error',
-            'deactivated': 'check_status.deactivated',
-            'invalid': 'check_status.invalid',
-            'restricted': 'check_status.restricted',
-            'limited': 'check_status.limited',
-            'normal': 'check_status.normal'
-        }
+        # Get translation key from class constant mapping
+        translation_key = self.STATUS_TRANSLATION_MAP.get(status_code)
         
-        # Get translation key
-        translation_key = status_key_map.get(status_code, None)
-        
-        if translation_key:
-            # Use i18n to get translated text
-            return self.i18n.get(user_id, translation_key)
-        else:
-            # Fallback: return status code as-is if no translation found
-            return status_code
+        # Use i18n to get translated text, fallback to status code if not found
+        return self.i18n.get(user_id, translation_key) if translation_key else status_code
     
     def safe_send_message(self, update, text, parse_mode=None, reply_markup=None, max_retries=None):
         """安全发送消息（带网络错误重试机制）
