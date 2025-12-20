@@ -103,7 +103,8 @@
     "detection_time_seconds": "• Detection time: {seconds}s",
     "thanks_restart": "Thanks for using! To detect again, click /start",
     "proxy_mode_emoji": "📡 Proxy Mode",
-    "local_mode_emoji": "🏠 Local Mode"
+    "local_mode_emoji": "🏠 Local Mode",
+    "scan_complete": "✅ <b>File Scan Complete!</b>"
   },
   "convert": {
     "title": "🔄 <b>Format Conversion</b>",
@@ -122,7 +123,7 @@
     "confirm_start": "✅ Received {count} files\n\nConfirm to start conversion?",
     "processing_progress": "⏳ Converting...\n\nProgress: {current}/{total}\nSuccess: {success}\nFailed: {failed}\nSpeed: {speed}/s\nElapsed: {elapsed}s",
     "converting_file": "Converting: {filename}",
-    "conversion_success": "✅ Conversion success: {filename}",
+    "conversion_success": "✅ <b>Conversion Success</b>: {count}",
     "conversion_failed": "❌ Conversion failed: {filename} - {error}",
     "result_success": "📦 Conversion Success",
     "result_failed": "📦 Conversion Failed",
@@ -134,7 +135,8 @@
     "total_time": "• ⏱️ Total time: {seconds}s ({minutes:.1f}min)",
     "avg_speed_per_sec": "• 🚀 Avg speed: {speed:.2f}/s",
     "task_complete": "✅ <b>Conversion Task Complete!</b>",
-    "all_results_sent": "All result files sent!"
+    "all_results_sent": "All result files sent!",
+    "conversion_error": "❌ <b>Conversion Error</b>: {count}"
   },
   "modify": {
     "title": "👤 <b>Modify Profile</b>",
@@ -165,8 +167,8 @@
     "processing_progress": "⏳ Processing...\n\nProgress: {current}/{total}\nSuccess: {success}\nFailed: {failed}\nSpeed: {speed}/s\nElapsed: {elapsed}s",
     "processing_current": "⏳ Processing...\n\nProgress: {current}/{total}\nSuccess: {success}\nFailed: {failed}\nSpeed: {speed}/s\nElapsed: {elapsed}s\n\n✅ Current: {name} {emoji}",
     "modifying_account": "Modifying: {phone}",
-    "modify_success": "✅ Modification success: {phone}",
-    "modify_failed": "❌ Modification failed: {phone} - {error}",
+    "modify_success": "✅ <b>Modification Success</b>: {count}",
+    "modify_failed": "❌ <b>Modification Failed</b>: {count}",
     "generating_name": "Generating name: {name}",
     "generating_bio": "Generating bio: {bio}",
     "setting_avatar": "Setting avatar: {emoji}",
@@ -598,7 +600,9 @@
     "system_built_in": "System Built-in",
     "total_admins": "<b>📊 Total: {count} admins</b>",
     "add_success": "✅ Successfully added admin",
-    "usage_instructions": "📝 Usage:"
+    "usage_instructions": "📝 Usage:",
+    "vip_granted": "✅ Trial membership granted successfully",
+    "admin_set": "✅ Admin setting successful"
   },
   "proxy": {
     "title": "📡 <b>Proxy Management</b>",
@@ -668,7 +672,10 @@
     "cleanup_success": "🎉 <b>Proxy Cleanup Successful!</b>",
     "cleanup_failed": "❌ <b>Proxy Cleanup Failed</b>",
     "test_start_message": "🧪 Starting test for {count} proxies...\n⚡ Fast mode: {mode}\n🚀 Concurrent: {concurrent}\n\nPlease wait, test results will be sent automatically...",
-    "test_in_progress": "🧪 <b>Proxy Testing...</b>\n\n📊 Initializing test environment..."
+    "test_in_progress": "🧪 <b>Proxy Testing...</b>\n\n📊 Initializing test environment...",
+    "test_complete": "✅ <b>Proxy Test Complete!</b>",
+    "cleanup_result_complete": "✅ Proxy cleanup complete!",
+    "reload_complete": "✅ Reload complete: {old}→{new} proxies"
   },
   "settings": {
     "title": "⚙️ <b>Settings</b>",
@@ -720,7 +727,10 @@
     "cancel_return_start": "To cancel, click /start to return to main menu",
     "type_label": "Type",
     "timeout_5min": "⏰ 5 minute timeout",
-    "processing_file": "📥 <b>Processing your file...</b>"
+    "processing_file": "📥 <b>Processing your file...</b>",
+    "speed_per_sec": "• Speed: {speed:.1f}/s",
+    "time_elapsed_sec": "• Time elapsed: {seconds}s",
+    "processed_count": "• Processed: {processed}/{total}"
   },
   "file": {
     "uploading": "⬆️ Uploading file...",
@@ -985,7 +995,14 @@
     "upload_section_title": "<b>📤 Please Upload Account Files:</b>",
     "upload_section_details": "• Supports .zip archives (Tdata/Session)\n• Auto-detect file format",
     "result_section_title": "<b>📊 Result Categories:</b>",
-    "result_section_details": "• ✅ Reset Requested - Successfully requested password reset (wait 7 days)\n• ⚠️ No Reset Needed - Account has no 2FA password set\n• ⏳ Cooling Period - Already in cooling period\n• ❌ Failed - Connection failed/other errors"
+    "result_section_details": "• ✅ Reset Requested - Successfully requested password reset (wait 7 days)\n• ⚠️ No Reset Needed - Account has no 2FA password set\n• ⏳ Cooling Period - Already in cooling period\n• ❌ Failed - Connection failed/other errors",
+    "process_complete": "✅ <b>Forget 2FA Processing Complete!</b>",
+    "processing_results": "<b>📊 Processing Results</b>",
+    "total_accounts": "• Total accounts: {count}",
+    "reset_requested": "• ✅ Reset requested: {count}",
+    "no_2fa_needed": "• ⚠️ No reset needed: {count}",
+    "cooling_period": "• ⏳ In cooling period: {count}",
+    "failed_count": "• ❌ Failed: {count}"
   },
   "twofa_add": {
     "intro_title": "➕ <b>Add 2FA Password</b>",
@@ -995,7 +1012,8 @@
     "supported_formats_details": "• ZIP archives (containing Session or TData)\n• Auto-detect file types and add corresponding 2FA configs",
     "processing_rules": "<b>⚙️ Processing Rules:</b>",
     "processing_rules_details": "• Session files → Create same-name JSON file (with twofa field)\n• TData directories → Create 2fa.txt file (at same level as tdata)",
-    "upload_prompt": "<b>📤 Please Upload Your Account Files</b>"
+    "upload_prompt": "<b>📤 Please Upload Your Account Files</b>",
+    "process_complete": "✅ <b>Add 2FA Complete!</b>"
   },
   "twofa_remove": {
     "intro_title": "❌ <b>Batch Remove 2FA Password</b>",

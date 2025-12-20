@@ -9710,7 +9710,7 @@ class EnhancedBot:
             test_speed = stats['total'] / total_time if total_time > 0 else 0
             
             final_text = f"""
-✅ <b>代理测试完成！</b>
+{self.i18n.get(user_id, \'proxy.test_complete\')}
 
 📊 <b>测试结果</b>
 • 总计代理: {stats['total']} 个
@@ -12216,12 +12216,12 @@ class EnhancedBot:
 🔄 <b>格式转换进行中...</b>
 
 📊 <b>当前进度</b>
-• 已处理: {processed}/{total}
-• 速度: {speed:.1f} 个/秒
-• 用时: {int(elapsed)} 秒
+{self.i18n.get(user_id, \'common.processed_count\', processed=processed, total=total)}
+{self.i18n.get(user_id, \'common.speed_per_sec\', speed=speed)}
+{self.i18n.get(user_id, \'common.time_elapsed_sec\', seconds=int(elapsed))}
 
-✅ <b>转换成功</b>: {success_count}
-❌ <b>转换错误</b>: {error_count}
+{self.i18n.get(user_id, \'convert.conversion_success\', count=success_count)}
+{self.i18n.get(user_id, \'convert.conversion_error\', count=error_count)}
 
 ⏱️ 预计剩余: {int((total - processed) / speed) if speed > 0 else 0} 秒
                     """
@@ -12502,12 +12502,12 @@ class EnhancedBot:
 🔐 <b>2FA密码修改进行中...</b>
 
 📊 <b>当前进度</b>
-• 已处理: {processed}/{total}
-• 速度: {speed:.1f} 个/秒
-• 用时: {int(elapsed)} 秒
+{self.i18n.get(user_id, \'common.processed_count\', processed=processed, total=total)}
+{self.i18n.get(user_id, \'common.speed_per_sec\', speed=speed)}
+{self.i18n.get(user_id, \'common.time_elapsed_sec\', seconds=int(elapsed))}
 
-✅ <b>修改成功</b>: {success_count}
-❌ <b>修改失败</b>: {fail_count}
+{self.i18n.get(user_id, \'modify.modify_success\', count=success_count)}
+{self.i18n.get(user_id, \'modify.modify_failed\', count=fail_count)}
 
 ⏱️ 预计剩余: {int((total - processed) / speed) if speed > 0 else 0} 秒
                     """
@@ -13343,7 +13343,7 @@ class EnhancedBot:
             
             # 完成消息
             completion_text = f"""
-✅ <b>忘记2FA处理完成！</b>
+{self.i18n.get(user_id, \'twofa_forget.process_complete\')}
 
 <b>📊 处理结果</b>
 • 总账号数: {total_files} 个
@@ -13460,7 +13460,7 @@ class EnhancedBot:
             
             # 提示用户输入2FA密码
             text = f"""
-✅ <b>文件扫描完成！</b>
+{self.i18n.get(user_id, \'check.scan_complete\')}
 
 📊 <b>统计信息</b>
 • 总账号数: {total_files} 个
@@ -13555,7 +13555,7 @@ class EnhancedBot:
             elapsed = time.time() - task_info['start_time']
             
             summary_text = f"""
-✅ <b>添加2FA完成！</b>
+{self.i18n.get(user_id, \'twofa_add.process_complete\')}
 
 📊 <b>处理结果</b>
 • 成功: {success_count} 个
@@ -13900,9 +13900,9 @@ class EnhancedBot:
 🗑️ <b>删除2FA密码进行中...</b>
 
 📊 <b>当前进度</b>
-• 已处理: {processed}/{total}
-• 速度: {speed:.1f} 个/秒
-• 用时: {int(elapsed)} 秒
+{self.i18n.get(user_id, \'common.processed_count\', processed=processed, total=total)}
+{self.i18n.get(user_id, \'common.speed_per_sec\', speed=speed)}
+{self.i18n.get(user_id, \'common.time_elapsed_sec\', seconds=int(elapsed))}
 
 ✅ <b>删除成功</b>: {success_count}
 ❌ <b>删除失败</b>: {fail_count}
@@ -14160,7 +14160,7 @@ class EnhancedBot:
             
             # 提示选择拆分方式
             text = f"""
-✅ <b>文件扫描完成！</b>
+{self.i18n.get(user_id, \'check.scan_complete\')}
 
 📊 <b>统计信息</b>
 • 总账号数: {total_count} 个

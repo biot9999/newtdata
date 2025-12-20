@@ -103,7 +103,8 @@
     "detection_time_seconds": "• 检测时间: {seconds}秒",
     "thanks_restart": "感谢使用增强版机器人！如需再次检测，请点击 /start",
     "proxy_mode_emoji": "📡代理模式",
-    "local_mode_emoji": "🏠本地模式"
+    "local_mode_emoji": "🏠本地模式",
+    "scan_complete": "✅ <b>文件扫描完成！</b>"
   },
   "convert": {
     "title": "🔄 <b>格式转换功能</b>",
@@ -122,7 +123,7 @@
     "confirm_start": "✅ 已接收 {count} 个文件\n\n确认开始转换？",
     "processing_progress": "⏳ 正在转换...\n\n进度: {current}/{total}\n成功: {success}\n失败: {failed}\n速度: {speed} 个/秒\n用时: {elapsed} 秒",
     "converting_file": "正在转换: {filename}",
-    "conversion_success": "✅ 转换成功: {filename}",
+    "conversion_success": "✅ <b>转换成功</b>: {count}",
     "conversion_failed": "❌ 转换失败: {filename} - {error}",
     "result_success": "📦 转换成功",
     "result_failed": "📦 转换失败",
@@ -134,7 +135,8 @@
     "total_time": "• ⏱️ 总用时: {seconds}秒 ({minutes:.1f}分钟)",
     "avg_speed_per_sec": "• 🚀 平均速度: {speed:.2f}个/秒",
     "task_complete": "✅ <b>转换任务完成！</b>",
-    "all_results_sent": "所有结果文件已发送！"
+    "all_results_sent": "所有结果文件已发送！",
+    "conversion_error": "❌ <b>转换错误</b>: {count}"
   },
   "modify": {
     "title": "👤 <b>修改资料功能</b>",
@@ -165,8 +167,8 @@
     "processing_progress": "⏳ 正在处理...\n\n进度: {current}/{total}\n成功: {success}\n失败: {failed}\n速度: {speed} 个/秒\n用时: {elapsed} 秒",
     "processing_current": "⏳ 正在处理...\n\n进度: {current}/{total}\n成功: {success}\n失败: {failed}\n速度: {speed} 个/秒\n用时: {elapsed} 秒\n\n✅ 当前: {name} {emoji}",
     "modifying_account": "正在修改: {phone}",
-    "modify_success": "✅ 修改成功: {phone}",
-    "modify_failed": "❌ 修改失败: {phone} - {error}",
+    "modify_success": "✅ <b>修改成功</b>: {count}",
+    "modify_failed": "❌ <b>修改失败</b>: {count}",
     "generating_name": "生成姓名: {name}",
     "generating_bio": "生成简介: {bio}",
     "setting_avatar": "设置头像: {emoji}",
@@ -598,7 +600,9 @@
     "system_built_in": "系统内置",
     "total_admins": "<b>📊 总计: {count} 个管理员</b>",
     "add_success": "✅ 成功添加管理员",
-    "usage_instructions": "📝 使用方法:"
+    "usage_instructions": "📝 使用方法:",
+    "vip_granted": "✅ 体验会员授予成功",
+    "admin_set": "✅ 管理员设置成功"
   },
   "proxy": {
     "title": "📡 <b>代理管理</b>",
@@ -668,7 +672,10 @@
     "cleanup_success": "🎉 <b>代理清理成功！</b>",
     "cleanup_failed": "❌ <b>代理清理失败</b>",
     "test_start_message": "�� 开始测试 {count} 个代理...\n⚡ 快速模式: {mode}\n🚀 并发数: {concurrent}\n\n请稍等，测试结果将自动发送...",
-    "test_in_progress": "🧪 <b>代理测试中...</b>\n\n📊 正在初始化测试环境..."
+    "test_in_progress": "🧪 <b>代理测试中...</b>\n\n📊 正在初始化测试环境...",
+    "test_complete": "✅ <b>代理测试完成！</b>",
+    "cleanup_result_complete": "✅ 代理清理完成!",
+    "reload_complete": "✅ 重新加载完成: {old}→{new}个代理"
   },
   "settings": {
     "title": "⚙️ <b>设置</b>",
@@ -720,7 +727,10 @@
     "cancel_return_start": "如需取消，请点击 /start 返回主菜单",
     "type_label": "类型",
     "timeout_5min": "⏰ 5分钟超时",
-    "processing_file": "📥 <b>正在处理您的文件...</b>"
+    "processing_file": "📥 <b>正在处理您的文件...</b>",
+    "speed_per_sec": "• 速度: {speed:.1f} 个/秒",
+    "time_elapsed_sec": "• 用时: {seconds} 秒",
+    "processed_count": "• 已处理: {processed}/{total}"
   },
   "file": {
     "uploading": "⬆️ 正在上传文件...",
@@ -985,7 +995,14 @@
     "upload_section_title": "<b>📤 请上传账号文件：</b>",
     "upload_section_details": "• 支持 .zip 压缩包（Tdata/Session）\n• 自动识别文件格式",
     "result_section_title": "<b>📊 结果分类：</b>",
-    "result_section_details": "• ✅ 已请求重置 - 成功请求密码重置（需等待7天）\n• ⚠️ 无需重置 - 账号没有设置2FA密码\n• ⏳ 冷却期中 - 已在冷却期内\n• ❌ 失败 - 连接失败/其他错误"
+    "result_section_details": "• ✅ 已请求重置 - 成功请求密码重置（需等待7天）\n• ⚠️ 无需重置 - 账号没有设置2FA密码\n• ⏳ 冷却期中 - 已在冷却期内\n• ❌ 失败 - 连接失败/其他错误",
+    "process_complete": "✅ <b>忘记2FA处理完成！</b>",
+    "processing_results": "<b>📊 处理结果</b>",
+    "total_accounts": "• 总账号数: {count} 个",
+    "reset_requested": "• ✅ 已请求重置: {count} 个",
+    "no_2fa_needed": "• ⚠️ 无需重置: {count} 个",
+    "cooling_period": "• ⏳ 冷却期中: {count} 个",
+    "failed_count": "• ❌ 失败: {count} 个"
   },
   "twofa_add": {
     "intro_title": "➕ <b>添加2FA密码</b>",
@@ -995,7 +1012,8 @@
     "supported_formats_details": "• ZIP 压缩包（包含 Session 或 TData）\n• 自动识别文件类型并添加对应的2FA配置",
     "processing_rules": "<b>⚙️ 处理规则：</b>",
     "processing_rules_details": "• Session 文件 → 创建同名 JSON 文件（包含 twofa 字段）\n• TData 目录 → 创建 2fa.txt 文件（与 tdata 同级）",
-    "upload_prompt": "<b>📤 请上传您的账号文件</b>"
+    "upload_prompt": "<b>📤 请上传您的账号文件</b>",
+    "process_complete": "✅ <b>添加2FA完成！</b>"
   },
   "twofa_remove": {
     "intro_title": "❌ <b>批量删除2FA密码功能</b>",
