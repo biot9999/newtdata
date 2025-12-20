@@ -7502,8 +7502,15 @@ class Forget2FAManager:
             'failed': ('失败', '❌')
         }
         
-        # 创建文件路径映射
-        file_path_map = {name: path for path, name in files}
+        # 创建文件路径映射 - 处理2元组或3元组格式
+        file_path_map = {}
+        for item in files:
+            if len(item) == 2:
+                path, name = item
+                file_path_map[name] = path
+            elif len(item) == 3:
+                path, name, _ = item
+                file_path_map[name] = path
         
         for status_key, items in results.items():
             if not items:
@@ -18188,7 +18195,15 @@ class EnhancedBot:
             api_id = device_config.get('api_id', config.API_ID)
             api_hash = device_config.get('api_hash', config.API_HASH)
             
-            for i, (file_path, file_name) in enumerate(files):
+            for i, item in enumerate(files):
+                # 处理2元组或3元组格式
+                if len(item) == 2:
+                    file_path, file_name = item
+                elif len(item) == 3:
+                    file_path, file_name, _ = item
+                else:
+                    continue  # 跳过格式不正确的项
+                
                 # 更新进度
                 if (i + 1) % 5 == 0:
                     self.safe_edit_message_text(
