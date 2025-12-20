@@ -9021,11 +9021,11 @@ class EnhancedBot:
         buttons = []
         
         status_info = [
-            ("unlimited", "🟢", len(results['无限制'])),
-            ("spam", "🟡", len(results['垃圾邮件'])),
-            ("frozen", "🔴", len(results['冻结'])),
-            ("banned", "🟠", len(results['封禁'])),
-            ("connection_error", "⚫", len(results['连接错误']))
+            ("unlimited", "🟢", len(results['unlimited'])),
+            ("spam", "🟡", len(results['spam'])),
+            ("frozen", "🔴", len(results['frozen'])),
+            ("banned", "🟠", len(results['banned'])),
+            ("connection_error", "⚫", len(results['connection_error']))
         ]
         
         # 每一行显示：状态名称 | 数量
@@ -12018,11 +12018,11 @@ class EnhancedBot:
 
 {self.i18n.get(user_id, 'check.final_result_header')}
 {self.i18n.get(user_id, 'check.total_accounts', count=total_accounts)}
-{self.i18n.get(user_id, 'check.unrestricted', count=len(results['无限制']))}
-{self.i18n.get(user_id, 'check.spam', count=len(results['垃圾邮件']))}
-{self.i18n.get(user_id, 'check.frozen', count=len(results['冻结']))}
-{self.i18n.get(user_id, 'check.banned', count=len(results['封禁']))}
-{self.i18n.get(user_id, 'check.connection_error', count=len(results['连接错误']))}{proxy_stats}
+{self.i18n.get(user_id, 'check.unrestricted', count=len(results['unlimited']))}
+{self.i18n.get(user_id, 'check.spam', count=len(results['spam']))}
+{self.i18n.get(user_id, 'check.frozen', count=len(results['frozen']))}
+{self.i18n.get(user_id, 'check.banned', count=len(results['banned']))}
+{self.i18n.get(user_id, 'check.connection_error', count=len(results['connection_error']))}{proxy_stats}
 
 {self.i18n.get(user_id, 'check.performance_stats')}
 {self.i18n.get(user_id, 'check.detection_time', seconds=int(total_time), minutes=f'{total_time/60:.1f}')}
@@ -17877,7 +17877,7 @@ class EnhancedBot:
                 
                 for idx, detail in enumerate(results_summary['detailed_results'], 1):
                     status_icon = "✅" if detail['status'] == 'success' else ("❄️" if detail['status'] == 'frozen' else "❌")
-                    status_text = "成功" if detail['status'] == 'success' else ("frozen" if detail['status'] == 'frozen' else "失败")
+                    status_text = "成功" if detail['status'] == 'success' else ("冻结" if detail['status'] == 'frozen' else "失败")
                     
                     f.write(f"{idx}. {status_icon} {detail['file_name']} - {status_text}\n")
                     
