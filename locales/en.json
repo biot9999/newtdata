@@ -73,7 +73,19 @@
     "upload_prompt": "Please upload files to convert (ZIP)",
     "processing": "⏳ Converting...\n\nProgress: {current}/{total}",
     "complete": "✅ Conversion Complete!\n\n• Total: {total}\n• Success: {success}\n• Failed: {failed}",
-    "error": "❌ Conversion failed: {error}"
+    "error": "❌ Conversion failed: {error}",
+    "mode_session_to_tdata": "🔄 Session → TData Conversion",
+    "mode_tdata_to_session": "🔄 TData → Session Conversion",
+    "mode_session_to_json": "🔄 Session → JSON Conversion",
+    "upload_prompt_session": "Please upload Session files (ZIP)",
+    "upload_prompt_tdata": "Please upload TData files (ZIP)",
+    "confirm_start": "✅ Received {count} files\n\nConfirm to start conversion?",
+    "processing_progress": "⏳ Converting...\n\nProgress: {current}/{total}\nSuccess: {success}\nFailed: {failed}\nSpeed: {speed}/s\nElapsed: {elapsed}s",
+    "converting_file": "Converting: {filename}",
+    "conversion_success": "✅ Conversion success: {filename}",
+    "conversion_failed": "❌ Conversion failed: {filename} - {error}",
+    "result_success": "📦 Conversion Success",
+    "result_failed": "📦 Conversion Failed"
   },
   "modify": {
     "title": "👤 <b>Modify Profile</b>",
@@ -98,7 +110,20 @@
     "custom_bio_single": "💬 Unified Bio",
     "custom_bio_empty": "⬜ Set Empty",
     "custom_bio_skip": "⏭ Skip",
-    "error": "❌ Modification failed: {error}"
+    "error": "❌ Modification failed: {error}",
+    "confirm_start": "✅ Received {count} accounts\n\nConfirm to start modifying profiles?",
+    "button_start": "🚀 Start Processing",
+    "processing_progress": "⏳ Processing...\n\nProgress: {current}/{total}\nSuccess: {success}\nFailed: {failed}\nSpeed: {speed}/s\nElapsed: {elapsed}s",
+    "processing_current": "⏳ Processing...\n\nProgress: {current}/{total}\nSuccess: {success}\nFailed: {failed}\nSpeed: {speed}/s\nElapsed: {elapsed}s\n\n✅ Current: {name} {emoji}",
+    "modifying_account": "Modifying: {phone}",
+    "modify_success": "✅ Modification success: {phone}",
+    "modify_failed": "❌ Modification failed: {phone} - {error}",
+    "generating_name": "Generating name: {name}",
+    "generating_bio": "Generating bio: {bio}",
+    "setting_avatar": "Setting avatar: {emoji}",
+    "deleting_old_avatar": "Deleting old avatars...",
+    "avatar_deleted": "✅ Deleted {count} old avatars",
+    "avatar_set": "✅ Avatar set successfully"
   },
   "twofa": {
     "change_title": "🔐 <b>Change 2FA Password</b>",

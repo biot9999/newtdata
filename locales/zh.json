@@ -73,7 +73,19 @@
     "upload_prompt": "请上传需要转换的文件（ZIP压缩包）",
     "processing": "⏳ 正在转换...\n\n进度: {current}/{total}",
     "complete": "✅ 转换完成！\n\n• 总数: {total}\n• 成功: {success}\n• 失败: {failed}",
-    "error": "❌ 转换失败: {error}"
+    "error": "❌ 转换失败: {error}",
+    "mode_session_to_tdata": "🔄 Session → TData 转换",
+    "mode_tdata_to_session": "🔄 TData → Session 转换",
+    "mode_session_to_json": "🔄 Session → JSON 转换",
+    "upload_prompt_session": "请上传 Session 文件（ZIP压缩包）",
+    "upload_prompt_tdata": "请上传 TData 文件（ZIP压缩包）",
+    "confirm_start": "✅ 已接收 {count} 个文件\n\n确认开始转换？",
+    "processing_progress": "⏳ 正在转换...\n\n进度: {current}/{total}\n成功: {success}\n失败: {failed}\n速度: {speed} 个/秒\n用时: {elapsed} 秒",
+    "converting_file": "正在转换: {filename}",
+    "conversion_success": "✅ 转换成功: {filename}",
+    "conversion_failed": "❌ 转换失败: {filename} - {error}",
+    "result_success": "📦 转换成功",
+    "result_failed": "📦 转换失败"
   },
   "modify": {
     "title": "👤 <b>修改资料功能</b>",
@@ -98,7 +110,20 @@
     "custom_bio_single": "💬 统一简介",
     "custom_bio_empty": "⬜ 设置为空",
     "custom_bio_skip": "⏭ 跳过不修改",
-    "error": "❌ 修改失败: {error}"
+    "error": "❌ 修改失败: {error}",
+    "confirm_start": "✅ 已接收 {count} 个账号\n\n确认开始修改资料？",
+    "button_start": "🚀 开始处理",
+    "processing_progress": "⏳ 正在处理...\n\n进度: {current}/{total}\n成功: {success}\n失败: {failed}\n速度: {speed} 个/秒\n用时: {elapsed} 秒",
+    "processing_current": "⏳ 正在处理...\n\n进度: {current}/{total}\n成功: {success}\n失败: {failed}\n速度: {speed} 个/秒\n用时: {elapsed} 秒\n\n✅ 当前: {name} {emoji}",
+    "modifying_account": "正在修改: {phone}",
+    "modify_success": "✅ 修改成功: {phone}",
+    "modify_failed": "❌ 修改失败: {phone} - {error}",
+    "generating_name": "生成姓名: {name}",
+    "generating_bio": "生成简介: {bio}",
+    "setting_avatar": "设置头像: {emoji}",
+    "deleting_old_avatar": "删除旧头像...",
+    "avatar_deleted": "✅ 已删除 {count} 个旧头像",
+    "avatar_set": "✅ 头像已设置"
   },
   "twofa": {
     "change_title": "🔐 <b>修改2FA密码</b>",

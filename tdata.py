@@ -19699,7 +19699,7 @@ admin3</code>
         # 发送进度消息
         progress_msg = self.updater.bot.send_message(
             chat_id=chat_id,
-            text="⏳ *正在处理...*\n\n进度: 0/0",
+            text=self.i18n.get(user_id, 'modify.processing_progress', current=0, total=0, success=0, failed=0, speed=0, elapsed=0),
             parse_mode='Markdown'
         )
         
@@ -19827,7 +19827,7 @@ admin3</code>
                     # 控制更新频率，每10秒或每处理完成时更新一次
                     current_time = time.time()
                     if current_time - last_update_time >= 10 or processed == total:
-                        await self._update_modify_progress(progress_msg, processed, total, results, start_time)
+                        await self._update_modify_progress(progress_msg, processed, total, results, start_time, user_id)
                         last_update_time = current_time
         
         # 创建所有任务
@@ -20060,26 +20060,41 @@ admin3</code>
                 'error': str(e)
             }
     
-    async def _update_modify_progress(self, progress_msg, processed: int, total: int, results: dict, start_time: float):
+    async def _update_modify_progress(self, progress_msg, processed: int, total: int, results: dict, start_time: float, user_id: int):
         """更新修改进度"""
         try:
             elapsed = time.time() - start_time
             speed = processed / elapsed if elapsed > 0 else 0
             
-            text = (
-                f"⏳ *正在修改资料...*\n\n"
-                f"进度: {processed}/{total}\n"
-                f"成功: {len(results['success'])} 个\n"
-                f"失败: {len(results['failed'])} 个\n"
-                f"速度: {speed:.1f} 个/秒\n"
-                f"用时: {int(elapsed)} 秒"
-            )
-            
-            # 显示最后一个成功的账号信息
+            # Check if we have a successful account to display
             if results['success']:
                 last_success = results['success'][-1][2]
-                text += f"\n\n当前: {last_success.get('first_name', '')} {last_success.get('last_name', '')} "
-                text += f"{last_success.get('emoji', '')} | {last_success.get('language', '')}"
+                name = f"{last_success.get('first_name', '')} {last_success.get('last_name', '')}".strip()
+                emoji = last_success.get('emoji', '')
+                
+                text = self.i18n.get(
+                    user_id,
+                    'modify.processing_current',
+                    current=processed,
+                    total=total,
+                    success=len(results['success']),
+                    failed=len(results['failed']),
+                    speed=f"{speed:.1f}",
+                    elapsed=int(elapsed),
+                    name=name,
+                    emoji=emoji
+                )
+            else:
+                text = self.i18n.get(
+                    user_id,
+                    'modify.processing_progress',
+                    current=processed,
+                    total=total,
+                    success=len(results['success']),
+                    failed=len(results['failed']),
+                    speed=f"{speed:.1f}",
+                    elapsed=int(elapsed)
+                )
             
             progress_msg.edit_text(text, parse_mode='Markdown')
         except Exception as e:
