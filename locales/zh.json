@@ -182,7 +182,10 @@
     "enter_2fa_example": "• 直接发送 2FA 密码，例如: <code>My2FA@2024</code>",
     "or_skip_auto": "• 或回复 <code>跳过</code> 使用自动识别",
     "bio_config_prompt": "请选择简介配置方式：",
-    "return_modify": "✏️ 返回修改"
+    "return_modify": "✏️ 返回修改",
+    "detail_modify_report": "📊 详细修改报告",
+    "upload_photo": "📷 上传图片",
+    "delete_avatar": "🚫 删除头像"
   },
   "twofa": {
     "change_title": "🔐 <b>修改2FA密码</b>",
@@ -279,7 +282,15 @@
     "auto_detect_password": "🔍 自动识别密码",
     "manual_input_password": "✏️ 手动输入密码",
     "skip_short": "⏭️ 跳过",
-    "start_creating": "⏳ 开始创建..."
+    "start_creating": "⏳ 开始创建...",
+    "auto_generate": "🎲 自动生成",
+    "custom_upload": "📝 自定义上传",
+    "realtime_progress": "📊 实时进度",
+    "view_log": "📊 查看日志",
+    "detail_report": "📊 批量创建详细报告",
+    "create_group": "📱 创建群组",
+    "create_channel": "📢 创建频道",
+    "account_quantity": "📊 账户数量"
   },
   "api": {
     "title": "🔗 <b>API转换功能</b>",
@@ -482,7 +493,10 @@
     "start_reauth_progress": "🚀 <b>开始重新授权</b>\n\n进度：0/{total} (0%)",
     "reauth_in_progress": "🚀 <b>重新授权中</b>\n\n进度：{current}/{total} ({progress}%)",
     "reauth_failed": "❌ <b>重新授权失败</b>\n\n错误: {error}",
-    "serious_error": "❌ 重新授权出现严重错误: {error}\n\n已处理账号可能未完全保存"
+    "serious_error": "❌ 重新授权出现严重错误: {error}\n\n已处理账号可能未完全保存",
+    "auto_detect_2fa": "🔍 自动识别2FA",
+    "twofa_error": "🔐 2FA错误",
+    "banned_account": "🚫 封禁账户"
   },
   "registration": {
     "title": "🕰️ <b>查询注册时间</b>",
@@ -518,7 +532,8 @@
     "more_dates": "• ... 还有 {count} 个日期",
     "detailed_report_below": "📄 详细报告见下方文件",
     "query_failed_caption": "❌ 查询失败的账号 (共 {count} 个，含详细失败原因说明)",
-    "classified_by_date_caption": "📦 注册时间分类账号 (共 {count} 个账号，按日期分类到不同文件夹)"
+    "classified_by_date_caption": "📦 注册时间分类账号 (共 {count} 个账号，按日期分类到不同文件夹)",
+    "query_detail_report": "📊 注册时间查询详细报告"
   },
   "vip": {
     "title": "💳 <b>开通/兑换会员</b>",
@@ -565,7 +580,8 @@
     "button_cancel": "❌ 取消",
     "redeem_again": "🔄 重新兑换",
     "back_to_vip_center": "🔙 返回会员中心",
-    "continue_generate": "🔄 继续生成"
+    "continue_generate": "🔄 继续生成",
+    "activate_membership": "💳 开通会员"
   },
   "admin": {
     "title": "👑 <b>管理员面板</b>",
@@ -817,7 +833,20 @@
     "accounts_in_parentheses": "{count} 个账号)",
     "proxy_type_upper": "{type}代理",
     "realtime_progress": "实时进度更新中...",
-    "reply_markup_desc": "回复键盘标记"
+    "reply_markup_desc": "回复键盘标记",
+    "user_details_name": "📋 {name} 详情",
+    "detail_report_status": "📝 详细报告 - {status}",
+    "twofa_result_success_count": "📦 添加2FA结果 - 成功 {count} 个",
+    "all_users_bracket": "👥 全部用户 ({count})",
+    "members_only_bracket": "💎 仅会员 ({count})",
+    "active_7days_bracket": "🔥 活跃用户(7天) ({count})",
+    "new_7days_bracket": "🆕 新用户(7天) ({count})",
+    "buttons_bracket": "{count} 个按钮",
+    "total_buttons_bracket": "✅ 共 {count} 个按钮",
+    "accounts_bracket": "{count} 个账号)",
+    "modify_success_bracket": "✅ 修改成功 ({count}个)",
+    "failed_details_bracket": "❌ 失败详情 ({count}个)",
+    "proxy_type_test": "🧪 测试代理: {type}代理"
   },
   "file": {
     "uploading": "⬆️ 正在上传文件...",
@@ -1268,7 +1297,8 @@
     "status_with_count": "📋 <b>{status}</b> - {count}个账号",
     "twofa_result_success": "📦 添加2FA结果 - 成功 {count} 个",
     "sending_results_bold": "📤 <b>正在发送结果...</b>",
-    "detail_report_status": "📝 详细报告 - {status}"
+    "detail_report_status": "📝 详细报告 - {status}",
+    "processing_file_bold": "📥 <b>正在处理文件...</b>"
   },
   "common_messages": {
     "proxy_test_start": "🧪 开始测试 {count} 个代理...",

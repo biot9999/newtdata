@@ -182,7 +182,10 @@
     "enter_2fa_example": "• Send 2FA password directly, e.g.: <code>My2FA@2024</code>",
     "or_skip_auto": "• Or reply <code>skip</code> to use auto-detection",
     "bio_config_prompt": "Please select bio configuration method:",
-    "return_modify": "✏️ Return to Modify"
+    "return_modify": "✏️ Return to Modify",
+    "detail_modify_report": "📊 Detailed Modification Report",
+    "upload_photo": "📷 Upload Photo",
+    "delete_avatar": "🚫 Delete Avatar"
   },
   "twofa": {
     "change_title": "🔐 <b>Change 2FA Password</b>",
@@ -279,7 +282,15 @@
     "auto_detect_password": "🔍 Auto-detect Password",
     "manual_input_password": "✏️ Manually Input Password",
     "skip_short": "⏭️ Skip",
-    "start_creating": "⏳ Starting creation..."
+    "start_creating": "⏳ Starting creation...",
+    "auto_generate": "🎲 Auto Generate",
+    "custom_upload": "📝 Custom Upload",
+    "realtime_progress": "📊 Real-time Progress",
+    "view_log": "📊 View Log",
+    "detail_report": "📊 Batch Creation Detail Report",
+    "create_group": "📱 Create Group",
+    "create_channel": "📢 Create Channel",
+    "account_quantity": "📊 Account Quantity"
   },
   "api": {
     "title": "🔗 <b>API Conversion</b>",
@@ -482,7 +493,10 @@
     "start_reauth_progress": "🚀 <b>Starting Re-authorization</b>\n\nProgress: 0/{total} (0%)",
     "reauth_in_progress": "🚀 <b>Re-authorization in Progress</b>\n\nProgress: {current}/{total} ({progress}%)",
     "reauth_failed": "❌ <b>Re-authorization Failed</b>\n\nError: {error}",
-    "serious_error": "❌ Serious error in re-authorization: {error}\n\nProcessed accounts may not be fully saved"
+    "serious_error": "❌ Serious error in re-authorization: {error}\n\nProcessed accounts may not be fully saved",
+    "auto_detect_2fa": "🔍 Auto-detect 2FA",
+    "twofa_error": "🔐 2FA Error",
+    "banned_account": "🚫 Banned Account"
   },
   "registration": {
     "title": "🕰️ <b>Check Registration Time</b>",
@@ -518,7 +532,8 @@
     "more_dates": "• ... {count} more dates",
     "detailed_report_below": "📄 Detailed report in files below",
     "query_failed_caption": "❌ Query Failed Accounts (Total {count}, with detailed failure reasons)",
-    "classified_by_date_caption": "📦 Registration Time Classified Accounts (Total {count} accounts, classified by date into folders)"
+    "classified_by_date_caption": "📦 Registration Time Classified Accounts (Total {count} accounts, classified by date into folders)",
+    "query_detail_report": "📊 Registration Time Query Detail Report"
   },
   "vip": {
     "title": "💳 <b>VIP Membership</b>",
@@ -565,7 +580,8 @@
     "button_cancel": "❌ Cancel",
     "redeem_again": "🔄 Redeem Again",
     "back_to_vip_center": "🔙 Back to VIP Center",
-    "continue_generate": "🔄 Continue Generating"
+    "continue_generate": "🔄 Continue Generating",
+    "activate_membership": "💳 Activate Membership"
   },
   "admin": {
     "title": "👑 <b>Admin Panel</b>",
@@ -817,7 +833,20 @@
     "accounts_in_parentheses": "{count} accounts)",
     "proxy_type_upper": "{type} proxy",
     "realtime_progress": "Real-time progress updating...",
-    "reply_markup_desc": "Reply keyboard markup"
+    "reply_markup_desc": "Reply keyboard markup",
+    "user_details_name": "📋 {name} Details",
+    "detail_report_status": "📝 Detail Report - {status}",
+    "twofa_result_success_count": "📦 Add 2FA Result - Success {count}",
+    "all_users_bracket": "👥 All Users ({count})",
+    "members_only_bracket": "💎 Members Only ({count})",
+    "active_7days_bracket": "🔥 Active Users (7 days) ({count})",
+    "new_7days_bracket": "🆕 New Users (7 days) ({count})",
+    "buttons_bracket": "{count} buttons",
+    "total_buttons_bracket": "✅ Total {count} buttons",
+    "accounts_bracket": "{count} accounts)",
+    "modify_success_bracket": "✅ Modification success ({count})",
+    "failed_details_bracket": "❌ Failed Details ({count})",
+    "proxy_type_test": "🧪 Test proxy: {type} proxy"
   },
   "file": {
     "uploading": "⬆️ Uploading file...",
@@ -1268,7 +1297,8 @@
     "status_with_count": "📋 <b>{status}</b> - {count} accounts",
     "twofa_result_success": "📦 Add 2FA Result - Success {count}",
     "sending_results_bold": "📤 <b>Sending results...</b>",
-    "detail_report_status": "📝 Detailed Report - {status}"
+    "detail_report_status": "📝 Detailed Report - {status}",
+    "processing_file_bold": "📥 <b>Processing file...</b>"
   },
   "common_messages": {
     "proxy_test_start": "🧪 Starting proxy test for {count} proxies...",

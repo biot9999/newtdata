@@ -9938,7 +9938,7 @@ class EnhancedBot:
             self.proxy_manager.load_proxies()
             new_count = len(self.proxy_manager.proxies)
             
-            query.answer(f"✅ 重新加载完成: {old_count}→{new_count}个代理")
+            query.answer(self.i18n.get(user_id, 'proxy.reload_complete', old=old_count, new=new_count))
             self.refresh_proxy_panel(query)
         
         elif data == "proxy_status":
@@ -10037,7 +10037,7 @@ class EnhancedBot:
         proxy = self.proxy_manager.get_next_proxy()
         if proxy:
             # 隐藏代理详细地址
-            query.answer(f"🧪 测试代理: {proxy['type'].upper()}代理", show_alert=True)
+            query.answer(self.i18n.get(user_id, 'common.proxy_type_test', type=proxy['type'].upper()), show_alert=True)
         else:
             query.answer(self.i18n.get(user_id, \'proxy.get_test_proxy_failed\'), show_alert=True)
     
@@ -13057,7 +13057,7 @@ class EnhancedBot:
                 display_name = first_name or username or f"用户{uid}"
                 if len(display_name) > 15:
                     display_name = display_name[:15] + "..."
-                buttons.append([InlineKeyboardButton(f"📋 {display_name} 详情", callback_data=f"user_detail_{uid}")])
+                buttons.append([InlineKeyboardButton(self.i18n.get(user_id, 'common.user_details_name', name=display_name), callback_data=f"user_detail_{uid}")])
             
             buttons.append([InlineKeyboardButton(self.i18n.get(user_id, \'admin.back_to_user_mgmt\'), callback_data="admin_users")])
             
@@ -13389,7 +13389,7 @@ class EnhancedBot:
                             context.bot.send_document(
                                 chat_id=user_id,
                                 document=f,
-                                caption=f"📝 详细报告 - {status_name}",
+                                caption=self.i18n.get(user_id, \'common.detail_report_status\', status=status_name),
                                 filename=os.path.basename(txt_path)
                             )
                         os.remove(txt_path)
@@ -13577,7 +13577,7 @@ class EnhancedBot:
                     context.bot.send_document(
                         chat_id=user_id,
                         document=f,
-                        caption=f"📦 添加2FA结果 - 成功 {success_count} 个",
+                        caption=self.i18n.get(user_id, \'common.twofa_result_success_count\', count=success_count),
                         filename=os.path.basename(result_zip_path)
                     )
             
@@ -15542,7 +15542,7 @@ class EnhancedBot:
         
         self.safe_edit_message(query, text, 'HTML')
         try:
-            query.answer(f"✅ 共 {len(task['buttons'])} 个按钮")
+            query.answer(self.i18n.get(user_id, 'common.total_buttons_bracket', count=len(task['buttons'])))
         except:
             pass
     
@@ -15940,10 +15940,10 @@ class EnhancedBot:
         """
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"👥 全部用户 ({all_users})", callback_data="broadcast_target_all")],
-            [InlineKeyboardButton(f"💎 仅会员 ({members})", callback_data="broadcast_target_members")],
-            [InlineKeyboardButton(f"🔥 活跃用户(7天) ({active_7d})", callback_data="broadcast_target_active_7d")],
-            [InlineKeyboardButton(f"🆕 新用户(7天) ({new_7d})", callback_data="broadcast_target_new_7d")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.all_users_bracket\', count=all_users), callback_data="broadcast_target_all")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.members_only_bracket\', count=members), callback_data="broadcast_target_members")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.active_7days_bracket\', count=active_7d), callback_data="broadcast_target_active_7d")],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'common.new_7days_bracket\', count=new_7d), callback_data="broadcast_target_new_7d")],
             [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="broadcast_cancel")]
         ])
         
@@ -16088,7 +16088,7 @@ class EnhancedBot:
             # 发送进度消息
             progress_msg = context.bot.send_message(
                 chat_id=admin_id,
-                text=f"📤 <b>广播发送中...</b>\n\n• 目标: {total} 人\n• 进度: 0/{total}\n• 成功: 0\n• 失败: 0",
+                text=self.i18n.get(user_id, 'broadcast.sending_progress', total=total, current=0, success=0, failed=0),
                 parse_mode='HTML'
             )
             
@@ -18106,7 +18106,7 @@ class EnhancedBot:
         """处理批量创建文件上传"""
         user_id = update.effective_user.id
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, \'file_ops.processing_file_bold\'), 'HTML')
         if not progress_msg:
             return
         
@@ -18215,8 +18215,8 @@ class EnhancedBot:
             
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("📱 创建群组", callback_data="batch_create_type_group"),
-                    InlineKeyboardButton("📢 创建频道", callback_data="batch_create_type_channel")
+                    InlineKeyboardButton(self.i18n.get(user_id, \'batch.create_group\'), callback_data="batch_create_type_group"),
+                    InlineKeyboardButton(self.i18n.get(user_id, \'batch.create_channel\'), callback_data="batch_create_type_channel")
                 ],
                 [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="batch_create_cancel")]
             ])
@@ -18255,7 +18255,7 @@ class EnhancedBot:
                 query,
                 "⚠️ 批量创建功能需要会员权限\n\n请先开通会员",
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("💳 开通会员", callback_data="vip_menu"),
+                    InlineKeyboardButton(self.i18n.get(user_id, \'vip.activate_membership\'), callback_data="vip_menu"),
                     InlineKeyboardButton(self.i18n.get(user_id, \'classify.return\'), callback_data="back_to_main")
                 ]])
             )
@@ -18573,8 +18573,8 @@ admin3</code>
 """
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📝 自定义上传", callback_data="batch_create_username_custom")],
-                [InlineKeyboardButton("🎲 自动生成", callback_data="batch_create_username_auto")],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'batch.custom_upload\'), callback_data="batch_create_username_custom")],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'batch.auto_generate\'), callback_data="batch_create_username_auto")],
                 [InlineKeyboardButton(self.i18n.get(user_id, \'classify.return\'), callback_data="batch_create_cancel")]
             ])
             
@@ -18788,7 +18788,7 @@ admin3</code>
         total_to_create = task['valid_accounts'] * task['count_per_account']
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📊 查看日志", callback_data="batch_create_noop")]
+            [InlineKeyboardButton(self.i18n.get(user_id, \'batch.view_log\'), callback_data="batch_create_noop")]
         ])
         
         progress_msg = context.bot.send_message(
@@ -18811,7 +18811,7 @@ admin3</code>
                 try:
                     progress = int(current / total * 100)
                     keyboard = InlineKeyboardMarkup([
-                        [InlineKeyboardButton("📊 实时进度", callback_data="batch_create_noop")]
+                        [InlineKeyboardButton(self.i18n.get(user_id, \'batch.realtime_progress\'), callback_data="batch_create_noop")]
                     ])
                     logger.info(f"📊 更新进度: {current}/{total} ({progress}%)")
                     print(f"📊 更新进度: {current}/{total} ({progress}%)", flush=True)
@@ -18995,7 +18995,7 @@ admin3</code>
                     chat_id=user_id,
                     document=f,
                     filename=report_filename,
-                    caption="📊 批量创建详细报告"
+                    caption=self.i18n.get(user_id, \'batch.detail_report\')
                 )
             
             # 生成成功列表文件
@@ -19237,8 +19237,8 @@ admin3</code>
             )
             
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📷 上传图片", callback_data=f'custom_avatar_photo_{user_id}')],
-                [InlineKeyboardButton("🚫 删除头像", callback_data=f'custom_avatar_delete_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'modify.upload_photo\'), callback_data=f'custom_avatar_photo_{user_id}')],
+                [InlineKeyboardButton(self.i18n.get(user_id, \'modify.delete_avatar\'), callback_data=f'custom_avatar_delete_{user_id}')],
                 [InlineKeyboardButton(self.i18n.get(user_id, \'batch.skip_no_modify\'), callback_data=f'custom_avatar_skip_{user_id}')],
                 [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')]
             ])
@@ -19465,8 +19465,8 @@ admin3</code>
         )
         
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📷 上传图片", callback_data=f'custom_avatar_photo_{user_id}')],
-            [InlineKeyboardButton("🚫 删除头像", callback_data=f'custom_avatar_delete_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'modify.upload_photo\'), callback_data=f'custom_avatar_photo_{user_id}')],
+            [InlineKeyboardButton(self.i18n.get(user_id, \'modify.delete_avatar\'), callback_data=f'custom_avatar_delete_{user_id}')],
             [InlineKeyboardButton(self.i18n.get(user_id, \'batch.skip_no_modify\'), callback_data=f'custom_avatar_skip_{user_id}')],
             [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data='back_to_main')]
         ])
@@ -19754,7 +19754,7 @@ admin3</code>
                         chat_id=chat_id,
                         document=f,
                         filename=f"modify_report_{timestamp}.txt",
-                        caption="📊 详细修改报告"
+                        caption=self.i18n.get(user_id, \'modify.detail_modify_report\')
                     )
             except Exception as e:
                 logger.error(f"发送报告失败: {e}")
@@ -19784,7 +19784,7 @@ admin3</code>
                     chat_id=chat_id,
                     document=f,
                     filename=f"modified_success_{timestamp}.zip",
-                    caption=f"✅ 修改成功 ({len(results['success'])} 个账号)"
+                    caption=self.i18n.get(user_id, 'common.modify_success_bracket', count=len(results['success']))
                 )
         
         # 生成失败报告
@@ -19809,7 +19809,7 @@ admin3</code>
                     chat_id=chat_id,
                     document=f,
                     filename=f"modified_failed_{timestamp}.txt",
-                    caption=f"❌ 失败详情 ({len(results['failed'])} 个账号)"
+                    caption=self.i18n.get(user_id, 'common.failed_details_bracket', count=len(results['failed']))
                 )
         
         # 发送汇总
@@ -20122,7 +20122,7 @@ admin3</code>
         """处理重新授权文件上传"""
         user_id = update.effective_user.id
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, \'file_ops.processing_file_bold\'), 'HTML')
         if not progress_msg:
             return
         
@@ -20172,7 +20172,7 @@ admin3</code>
             
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("🔍 自动识别2FA", callback_data="reauth_auto_detect"),
+                    InlineKeyboardButton(self.i18n.get(user_id, \'reauthorize.auto_detect_2fa\'), callback_data="reauth_auto_detect"),
                     InlineKeyboardButton(self.i18n.get(user_id, \'twofa.manual_input_2fa\'), callback_data="reauth_manual_input")
                 ],
                 [InlineKeyboardButton(self.i18n.get(user_id, \'common.cancel\'), callback_data="reauthorize_cancel")]
@@ -20393,7 +20393,7 @@ admin3</code>
         """创建重新授权进度按钮 - 6行2列布局"""
         return InlineKeyboardMarkup([
             [
-                InlineKeyboardButton(f"📊 账户数量", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(fself.i18n.get(user_id, \'batch.account_quantity\'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{total}", callback_data="reauthorize_noop")
             ],
             [
@@ -20405,11 +20405,11 @@ admin3</code>
                 InlineKeyboardButton(f"{frozen}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"🚫 封禁账户", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(fself.i18n.get(user_id, \'reauthorize.banned_account\'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{banned}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(f"🔐 2FA错误", callback_data="reauthorize_noop"),
+                InlineKeyboardButton(fself.i18n.get(user_id, \'reauthorize.twofa_error\'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{wrong_pwd}", callback_data="reauthorize_noop")
             ],
             [
@@ -21808,7 +21808,7 @@ admin3</code>
         """处理查询注册时间文件上传"""
         user_id = update.effective_user.id
         
-        progress_msg = self.safe_send_message(update, "📥 <b>正在处理文件...</b>", 'HTML')
+        progress_msg = self.safe_send_message(update, self.i18n.get(user_id, \'file_ops.processing_file_bold\'), 'HTML')
         if not progress_msg:
             return
         
@@ -22925,7 +22925,7 @@ admin3</code>
                         chat_id=user_id,
                         document=f,
                         filename=report_filename,
-                        caption="📊 注册时间查询详细报告",
+                        caption=self.i18n.get(user_id, \'registration.query_detail_report\'),
                         timeout=60
                     )
                 logger.info("✅ 报告文件已发送")
