@@ -104,7 +104,9 @@
     "thanks_restart": "感谢使用增强版机器人！如需再次检测，请点击 /start",
     "proxy_mode_emoji": "📡代理模式",
     "local_mode_emoji": "🏠本地模式",
-    "scan_complete": "✅ <b>文件扫描完成！</b>"
+    "scan_complete": "✅ <b>文件扫描完成！</b>",
+    "uploading_instructions": "请上传包含TData或Session文件的ZIP压缩包（支持：tdata、session、session+json）...",
+    "file_receive_options": "5. 自动接收分类文件"
   },
   "convert": {
     "title": "🔄 <b>格式转换功能</b>",
@@ -136,7 +138,8 @@
     "avg_speed_per_sec": "• 🚀 平均速度: {speed:.2f}个/秒",
     "task_complete": "✅ <b>转换任务完成！</b>",
     "all_results_sent": "所有结果文件已发送！",
-    "conversion_error": "❌ <b>转换错误</b>: {count}"
+    "conversion_error": "❌ <b>转换错误</b>: {count}",
+    "select_conversion_type": "请选择要执行的转换类型："
   },
   "modify": {
     "title": "👤 <b>修改资料功能</b>",
@@ -177,7 +180,9 @@
     "avatar_set": "✅ 头像已设置",
     "enter_web_2fa_prompt": "🔐 请输入将在网页上显示的 2FA 密码：",
     "enter_2fa_example": "• 直接发送 2FA 密码，例如: <code>My2FA@2024</code>",
-    "or_skip_auto": "• 或回复 <code>跳过</code> 使用自动识别"
+    "or_skip_auto": "• 或回复 <code>跳过</code> 使用自动识别",
+    "bio_config_prompt": "请选择简介配置方式：",
+    "return_modify": "✏️ 返回修改"
   },
   "twofa": {
     "change_title": "🔐 <b>修改2FA密码</b>",
@@ -197,7 +202,8 @@
     "unavailable_telethon": "❌ 2FA修改功能不可用\n\n原因: Telethon库未安装",
     "no_add_task": "❌ 没有待处理的添加2FA任务，请重新开始",
     "no_pending": "❌ 没有待处理的2FA任务",
-    "web_2fa_label": "🔐 网页2FA: <code>{password}</code>"
+    "web_2fa_label": "🔐 网页2FA: <code>{password}</code>",
+    "manual_input_2fa": "✍️ 手动输入2FA"
   },
   "classify": {
     "title": "📦 <b>账号拆分功能</b>",
@@ -228,7 +234,12 @@
     "total_accounts_label": "• 总账号: {count} 个",
     "files_sent": "• 已发送: {count} 个文件",
     "per_pack_quantity": "• 每包数量: {count} 个",
-    "use_again_prompt": "如需再次使用，请点击 /start"
+    "use_again_prompt": "如需再次使用，请点击 /start",
+    "by_country": "🌍 按国家拆分",
+    "by_quantity": "🔢 按数量拆分",
+    "single_quantity": "1️⃣ 单个数量",
+    "multiple_quantity": "🔢 多个数量",
+    "return": "◀️ 返回"
   },
   "batch": {
     "title": "📦 <b>批量创建账号</b>",
@@ -262,7 +273,13 @@
     "start_send": "✅ 开始发送",
     "continue_upload_zip": "✅ 请继续上传ZIP文件",
     "creating_progress": "�� <b>批量创建中</b>\n\n进度: {current}/{total} ({progress}%)\n状态: {message}",
-    "start_batch_create": "🚀 <b>开始批量创建</b>\n\n进度: 0/{total} (0%)\n状态: 准备中..."
+    "start_batch_create": "🚀 <b>开始批量创建</b>\n\n进度: 0/{total} (0%)\n状态: 准备中...",
+    "unified_name": "📝 统一姓名",
+    "start_processing": "🚀 开始处理",
+    "auto_detect_password": "🔍 自动识别密码",
+    "manual_input_password": "✏️ 手动输入密码",
+    "skip_short": "⏭️ 跳过",
+    "start_creating": "⏳ 开始创建..."
   },
   "api": {
     "title": "🔗 <b>API转换功能</b>",
@@ -542,7 +559,10 @@
     "hint_case_insensitive": "• 卡密不区分大小写",
     "hint_accumulate": "• 兑换成功后时长自动累加",
     "timeout_5min": "⏰ <i>5分钟内未输入将自动取消</i>",
-    "button_cancel": "❌ 取消"
+    "button_cancel": "❌ 取消",
+    "redeem_again": "🔄 重新兑换",
+    "back_to_vip_center": "🔙 返回会员中心",
+    "continue_generate": "🔄 继续生成"
   },
   "admin": {
     "title": "👑 <b>管理员面板</b>",
@@ -630,7 +650,10 @@
     "grant_trial_vip": "🎁 授予体验会员",
     "set_as_admin": "👑 设为管理员",
     "grant_failed": "❌ 授予失败",
-    "admin_access_only": "❌ 仅管理员可访问"
+    "admin_access_only": "❌ 仅管理员可访问",
+    "set_failed": "❌ 设置失败",
+    "back_to_user_mgmt": "🔙 返回用户管理",
+    "user_details": "📋 {name} 详情"
   },
   "proxy": {
     "title": "📡 <b>代理管理</b>",
@@ -753,7 +776,7 @@
     "not_member": "❌ 此功能需要会员权限",
     "admin_only": "❌ 仅管理员可用",
     "no_task": "❌ 当前没有正在进行的任务",
-    "task_expired": "❌ 任务已过期，请重新开始",
+    "task_expired": "❌ 任务已过期",
     "no_images_uploaded": "❌ 还没有上传任何图片，请先上传图片",
     "operation_mismatch": "❌ 操作类型不匹配",
     "no_pending_task": "❌ 没有待处理的任务",
@@ -780,7 +803,16 @@
     "auth_success": "✅ 授权成功",
     "activation_success": "✅ 开通成功",
     "create_list_success": "✅ 成功创建列表",
-    "complete_merge": "✅ 完成合并"
+    "complete_merge": "✅ 完成合并",
+    "days_1": "1天",
+    "days_7": "7天",
+    "days_30": "30天",
+    "days_60": "60天",
+    "days_90": "90天",
+    "days_360": "360天",
+    "buttons_count": "{count} 个按钮",
+    "accounts_in_parentheses": "{count} 个账号)",
+    "proxy_type_upper": "{type}代理"
   },
   "file": {
     "uploading": "⬆️ 正在上传文件...",
@@ -837,7 +869,11 @@
     "broadcast_failed": "❌ <b>广播发送失败</b>\n\n错误: {error}",
     "cleanup_failed_with_error": "❌ <b>清理失败</b>\n\n错误: {error}",
     "all_files_send_failed": "⚠️ 所有结果文件发送失败，请联系管理员检查日志",
-    "report_issue_but_complete": "⚠️ 报告生成出现问题，但处理完成\n\n总数: {total}\n成功: {success}"
+    "report_issue_but_complete": "⚠️ 报告生成出现问题，但处理完成\n\n总数: {total}\n成功: {success}",
+    "failed_details_list": "❌ 失败详情列表",
+    "activation_failed": "❌ 开通失败",
+    "no_matching_users": "❌ 未找到符合条件的用户",
+    "no_pending_users": "❌ 没有待处理的用户"
   },
   "broadcast": {
     "title": "<b>📢 群发通知管理</b>",
@@ -853,7 +889,19 @@
     "all_buttons_cleared": "✅ 已清除所有按钮",
     "no_text_content": "⚠️ 尚未设置文本内容",
     "set_text_first": "⚠️ 请先设置文本内容",
-    "preview_header": "<b>📢 预览</b>"
+    "preview_header": "<b>📢 预览</b>",
+    "media": "📸 媒体",
+    "view": "👁️ 查看",
+    "clear": "🗑️ 清除",
+    "text": "📝 文本",
+    "button": "🔘 按钮",
+    "full_preview": "🔍 完整预览",
+    "next_step": "➡️ 下一步",
+    "no_media_set": "⚠️ 尚未设置媒体",
+    "no_buttons_set": "⚠️ 尚未设置按钮",
+    "unrecognized_action": "⚠️ 未识别的操作",
+    "network_error": "⚠️ 网络错误",
+    "admin_only_feature": "❌ 仅管理员可访问广播功能"
   },
   "admin_ext": {
     "msg_6": "获取所有管理员",
@@ -1104,7 +1152,8 @@
     "temporary_limit": "🟡 临时限制",
     "permanent_ban": "🔴 永久封禁",
     "geo_restricted": "🌍 地理限制",
-    "awaiting_verification": "⏳ 等待验证"
+    "awaiting_verification": "⏳ 等待验证",
+    "frozen_account": "❄️ 冻结账户"
   },
   "check_result": {
     "checking_time": "🕐 检测时间: {time}",
@@ -1201,7 +1250,9 @@
     "download_file": "📥 下载文件: {file}",
     "detailed_report": "📋 <b>{status} 详细报告</b>\n\n包含 {count} 个账号的详细信息",
     "status_with_count": "📋 <b>{status}</b> - {count}个账号",
-    "twofa_result_success": "📦 添加2FA结果 - 成功 {count} 个"
+    "twofa_result_success": "📦 添加2FA结果 - 成功 {count} 个",
+    "sending_results_bold": "📤 <b>正在发送结果...</b>",
+    "detail_report_status": "📝 详细报告 - {status}"
   },
   "common_messages": {
     "proxy_test_start": "🧪 开始测试 {count} 个代理...",

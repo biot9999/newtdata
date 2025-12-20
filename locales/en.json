@@ -104,7 +104,9 @@
     "thanks_restart": "Thanks for using! To detect again, click /start",
     "proxy_mode_emoji": "📡 Proxy Mode",
     "local_mode_emoji": "🏠 Local Mode",
-    "scan_complete": "✅ <b>File Scan Complete!</b>"
+    "scan_complete": "✅ <b>File Scan Complete!</b>",
+    "uploading_instructions": "Please upload ZIP archive containing TData or Session files (supports: tdata, session, session+json)...",
+    "file_receive_options": "5. Auto-receive classified files"
   },
   "convert": {
     "title": "🔄 <b>Format Conversion</b>",
@@ -136,7 +138,8 @@
     "avg_speed_per_sec": "• 🚀 Avg speed: {speed:.2f}/s",
     "task_complete": "✅ <b>Conversion Task Complete!</b>",
     "all_results_sent": "All result files sent!",
-    "conversion_error": "❌ <b>Conversion Error</b>: {count}"
+    "conversion_error": "❌ <b>Conversion Error</b>: {count}",
+    "select_conversion_type": "Please select conversion type to execute:"
   },
   "modify": {
     "title": "👤 <b>Modify Profile</b>",
@@ -177,7 +180,9 @@
     "avatar_set": "✅ Avatar set successfully",
     "enter_web_2fa_prompt": "🔐 Please enter 2FA password to display on web:",
     "enter_2fa_example": "• Send 2FA password directly, e.g.: <code>My2FA@2024</code>",
-    "or_skip_auto": "• Or reply <code>skip</code> to use auto-detection"
+    "or_skip_auto": "• Or reply <code>skip</code> to use auto-detection",
+    "bio_config_prompt": "Please select bio configuration method:",
+    "return_modify": "✏️ Return to Modify"
   },
   "twofa": {
     "change_title": "🔐 <b>Change 2FA Password</b>",
@@ -197,7 +202,8 @@
     "unavailable_telethon": "❌ 2FA modification unavailable\n\nReason: Telethon library not installed",
     "no_add_task": "❌ No pending 2FA add task, please start over",
     "no_pending": "❌ No pending 2FA task",
-    "web_2fa_label": "🔐 Web 2FA: <code>{password}</code>"
+    "web_2fa_label": "🔐 Web 2FA: <code>{password}</code>",
+    "manual_input_2fa": "✍️ Manually Input 2FA"
   },
   "classify": {
     "title": "📦 <b>Account Classification</b>",
@@ -228,7 +234,12 @@
     "total_accounts_label": "• Total Accounts: {count}",
     "files_sent": "• Files Sent: {count}",
     "per_pack_quantity": "• Per Pack: {count}",
-    "use_again_prompt": "To use again, click /start"
+    "use_again_prompt": "To use again, click /start",
+    "by_country": "�� Split by Country",
+    "by_quantity": "🔢 Split by Quantity",
+    "single_quantity": "1️⃣ Single Quantity",
+    "multiple_quantity": "🔢 Multiple Quantities",
+    "return": "◀️ Return"
   },
   "batch": {
     "title": "📦 <b>Batch Account Creation</b>",
@@ -262,7 +273,13 @@
     "start_send": "✅ Start Send",
     "continue_upload_zip": "✅ Please continue uploading ZIP files",
     "creating_progress": "🚀 <b>Batch Creating</b>\n\nProgress: {current}/{total} ({progress}%)\nStatus: {message}",
-    "start_batch_create": "🚀 <b>Starting Batch Creation</b>\n\nProgress: 0/{total} (0%)\nStatus: Preparing..."
+    "start_batch_create": "🚀 <b>Starting Batch Creation</b>\n\nProgress: 0/{total} (0%)\nStatus: Preparing...",
+    "unified_name": "📝 Unified Name",
+    "start_processing": "🚀 Start Processing",
+    "auto_detect_password": "🔍 Auto-detect Password",
+    "manual_input_password": "✏️ Manually Input Password",
+    "skip_short": "⏭️ Skip",
+    "start_creating": "⏳ Starting creation..."
   },
   "api": {
     "title": "🔗 <b>API Conversion</b>",
@@ -542,7 +559,10 @@
     "hint_case_insensitive": "• Case insensitive",
     "hint_accumulate": "• Duration auto-accumulates upon success",
     "timeout_5min": "⏰ <i>Auto-cancel if not entered within 5 minutes</i>",
-    "button_cancel": "❌ Cancel"
+    "button_cancel": "❌ Cancel",
+    "redeem_again": "🔄 Redeem Again",
+    "back_to_vip_center": "🔙 Back to VIP Center",
+    "continue_generate": "🔄 Continue Generating"
   },
   "admin": {
     "title": "👑 <b>Admin Panel</b>",
@@ -630,7 +650,10 @@
     "grant_trial_vip": "🎁 Grant Trial Membership",
     "set_as_admin": "👑 Set as Admin",
     "grant_failed": "❌ Grant failed",
-    "admin_access_only": "❌ Admin access only"
+    "admin_access_only": "❌ Admin access only",
+    "set_failed": "❌ Setting failed",
+    "back_to_user_mgmt": "🔙 Back to User Management",
+    "user_details": "📋 {name} Details"
   },
   "proxy": {
     "title": "📡 <b>Proxy Management</b>",
@@ -753,7 +776,7 @@
     "not_member": "❌ Membership Required",
     "admin_only": "❌ Admin Only",
     "no_task": "❌ No active task",
-    "task_expired": "❌ Task expired, please start over",
+    "task_expired": "❌ Task expired",
     "no_images_uploaded": "❌ No images uploaded yet, please upload first",
     "operation_mismatch": "❌ Operation type mismatch",
     "no_pending_task": "❌ No pending tasks",
@@ -780,7 +803,16 @@
     "auth_success": "✅ Authorization successful",
     "activation_success": "✅ Activation successful",
     "create_list_success": "✅ List created successfully",
-    "complete_merge": "✅ Merge complete"
+    "complete_merge": "✅ Merge complete",
+    "days_1": "1 day",
+    "days_7": "7 days",
+    "days_30": "30 days",
+    "days_60": "60 days",
+    "days_90": "90 days",
+    "days_360": "360 days",
+    "buttons_count": "{count} buttons",
+    "accounts_in_parentheses": "{count} accounts)",
+    "proxy_type_upper": "{type} proxy"
   },
   "file": {
     "uploading": "⬆️ Uploading file...",
@@ -837,7 +869,11 @@
     "broadcast_failed": "❌ <b>Broadcast Failed</b>\n\nError: {error}",
     "cleanup_failed_with_error": "❌ <b>Cleanup Failed</b>\n\nError: {error}",
     "all_files_send_failed": "⚠️ All result files failed to send, please contact admin to check logs",
-    "report_issue_but_complete": "⚠️ Report generation issue, but processing complete\n\nTotal: {total}\nSuccess: {success}"
+    "report_issue_but_complete": "⚠️ Report generation issue, but processing complete\n\nTotal: {total}\nSuccess: {success}",
+    "failed_details_list": "❌ Failed Details List",
+    "activation_failed": "❌ Activation failed",
+    "no_matching_users": "❌ No matching users found",
+    "no_pending_users": "❌ No pending users"
   },
   "broadcast": {
     "title": "<b>📢 Broadcast Management</b>",
@@ -853,7 +889,19 @@
     "all_buttons_cleared": "✅ All buttons cleared",
     "no_text_content": "⚠️ No text content set yet",
     "set_text_first": "⚠️ Please set text content first",
-    "preview_header": "<b>📢 Preview</b>"
+    "preview_header": "<b>📢 Preview</b>",
+    "media": "📸 Media",
+    "view": "👁️ View",
+    "clear": "🗑️ Clear",
+    "text": "📝 Text",
+    "button": "🔘 Button",
+    "full_preview": "🔍 Full Preview",
+    "next_step": "➡️ Next Step",
+    "no_media_set": "⚠️ No media set yet",
+    "no_buttons_set": "⚠️ No buttons set yet",
+    "unrecognized_action": "⚠️ Unrecognized action",
+    "network_error": "⚠️ Network error",
+    "admin_only_feature": "❌ Broadcast feature is admin only"
   },
   "admin_ext": {
     "msg_6": "Get all admins",
@@ -1104,7 +1152,8 @@
     "temporary_limit": "🟡 Temporary Limit",
     "permanent_ban": "🔴 Permanent Ban",
     "geo_restricted": "🌍 Geo-Restricted",
-    "awaiting_verification": "⏳ Awaiting Verification"
+    "awaiting_verification": "⏳ Awaiting Verification",
+    "frozen_account": "❄️ Frozen Account"
   },
   "check_result": {
     "checking_time": "🕐 Check time: {time}",
@@ -1201,7 +1250,9 @@
     "download_file": "📥 Downloading file: {file}",
     "detailed_report": "📋 <b>{status} Detailed Report</b>\n\nContains details of {count} accounts",
     "status_with_count": "📋 <b>{status}</b> - {count} accounts",
-    "twofa_result_success": "📦 Add 2FA Result - Success {count}"
+    "twofa_result_success": "📦 Add 2FA Result - Success {count}",
+    "sending_results_bold": "📤 <b>Sending results...</b>",
+    "detail_report_status": "📝 Detailed Report - {status}"
   },
   "common_messages": {
     "proxy_test_start": "🧪 Starting proxy test for {count} proxies...",
