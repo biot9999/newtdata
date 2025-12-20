@@ -46,10 +46,8 @@ from i18n import I18n
 # 定义北京时区常量
 BEIJING_TZ = timezone(timedelta(hours=8))
 
-# Initialize i18n early for system messages (use user_id=0 for system)
-_temp_i18n = I18n()
-print(_temp_i18n.get(0, 'system.bot_starting'))
-print(_temp_i18n.get(0, 'system.current_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')))
+print("🔍 Telegram账号检测机器人 V8.0")
+print(f"📅 当前时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}")
 
 # ================================
 # Python版本兼容性 - asyncio.to_thread
@@ -67,9 +65,9 @@ if not hasattr(asyncio, 'to_thread'):
         return await loop.run_in_executor(_executor, lambda: func(*args, **kwargs))
     
     asyncio.to_thread = _to_thread_compat
-    print(_temp_i18n.get(0, 'system.python_39_compat'))
+    print("⚠️ Python < 3.9 检测到，使用兼容的asyncio.to_thread实现")
 else:
-    print(_temp_i18n.get(0, 'system.python_39_native'))
+    print("✅ Python 3.9+ 检测到，使用原生asyncio.to_thread")
 
 # ================================
 # 日志配置
@@ -105,10 +103,10 @@ try:
     from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot, InputFile
     from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, MessageHandler, Filters, CallbackContext
     from telegram.error import RetryAfter, TimedOut, NetworkError, BadRequest
-    print(_temp_i18n.get(0, 'system.telegram_imported'))
+    print("✅ telegram库导入成功")
 except ImportError as e:
-    print(_temp_i18n.get(0, 'system.telegram_import_failed', error=str(e)))
-    print(_temp_i18n.get(0, 'system.telegram_install_tip'))
+    print(f"❌ telegram库导入失败: {e}")
+    print("💡 请安装: pip install python-telegram-bot==13.15")
     sys.exit(1)
 
 try:
@@ -126,10 +124,10 @@ try:
     from telethon.tl.functions.auth import ResetAuthorizationsRequest, SendCodeRequest
     from telethon.tl.functions.users import GetFullUserRequest
     TELETHON_AVAILABLE = True
-    print(_temp_i18n.get(0, 'system.telethon_imported'))
+    print("✅ telethon库导入成功")
 except ImportError:
-    print(_temp_i18n.get(0, 'system.telethon_not_installed'))
-    print(_temp_i18n.get(0, 'system.telethon_install_tip'))
+    print("❌ telethon未安装")
+    print("💡 请安装: pip install telethon")
     TELETHON_AVAILABLE = False
 
 # Define fallback exception classes for when imports fail
@@ -157,9 +155,9 @@ except NameError:
 try:
     import socks
     PROXY_SUPPORT = True
-    print(_temp_i18n.get(0, 'system.proxy_support_imported'))
+    print("✅ 代理支持库导入成功")
 except ImportError:
-    print(_temp_i18n.get(0, 'system.proxy_support_warning'))
+    print("⚠️ 代理支持库未安装，将使用基础代理功能")
     PROXY_SUPPORT = False
 
 try:
@@ -167,41 +165,41 @@ try:
     from opentele.td import TDesktop
     from opentele.tl import TelegramClient as OpenTeleClient
     OPENTELE_AVAILABLE = True
-    print(_temp_i18n.get(0, 'system.opentele_imported'))
+    print("✅ opentele库导入成功")
 except ImportError:
-    print(_temp_i18n.get(0, 'system.opentele_warning'))
-    print(_temp_i18n.get(0, 'system.opentele_install_tip'))
+    print("⚠️ opentele未安装，格式转换功能不可用")
+    print("💡 请安装: pip install opentele")
     OPENTELE_AVAILABLE = False
 
 try:
     from account_classifier import AccountClassifier
     CLASSIFY_AVAILABLE = True
-    print(_temp_i18n.get(0, 'system.classifier_imported'))
+    print("✅ 账号分类模块导入成功")
 except Exception as e:
     CLASSIFY_AVAILABLE = False
-    print(_temp_i18n.get(0, 'system.classifier_warning', error=str(e)))
+    print(f"⚠️ 账号分类模块不可用: {e}")
 
 try:
     from profile_modifier import ProfileModifier
     PROFILE_MODIFIER_AVAILABLE = True
-    print(_temp_i18n.get(0, 'system.profile_modifier_imported'))
+    print("✅ 资料修改模块导入成功")
 except Exception as e:
     PROFILE_MODIFIER_AVAILABLE = False
-    print(_temp_i18n.get(0, 'system.profile_modifier_unavailable', error=str(e)))
+    print(f"⚠️ 资料修改模块不可用: {e}")
 
 try:
     import phonenumbers
-    print(_temp_i18n.get(0, 'system.phonenumbers_imported'))
+    print("✅ phonenumbers 导入成功")
 except Exception:
-    print(_temp_i18n.get(0, 'system.phonenumbers_warning'))
+    print("⚠️ 未安装 phonenumbers（账号国家识别将不可用）")
 # Flask相关导入（新增或确认存在）
 try:
     from flask import Flask, jsonify, request, render_template_string
     FLASK_AVAILABLE = True
-    print(_temp_i18n.get(0, 'system.flask_imported'))
+    print("✅ Flask库导入成功")
 except ImportError:
     FLASK_AVAILABLE = False
-    print(_temp_i18n.get(0, 'system.flask_not_installed'))
+    print("❌ Flask未安装（验证码网页功能不可用）")
 
 # ================================
 # 数据结构定义
@@ -3207,9 +3205,9 @@ class FileProcessor:
                         # 检查是否有对应的JSON文件
                         json_path = file_full_path.replace('.session', '.json')
                         if os.path.exists(json_path):
-                            print(self.i18n.get(user_id, 'check.found_session_with_json', filename=file))
+                            print(f"📄 找到Session文件: {file} (带JSON)")
                         else:
-                            print(self.i18n.get(user_id, 'check.found_session_pure', filename=file))
+                            print(f"📄 找到Session文件: {file} (纯Session，无JSON)")
                 
                 for dir_name in dirs:
                     dir_path = os.path.join(root, dir_name)
@@ -3240,7 +3238,7 @@ class FileProcessor:
                             if is_valid_tdata:
                                 d877_check_path = tdata_d877_path
                                 tdata_root_path = tdata_wrapper_path  # TDesktop需要tdata目录路径
-                                print(self.i18n.get(user_id, 'check.found_tdata_wrapper', path=f"{dir_name}/tdata/D877F783D5D3EF8C"))
+                                print(f"📂 检测到tdata包装结构: {dir_name}/tdata/D877F783D5D3EF8C")
                     
                     # 情况1: 检查是否有标准的D877F783D5D3EF8C子目录
                     if not is_valid_tdata:
@@ -3261,10 +3259,10 @@ class FileProcessor:
                                                 d877_check_path = sub_dir_path
                                                 tdata_root_path = dir_path  # TDesktop需要最外层的D877父目录
                                                 is_valid_tdata = True
-                                                print(self.i18n.get(user_id, 'check.found_tdata_nested', dir_name=dir_name, sub_dir=sub_dir))
+                                                print(f"🔍 检测到嵌套TData结构: {dir_name} -> {sub_dir}")
                                                 break
                                 except (OSError, PermissionError) as e:
-                                    print(self.i18n.get(user_id, 'check.cannot_read_d877', error=str(e)))
+                                    print(f"⚠️ 无法读取D877F783D5D3EF8C子目录: {e}")
                     
                     # 情况2: 当前目录本身名为"tdata"（不区分大小写），查找其中的D877F783D5D3EF8C
                     if not is_valid_tdata and dir_name.lower() == "tdata":
@@ -3277,7 +3275,7 @@ class FileProcessor:
                             if is_valid_tdata:
                                 d877_check_path = tdata_d877_path
                                 tdata_root_path = dir_path  # TDesktop需要tdata目录本身
-                                print(self.i18n.get(user_id, 'check.found_tdata_dir'))
+                                print(f"📂 检测到tdata目录结构: tdata/D877F783D5D3EF8C")
                     
                     # 情况3: 当前目录本身就是D877开头的目录（直接包含TData文件）
                     if not is_valid_tdata and dir_name.startswith("D877"):
@@ -3286,7 +3284,7 @@ class FileProcessor:
                             d877_check_path = dir_path
                             # 对于D877目录，TDesktop需要其父目录
                             tdata_root_path = os.path.dirname(dir_path)
-                            print(self.i18n.get(user_id, 'check.found_tdata_direct', dir_name=dir_name))
+                            print(f"📂 检测到D877目录直接包含TData文件: {dir_name}")
                     
                     # 如果没有找到有效的TData结构，跳过
                     if not is_valid_tdata:
@@ -3294,7 +3292,7 @@ class FileProcessor:
                     
                     # 防御性检查：确保tdata_root_path已设置
                     if tdata_root_path is None:
-                        print(self.i18n.get(user_id, 'check.tdata_path_warning', dir_name=dir_name))
+                        print(f"⚠️ 警告: TData路径未正确设置，跳过: {dir_name}")
                         continue
                     
                     # 使用D877目录的规范化路径防止重复计数（而不是父目录）
@@ -3303,7 +3301,7 @@ class FileProcessor:
                     
                     # 检查是否已经添加过此TData目录
                     if normalized_path in seen_tdata_paths:
-                        print(self.i18n.get(user_id, 'check.skip_duplicate_tdata', dir_name=dir_name))
+                        print(f"⚠️ 跳过重复TData目录: {dir_name}")
                         continue
                     
                     seen_tdata_paths.add(normalized_path)
@@ -3313,10 +3311,10 @@ class FileProcessor:
                     
                     # 使用tdata_root_path而不是dir_path，这是TDesktop实际需要的路径
                     tdata_folders.append((tdata_root_path, display_name, 'tdata'))
-                    print(self.i18n.get(user_id, 'check.found_tdata', display_name=display_name, dir_name=dir_name))
+                    print(f"📂 找到TData目录: {display_name} (路径: {dir_name})")
         
         except Exception as e:
-            print(self.i18n.get(user_id, 'check.file_scan_failed', error=str(e)))
+            print(f"❌ 文件扫描失败: {e}")
             shutil.rmtree(task_upload_dir, ignore_errors=True)
             return [], "", "error"
         
@@ -8566,7 +8564,7 @@ class EnhancedBot:
         
         # 初始化多语言管理器
         self.i18n = I18n(locales_dir='locales', default_lang='zh')
-        print(_temp_i18n.get(0, 'system.i18n_initialized'))
+        print("✅ 多语言管理器初始化完成")
         
         # 加载用户语言偏好
         self.load_user_languages()

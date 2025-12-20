@@ -43,12 +43,24 @@ class I18n:
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         self.translations[lang_code] = json.load(f)
-                    print(f"✅ 已加载语言: {lang_code} ({filename})")
+                    # Use the translation for the message if available
+                    if 'system' in self.translations[lang_code] and 'language_loaded' in self.translations[lang_code]['system']:
+                        print(self.translations[lang_code]['system']['language_loaded'].format(lang_code=lang_code, filename=filename))
+                    else:
+                        print(f"✅ 已加载语言: {lang_code} ({filename})")
                 except Exception as e:
-                    print(f"❌ 加载语言文件失败 {filename}: {e}")
+                    # Use the translation for error message if available
+                    if lang_code in self.translations and 'system' in self.translations.get(self.default_lang, {}) and 'language_load_failed' in self.translations[self.default_lang]['system']:
+                        print(self.translations[self.default_lang]['system']['language_load_failed'].format(filename=filename, error=str(e)))
+                    else:
+                        print(f"❌ 加载语言文件失败 {filename}: {e}")
         
         if not self.translations:
-            print(f"⚠️ 未找到任何语言文件")
+            # Try to use default language translation
+            if self.default_lang in self.translations and 'system' in self.translations[self.default_lang] and 'no_language_files' in self.translations[self.default_lang]['system']:
+                print(self.translations[self.default_lang]['system']['no_language_files'])
+            else:
+                print(f"⚠️ 未找到任何语言文件")
     
     def set_user_language(self, user_id: int, lang_code: str) -> bool:
         """设置用户语言"""
