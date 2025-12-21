@@ -20635,10 +20635,16 @@ admin3</code>
                         await process_account_wrapper(idx, file_path, file_name)
                 
                 # 创建所有任务
-                tasks = [
-                    process_with_semaphore(idx, file_path, file_name)
-                    for idx, (file_path, file_name) in enumerate(files)
-                ]
+                tasks = []
+                for idx, item in enumerate(files):
+                    # 安全解包：处理2元组或3元组
+                    if len(item) == 2:
+                        file_path, file_name = item
+                    elif len(item) == 3:
+                        file_path, file_name, _ = item
+                    else:
+                        continue
+                    tasks.append(process_with_semaphore(idx, file_path, file_name))
                 
                 # 并发执行所有任务 - 添加总超时保护（每个账号最多3分钟，总共不超过账号数*3分钟）
                 # 但至少30分钟
