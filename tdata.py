@@ -9688,8 +9688,10 @@ class EnhancedBot:
     
     def show_proxy_detailed_status(self, update: Update):
         """显示代理详细状态"""
+        user_id = update.effective_user.id if update and update.effective_user else 0
+        
         if self.proxy_manager.proxies:
-            status_text = "<b>📡 代理详细状态</b>\n\n"
+            status_text = self.i18n.get(user_id, 'proxy.detailed_status_title')
             # 隐藏代理详细地址，只显示数量和类型
             proxy_count = len(self.proxy_manager.proxies)
             proxy_types = {}
@@ -10094,8 +10096,10 @@ class EnhancedBot:
     
     def show_proxy_status_popup(self, query):
         """显示代理状态弹窗"""
+        user_id = query.from_user.id if query and query.from_user else 0
+        
         if self.proxy_manager.proxies:
-            status_text = f"📡 可用代理: {len(self.proxy_manager.proxies)}个\n"
+            status_text = self.i18n.get(user_id, 'proxy.available_proxies', count=len(self.proxy_manager.proxies))
             enabled, updated_time, updated_by = self.db.get_proxy_setting_info()
             status_text += f"🔧 代理开关: {'启用' if enabled else '禁用'}\n"
             status_text += f"⏰ 更新时间: {updated_time}"
@@ -10120,6 +10124,8 @@ class EnhancedBot:
     
     def show_proxy_statistics(self, query):
         """显示代理统计信息"""
+        user_id = query.from_user.id if query and query.from_user else 0
+        
         proxies = self.proxy_manager.proxies
         if not proxies:
             query.answer(self.i18n.get(user_id, 'proxy.no_proxy_data'), show_alert=True)
@@ -10131,7 +10137,7 @@ class EnhancedBot:
             proxy_type = proxy['type']
             type_count[proxy_type] = type_count.get(proxy_type, 0) + 1
         
-        stats_text = f"📊 代理统计\n总数: {len(proxies)}个\n\n"
+        stats_text = self.i18n.get(user_id, 'proxy.stats_title', count=len(proxies))
         for proxy_type, count in type_count.items():
             stats_text += f"{proxy_type.upper()}: {count}个\n"
         
@@ -10912,7 +10918,7 @@ class EnhancedBot:
         # 获取活跃用户列表
         active_users = self.db.get_active_users(days=7, limit=15)
         
-        text = "<b>👥 用户管理</b>\n\n<b>📋 最近活跃用户（7天内）</b>\n\n"
+        text = self.i18n.get(user_id, 'admin.user_management_title')
         
         if active_users:
             for i, (uid, username, first_name, register_time, last_active, status) in enumerate(active_users[:10], 1):
@@ -11022,7 +11028,7 @@ class EnhancedBot:
         # 获取管理员列表
         admins = self.db.get_all_admins()
         
-        text = "<b>👑 管理员管理</b>\n\n<b>📋 当前管理员列表</b>\n\n"
+        text = self.i18n.get(user_id, 'admin.admin_management_title')
         
         if admins:
             for i, (admin_id, username, first_name, added_time) in enumerate(admins, 1):
@@ -11104,7 +11110,7 @@ class EnhancedBot:
         
         recent_users = self.db.get_recent_users(limit=15)
         
-        text = "<b>📋 最近注册用户</b>\n\n"
+        text = self.i18n.get(user_id, 'admin.recent_users_title')
         
         if recent_users:
             for i, (uid, username, first_name, register_time, last_active, status) in enumerate(recent_users, 1):
@@ -13108,7 +13114,7 @@ class EnhancedBot:
                 return
             
             # 显示搜索结果
-            result_text = f"🔍 <b>搜索结果：'{search_query}'</b>\n\n"
+            result_text = self.i18n.get(user_id, 'admin.search_result', query=search_query) + "\n\n"
             
             for i, (uid, username, first_name, register_time, last_active, status) in enumerate(search_results[:10], 1):
                 is_member, level, _ = self.db.check_membership(uid)
@@ -14508,14 +14514,13 @@ class EnhancedBot:
             )
             query.answer()
             try:
+                upload_text = (
+                    f"{self.i18n.get(user_id, 'classify.upload_file_prompt')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.upload_file_formats')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.upload_file_limits')}"
+                )
                 query.edit_message_text(
-                    "📤 <b>请上传账号文件</b>\n\n"
-                    "支持格式：\n"
-                    "• Session 文件的ZIP包 (.session)\n"
-                    "• Session+JSON 文件的ZIP包 (.session + .json)\n"
-                    "• TData 文件夹的ZIP包\n\n"
-                    "⚠️ 文件大小限制100MB\n"
-                    "⏰ 5分钟超时",
+                    upload_text,
                     parse_mode='HTML'
                 )
             except:
@@ -14542,12 +14547,13 @@ class EnhancedBot:
             # 按数量拆分 - 询问模式
             query.answer()
             try:
+                quantity_text = (
+                    f"{self.i18n.get(user_id, 'classify.choose_quantity_mode')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.quantity_single_desc')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.quantity_multi_desc')}"
+                )
                 query.edit_message_text(
-                    "🔢 <b>选择数量模式：</b>\n\n"
-                    "1️⃣ <b>单个数量</b>\n"
-                    "   按固定数量切分，例如每包10个\n\n"
-                    "🔢 <b>多个数量</b>\n"
-                    "   按多个数量依次切分，例如 10 20 30",
+                    quantity_text,
                     parse_mode='HTML',
                     reply_markup=self._classify_buttons_qty_mode(user_id)
                 )
@@ -14564,11 +14570,13 @@ class EnhancedBot:
             )
             query.answer()
             try:
+                single_text = (
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_single')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_single_example')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_single_note')}"
+                )
                 query.edit_message_text(
-                    "🔢 <b>请输入每包的账号数量</b>\n\n"
-                    "例如: <code>10</code>\n\n"
-                    "系统将按此数量切分，最后一包为余数\n"
-                    "⏰ 5分钟超时",
+                    single_text,
                     parse_mode='HTML'
                 )
             except:
@@ -14584,12 +14592,13 @@ class EnhancedBot:
             )
             query.answer()
             try:
+                multi_text = (
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_multi')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_multi_example')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_multi_note')}"
+                )
                 query.edit_message_text(
-                    "🔢 <b>请输入多个数量（空格分隔）</b>\n\n"
-                    "例如: <code>10 20 30</code>\n\n"
-                    "系统将依次切分：第1包10个，第2包20个，第3包30个\n"
-                    "余数将提示但不打包\n"
-                    "⏰ 5分钟超时",
+                    multi_text,
                     parse_mode='HTML'
                 )
             except:
@@ -14609,8 +14618,12 @@ class EnhancedBot:
         try:
             # 更新提示
             try:
+                splitting_text = (
+                    f"{self.i18n.get(user_id, 'classify.splitting_by_country')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.grouping_and_packing')}"
+                )
                 progress_msg.edit_text(
-                    "🔄 <b>开始按国家拆分...</b>\n\n正在分组并打包...",
+                    splitting_text,
                     parse_mode='HTML'
                 )
             except:
@@ -14628,13 +14641,16 @@ class EnhancedBot:
             sent = await self._classify_send_bundles(update, context, bundles)
             
             # 完成提示
+            complete_text = (
+                f"{self.i18n.get(user_id, 'classify.complete_title')}\n\n"
+                f"{self.i18n.get(user_id, 'classify.total_accounts', count=len(metas))}\n"
+                f"{self.i18n.get(user_id, 'classify.files_sent_count', count=sent)}\n"
+                f"{self.i18n.get(user_id, 'classify.classification_method_country')}\n\n"
+                f"{self.i18n.get(user_id, 'classify.use_start_again')}"
+            )
             self.safe_send_message(
                 update,
-                f"✅ <b>分类完成！</b>\n\n"
-                f"• 总账号: {len(metas)} 个\n"
-                f"• 已发送: {sent} 个文件\n"
-                f"• 分类方式: 按国家区号\n\n"
-                f"如需再次使用，请点击 /start",
+                complete_text,
                 'HTML'
             )
             
@@ -14830,7 +14846,7 @@ class EnhancedBot:
         query.answer()
         
         # 生成卡密
-        success, code, message = self.db.create_redeem_code("会员", days, None, user_id)
+        success, code, message = self.db.create_redeem_code(self.i18n.get(user_id, 'admin.member_type'), days, None, user_id)
         
         if success:
             text = f"""
@@ -15052,7 +15068,7 @@ class EnhancedBot:
             except:
                 pass
         else:
-            text = "❌ <b>开通失败</b>\n\n请稍后重试"
+            text = self.i18n.get(user_id, 'vip.activation_failed')
             query.answer(self.i18n.get(user_id, 'error.activation_failed'))
         
         # 清理待处理任务
@@ -15233,7 +15249,7 @@ class EnhancedBot:
             except:
                 pass
         else:
-            text = "❌ <b>撤销失败</b>\n\n该用户可能没有会员权限，或撤销操作失败。"
+            text = self.i18n.get(user_id, 'vip.revoke_failed')
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.continue_revoke'), callback_data="admin_revoke_menu")],
@@ -15244,9 +15260,10 @@ class EnhancedBot:
     
     def handle_admin_revoke_cancel(self, query):
         """取消撤销会员"""
+        user_id = query.from_user.id if query and query.from_user else 0
         query.answer()
         
-        text = "❌ <b>已取消撤销操作</b>"
+        text = self.i18n.get(user_id, 'vip.revoke_cancelled')
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ])
@@ -15642,7 +15659,7 @@ class EnhancedBot:
             return
         
         # 显示按钮列表
-        text = "<b>🔘 按钮列表</b>\n\n"
+        text = self.i18n.get(user_id, 'broadcast.button_list_title')
         for i, btn in enumerate(task['buttons'], 1):
             if btn['type'] == 'url':
                 text += f"{i}. {btn['text']} → {btn['url']}\n"
@@ -16334,7 +16351,7 @@ class EnhancedBot:
             self.safe_edit_message(query, text, 'HTML', keyboard)
             return
         
-        text = "<b>📜 广播历史记录</b>\n\n"
+        text = self.i18n.get(user_id, 'broadcast.history_title')
         
         buttons = []
         for record in history:
@@ -16450,7 +16467,7 @@ class EnhancedBot:
         
         self.db.save_user(user_id, "", "", "")
         
-        text = "❌ <b>已取消创建广播</b>"
+        text = self.i18n.get(user_id, 'broadcast.create_cancelled')
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="broadcast_menu")]
         ])
@@ -18244,7 +18261,7 @@ class EnhancedBot:
             
             self.safe_edit_message_text(
                 progress_msg,
-                f"✅ <b>找到 {len(files)} 个账号文件</b>\n\n⏳ 正在验证账号...",
+                self.i18n.get(user_id, 'batch.found_accounts', count=len(files)),
                 parse_mode='HTML'
             )
             
@@ -18271,7 +18288,7 @@ class EnhancedBot:
                 if (i + 1) % 5 == 0:
                     self.safe_edit_message_text(
                         progress_msg,
-                        f"⏳ <b>验证账号中...</b>\n\n进度: {i + 1}/{len(files)}",
+                        self.i18n.get(user_id, 'batch.validating_accounts', current=i+1, total=len(files)),
                         parse_mode='HTML'
                     )
                 
@@ -18318,18 +18335,16 @@ class EnhancedBot:
             }
             
             # 显示验证结果
-            text = f"""
-✅ <b>账号验证完成</b>
-
-<b>统计信息：</b>
-• 总账号数：{len(accounts)}
-• 有效账号：{valid_count}
-• 无效账号：{len(accounts) - valid_count}
-• 今日可创建：{total_remaining} 个
-
-<b>下一步：</b>
-请选择要创建的类型
-"""
+            text = (
+                f"{self.i18n.get(user_id, 'batch.validation_complete')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.stats_title_detailed')}\n"
+                f"{self.i18n.get(user_id, 'batch.total_accounts_detailed', count=len(accounts))}\n"
+                f"{self.i18n.get(user_id, 'batch.valid_accounts_detailed', count=valid_count)}\n"
+                f"{self.i18n.get(user_id, 'batch.invalid_accounts', count=len(accounts) - valid_count)}\n"
+                f"{self.i18n.get(user_id, 'batch.today_quota', count=total_remaining)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.next_step_title')}\n"
+                f"{self.i18n.get(user_id, 'batch.select_creation_type')}"
+            )
             
             keyboard = InlineKeyboardMarkup([
                 [
@@ -18348,7 +18363,7 @@ class EnhancedBot:
             
             self.safe_edit_message_text(
                 progress_msg,
-                f"❌ <b>处理失败</b>\n\n错误: {str(e)}",
+                self.i18n.get(user_id, 'batch.processing_failed', error=str(e)),
                 parse_mode='HTML'
             )
             
@@ -18371,7 +18386,7 @@ class EnhancedBot:
         if not is_member and not self.db.is_admin(user_id):
             self.safe_edit_message(
                 query,
-                "⚠️ 批量创建功能需要会员权限\n\n请先开通会员",
+                self.i18n.get(user_id, 'batch.require_membership'),
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton(self.i18n.get(user_id, 'vip.activate_membership'), callback_data="vip_menu"),
                     InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="back_to_main")
@@ -18379,33 +18394,29 @@ class EnhancedBot:
             )
             return
         
-        text = """
-📦 <b>批量创建群组/频道</b>
-
-<b>功能说明：</b>
-• 批量创建 Telegram 群组和频道
-• 支持随机设备参数和代理登录
-• 自动校验账号有效性
-• 每日创建数量限制：{} 个/账号
-• 支持自定义命名规则和简介
-• 支持用户名自定义或随机生成
-• 最多同时处理 10 个账号
-
-<b>使用步骤：</b>
-1. 上传 Session 或 TData 文件（支持 ZIP 压缩包）
-2. 系统自动验证账号并显示可用数量
-3. 配置创建参数（类型、命名规则等）
-4. 确认后开始批量创建
-5. 完成后接收详细报告和链接列表
-
-<b>注意事项：</b>
-⚠️ 请合理使用，避免触发 Telegram 限制
-⚠️ 建议分批次创建，不要一次性创建过多
-⚠️ 创建的群组/频道归属于对应账号
-
-📤 <b>请上传账号文件</b>
-支持格式：.session / TData文件夹 / .zip压缩包
-""".format(config.BATCH_CREATE_DAILY_LIMIT)
+        text = (
+            f"{self.i18n.get(user_id, 'batch.title')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.features_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_bulk_create')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_random_device')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_validate')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_daily_limit', limit=config.BATCH_CREATE_DAILY_LIMIT)}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_custom_naming')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_username')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_concurrent')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.steps_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.step1')}\n"
+            f"{self.i18n.get(user_id, 'batch.step2')}\n"
+            f"{self.i18n.get(user_id, 'batch.step3')}\n"
+            f"{self.i18n.get(user_id, 'batch.step4')}\n"
+            f"{self.i18n.get(user_id, 'batch.step5')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.notes_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_reasonable')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_batch')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_ownership')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.upload_prompt')}\n"
+            f"{self.i18n.get(user_id, 'batch.upload_formats')}"
+        )
         
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="back_to_main")
@@ -18438,22 +18449,16 @@ class EnhancedBot:
             query.answer()
             if user_id in self.pending_batch_create:
                 self.pending_batch_create[user_id]['username_mode'] = 'custom'
-                type_name = "群组" if self.pending_batch_create[user_id]['creation_type'] == 'group' else "频道"
-                text = f"""
-<b>上传自定义用户名</b>
-
-请上传包含用户名的TXT文件，或直接输入：
-
-<b>格式：</b>每行一个用户名
-
-<b>示例：</b>
-<code>tech_community_001
-programming_hub
-game_lovers_group</code>
-
-💡 <i>可以带或不带@符号</i>
-💡 <i>如用户名已存在将自动跳过</i>
-"""
+                type_name = self.i18n.get(user_id, 'batch.type_group') if task['creation_type'] == 'group' else self.i18n.get(user_id, 'batch.type_channel')
+                text = (
+                    f"{self.i18n.get(user_id, 'batch.custom_username_title')}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.username_prompt')}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.username_format_title')}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.username_example_title')}\n"
+                    f"{self.i18n.get(user_id, 'batch.username_example')}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.username_note1')}\n"
+                    f"{self.i18n.get(user_id, 'batch.username_note2')}"
+                )
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]
                 ])
@@ -18485,22 +18490,18 @@ game_lovers_group</code>
         task = self.pending_batch_create[user_id]
         task['creation_type'] = creation_type
         
-        type_name = "群组" if creation_type == "group" else "频道"
+        type_name = self.i18n.get(user_id, 'batch.type_group') if creation_type == "group" else self.i18n.get(user_id, 'batch.type_channel')
         
-        text = f"""
-📦 <b>批量创建{type_name}</b>
-
-<b>账号信息：</b>
-• 总账号数：{task['total_accounts']}
-• 有效账号：{task['valid_accounts']}
-• 今日可创建：{task['total_remaining']} 个
-
-<b>步骤 1/4：设置创建数量</b>
-
-请输入每个账号创建的数量（1-10）：
-
-💡 <i>例如：输入 5 表示每个有效账号创建5个{type_name}</i>
-"""
+        text = (
+            f"{self.i18n.get(user_id, 'batch.select_type', type_name=type_name)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.account_info_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.total_accounts', count=task['total_accounts'])}\n"
+            f"{self.i18n.get(user_id, 'batch.valid_accounts', count=task['valid_accounts'])}\n"
+            f"{self.i18n.get(user_id, 'batch.today_can_create', count=task['total_remaining'])}\n\n"
+            f"{self.i18n.get(user_id, 'batch.step1_set_count')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.input_count_per_account')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.count_example', type_name=type_name)}"
+        )
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]
@@ -18525,28 +18526,21 @@ game_lovers_group</code>
             
             task['count_per_account'] = count
             
-            type_name = "群组" if task['creation_type'] == 'group' else "频道"
+            type_name = self.i18n.get(user_id, 'batch.type_group') if task['creation_type'] == 'group' else self.i18n.get(user_id, 'batch.type_channel')
             
-            text = f"""
-✅ <b>数量已设置：{count} 个/{type_name}/账号</b>
-
-<b>步骤 2/4：设置管理员（可选，支持多个）</b>
-
-请发送需要添加为管理员的用户名：
-
-<b>格式：</b>
-• 单个管理员：直接输入用户名
-• 多个管理员：<b>每行一个用户名</b>
-
-<b>示例：</b>
-<code>admin1
-admin2
-admin3</code>
-
-💡 <i>可以带或不带@符号</i>
-💡 <i>不需要添加管理员，发送 "跳过" 或 "无"</i>
-💡 <i>失败的管理员会在报告中显示详细原因</i>
-"""
+            text = (
+                f"{self.i18n.get(user_id, 'batch.count_set', count=count, type_name=type_name)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.step2_set_admin')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.admin_prompt_detailed')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.admin_format_title')}\n"
+                f"{self.i18n.get(user_id, 'batch.admin_format_single_detailed')}\n"
+                f"{self.i18n.get(user_id, 'batch.admin_format_multi_detailed')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.admin_example_title')}\n"
+                f"{self.i18n.get(user_id, 'batch.admin_example_content_detailed')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.admin_note_at_symbol')}\n"
+                f"{self.i18n.get(user_id, 'batch.admin_note_skip')}\n"
+                f"{self.i18n.get(user_id, 'batch.admin_note_failure')}"
+            )
             
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(self.i18n.get(user_id, 'batch.skip_short'), callback_data="batch_create_skip_admin")],
@@ -18600,35 +18594,27 @@ admin3</code>
     def _ask_for_group_names(self, update: Update, user_id: int):
         """询问群组名称和简介"""
         task = self.pending_batch_create[user_id]
-        type_name = "群组" if task['creation_type'] == 'group' else "频道"
+        type_name = self.i18n.get(user_id, 'batch.type_group') if task['creation_type'] == 'group' else self.i18n.get(user_id, 'batch.type_channel')
         
         total_to_create = task['valid_accounts'] * task['count_per_account']
         
         admin_usernames = task.get('admin_usernames', [])
-        admin_display = ', '.join([f"@{u}" for u in admin_usernames]) if admin_usernames else '无'
+        admin_display = ', '.join([f"@{u}" for u in admin_usernames]) if admin_usernames else self.i18n.get(user_id, 'batch.admin_none')
         
-        text = f"""
-✅ <b>管理员已设置：{admin_display}</b>
-<i>（共 {len(admin_usernames)} 个）</i>
-
-<b>步骤 3/4：设置{type_name}名称和简介</b>
-
-请上传包含{type_name}名称和简介的TXT文件，或直接手动输入（少量）
-
-<b>格式：</b>
-<code>{type_name}名称|{type_name}简介</code>
-
-<b>示例：</b>
-<code>科技交流群|欢迎讨论最新科技资讯
-编程学习|一起学习编程技术
-游戏爱好者|</code>
-
-💡 <i>简介可以为空（如第3行）</i>
-💡 <i>需要准备至少 {total_to_create} 行</i>
-💡 <i>如果行数不足，将循环使用已有的名称</i>
-
-<b>请上传TXT文件或直接输入：</b>
-"""
+        text = (
+            f"{self.i18n.get(user_id, 'batch.admin_set', admin_display=admin_display)}\n"
+            f"{self.i18n.get(user_id, 'batch.admin_count', count=len(admin_usernames))}\n\n"
+            f"{self.i18n.get(user_id, 'batch.step3_names_detailed', type_name=type_name)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.names_upload_prompt', type_name=type_name)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.names_format_label')}\n"
+            f"{self.i18n.get(user_id, 'batch.names_format_detail', type_name=type_name)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.names_example_label')}\n"
+            f"{self.i18n.get(user_id, 'batch.names_example_content')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.names_note_empty_desc')}\n"
+            f"{self.i18n.get(user_id, 'batch.names_note_min_lines', count=total_to_create)}\n"
+            f"{self.i18n.get(user_id, 'batch.names_note_循环')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.names_input_prompt')}"
+        )
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]
@@ -18674,21 +18660,17 @@ admin3</code>
             task['group_names'] = group_names
             task['group_descriptions'] = group_descriptions
             
-            type_name = "群组" if task['creation_type'] == 'group' else "频道"
+            type_name = self.i18n.get(user_id, 'batch.type_group') if task['creation_type'] == 'group' else self.i18n.get(user_id, 'batch.type_channel')
             
-            text = f"""
-✅ <b>已保存 {len(group_names)} 个{type_name}名称</b>
-
-<b>步骤 4/4：设置{type_name}链接</b>
-
-请选择{type_name}链接设置方式：
-
-• <b>自定义上传</b>：上传包含自定义用户名的TXT文件
-• <b>自动生成</b>：系统自动随机生成唯一的用户名
-
-💡 <i>自定义用户名格式：一行一个，可带或不带@</i>
-💡 <i>如果用户名已存在或不可用，将自动跳过</i>
-"""
+            text = (
+                f"{self.i18n.get(user_id, 'batch.names_saved_title', count=len(group_names), type_name=type_name)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.step4_link_setup', type_name=type_name)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.link_setup_prompt', type_name=type_name)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.link_custom_desc')}\n"
+                f"{self.i18n.get(user_id, 'batch.link_auto_desc')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.link_username_format')}\n"
+                f"{self.i18n.get(user_id, 'batch.link_username_skip')}"
+            )
             
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(self.i18n.get(user_id, 'batch.custom_upload'), callback_data="batch_create_username_custom")],
@@ -18741,45 +18723,39 @@ admin3</code>
             return
         
         task = self.pending_batch_create[user_id]
-        type_name = "群组" if task['creation_type'] == 'group' else "频道"
+        type_name = self.i18n.get(user_id, 'batch.type_group') if task['creation_type'] == 'group' else self.i18n.get(user_id, 'batch.type_channel')
         
         total_to_create = task['valid_accounts'] * task['count_per_account']
         
-        username_mode_text = "自动生成" if task.get('username_mode', 'auto') == 'auto' else f"自定义（已提供{len(task.get('custom_usernames', []))}个）"
+        username_mode_text = self.i18n.get(user_id, 'batch.username_mode_auto_gen') if task.get('username_mode', 'auto') == 'auto' else self.i18n.get(user_id, 'batch.username_mode_custom_provided', count=len(task.get('custom_usernames', [])))
         
         admin_usernames = task.get('admin_usernames', [])
         if admin_usernames:
             admin_text = f"{len(admin_usernames)} 个 ({', '.join([f'@{u}' for u in admin_usernames[:3]])}{'...' if len(admin_usernames) > 3 else ''})"
         else:
-            admin_text = "无"
+            admin_text = self.i18n.get(user_id, 'batch.admin_none')
         
-        text = f"""
-📋 <b>最终确认</b>
-
-<b>创建类型：</b>{type_name}
-
-<b>账号统计：</b>
-• 有效账号数：{task['valid_accounts']} 个
-• 每账号创建：{task['count_per_account']} 个
-• 预计创建总数：{total_to_create} 个
-
-<b>配置信息：</b>
-• 管理员：{admin_text}
-• 名称数量：{len(task.get('group_names', []))} 个
-• 链接模式：{username_mode_text}
-
-<b>并发设置：</b>
-• 并发账号数：{min(task['valid_accounts'], 10)} 个
-• 线程数：10
-
-⚠️ <b>重要提示：</b>
-• 创建操作不可撤销
-• 将自动处理创建间隔避免频率限制
-• 如用户名已存在将自动跳过
-• 完成后将生成详细报告
-
-<b>确认开始创建？</b>
-"""
+        text = (
+            f"{self.i18n.get(user_id, 'batch.final_confirmation')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.create_type', type_name=type_name)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.account_stats_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.valid_account_count', count=task['valid_accounts'])}\n"
+            f"{self.i18n.get(user_id, 'batch.per_account_create', count=task['count_per_account'])}\n"
+            f"{self.i18n.get(user_id, 'batch.total_to_create', count=total_to_create)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.config_info_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.admin_label', admin=admin_text)}\n"
+            f"{self.i18n.get(user_id, 'batch.names_count_label', count=len(task.get('group_names', [])))}\n"
+            f"{self.i18n.get(user_id, 'batch.link_mode_label', mode=username_mode_text)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.concurrent_settings_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.concurrent_accounts', count=min(task['valid_accounts'], 10))}\n"
+            f"{self.i18n.get(user_id, 'batch.thread_count')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.important_notes_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_irreversible')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_auto_delay')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_skip_existing')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_detail_report')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.confirm_start_create')}"
+        )
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'batch.confirm_create'), callback_data="batch_create_confirm")],
@@ -19086,19 +19062,16 @@ admin3</code>
             failed = len([r for r in results if r.status == 'failed'])
             skipped = len([r for r in results if r.status == 'skipped'])
             
-            summary = f"""
-✅ <b>批量创建完成</b>
-
-<b>统计信息：</b>
-• 总数：{total}
-• 成功：{success}
-• 失败：{failed}
-• 跳过：{skipped}
-
-<b>成功率：</b> {int(success/total*100) if total > 0 else 0}%
-
-📄 详细报告见下方文件
-"""
+            summary = (
+                f"{self.i18n.get(user_id, 'batch.create_complete')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.stats_title')}\n"
+                f"{self.i18n.get(user_id, 'batch.total_label', count=total)}\n"
+                f"{self.i18n.get(user_id, 'batch.success_label', count=success)}\n"
+                f"{self.i18n.get(user_id, 'batch.failed_label', count=failed)}\n"
+                f"{self.i18n.get(user_id, 'batch.skipped_label', count=skipped)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.success_rate', rate=int(success/total*100) if total > 0 else 0)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.detail_report')}"
+            )
             
             context.bot.edit_message_text(
                 chat_id=user_id,
@@ -19124,19 +19097,19 @@ admin3</code>
                 
                 with open(success_path, 'w', encoding='utf-8') as f:
                     f.write("=" * 80 + "\n")
-                    f.write("批量创建 - 成功列表\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_success_title')}\n")
                     f.write("=" * 80 + "\n")
-                    f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
-                    f.write(f"成功数量: {len(success_results)}\n\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_generated_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_success_count', count=len(success_results))}\n\n")
                     
                     for r in success_results:
                         f.write("-" * 80 + "\n")
-                        f.write(f"群昵称: {r.name}\n")
-                        f.write(f"群简介: {r.description or '无'}\n")
-                        f.write(f"群链接: {r.invite_link or '无'}\n")
-                        f.write(f"创建者账号: {r.phone}\n")
-                        f.write(f"创建者用户名: @{r.creator_username or '未知'}\n")
-                        f.write(f"管理员用户名: @{r.admin_username or '无'}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.group_nickname', name=r.name)}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.group_description', description=r.description or self.i18n.get(user_id, 'batch.no_description'))}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.group_link', link=r.invite_link or self.i18n.get(user_id, 'batch.no_description'))}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.creator_account', phone=r.phone)}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.creator_username', username=r.creator_username or self.i18n.get(user_id, 'batch.unknown'))}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.admin_username_label', username=r.admin_username or self.i18n.get(user_id, 'batch.no_description'))}\n")
                         f.write("\n")
                     
                     f.write("=" * 80 + "\n")
@@ -19157,17 +19130,17 @@ admin3</code>
                 
                 with open(failure_path, 'w', encoding='utf-8') as f:
                     f.write("=" * 80 + "\n")
-                    f.write("批量创建 - 失败列表（详细原因）\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_failure_title')}\n")
                     f.write("=" * 80 + "\n")
-                    f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
-                    f.write(f"失败数量: {len(failed_results)}\n\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_generated_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_failure_count', count=len(failed_results))}\n\n")
                     
                     for r in failed_results:
                         f.write("-" * 80 + "\n")
-                        f.write(f"群昵称: {r.name}\n")
-                        f.write(f"群简介: {r.description or '无'}\n")
-                        f.write(f"创建者账号: {r.phone}\n")
-                        f.write(f"失败原因: {r.error}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.group_nickname', name=r.name)}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.group_description', description=r.description or self.i18n.get(user_id, 'batch.no_description'))}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.creator_account', phone=r.phone)}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.failure_reason', reason=r.error)}\n")
                         f.write("\n")
                     
                     f.write("=" * 80 + "\n")
@@ -20274,19 +20247,17 @@ admin3</code>
             }
             
             # 显示选择密码输入方式的按钮
-            text = f"""✅ <b>找到 {len(files)} 个账号文件</b>
-
-<b>文件类型：</b>{file_type.upper()}
-
-<b>请选择旧密码输入方式：</b>
-• 自动识别：从文件中自动查找密码
-• 手动输入：手动输入旧密码
-
-💡 <i>自动识别支持：</i>
-- Session格式：JSON中的twofa/password/2fa字段
-- TData格式：任何包含2fa/twofa/password的.txt文件（不区分大小写）
-  例如：2FA.txt, twoFA.TXT, password.txt, 两步验证.txt 等
-"""
+            text = (
+                f"{self.i18n.get(user_id, 'reauthorize.found_files', count=len(files))}\n\n"
+                f"{self.i18n.get(user_id, 'reauthorize.file_type_label', type=file_type.upper())}\n\n"
+                f"{self.i18n.get(user_id, 'reauthorize.choose_password_method')}\n"
+                f"{self.i18n.get(user_id, 'reauthorize.auto_detect_desc')}\n"
+                f"{self.i18n.get(user_id, 'reauthorize.manual_input_desc')}\n\n"
+                f"{self.i18n.get(user_id, 'reauthorize.auto_detect_support')}\n"
+                f"{self.i18n.get(user_id, 'reauthorize.session_format')}\n"
+                f"{self.i18n.get(user_id, 'reauthorize.tdata_format')}\n"
+                f"{self.i18n.get(user_id, 'reauthorize.file_examples')}"
+            )
             
             keyboard = InlineKeyboardMarkup([
                 [
@@ -20310,7 +20281,7 @@ admin3</code>
             
             self.safe_edit_message_text(
                 progress_msg,
-                f"❌ <b>处理失败</b>\n\n错误: {str(e)}",
+                self.i18n.get(user_id, 'reauthorize.processing_failed', error=str(e)),
                 parse_mode='HTML'
             )
             
@@ -20331,7 +20302,7 @@ admin3</code>
         file_type = task['file_type']
         
         # 自动检测每个文件的密码
-        progress_text = f"🔍 <b>正在自动识别密码...</b>\n\n处理中..."
+        progress_text = self.i18n.get(user_id, 'reauthorize.detecting_password')
         self.safe_edit_message(query, progress_text, parse_mode='HTML')
         
         detected_count = 0
@@ -20351,19 +20322,16 @@ admin3</code>
         task['password_mode'] = 'auto'
         
         # 显示检测结果
-        result_text = f"""✅ <b>密码自动识别完成</b>
-
-<b>统计：</b>
-• 总文件数：{len(files)} 个
-• 识别成功：{detected_count} 个
-• 未识别：{len(files) - detected_count} 个
-
-💡 <i>未识别到密码的账号将使用空密码处理</i>
-
-<b>请输入新密码（用于重新授权后的账号）</b>
-
-💡 <i>如果不需要设置新密码，请输入 \"无\" 或 \"skip\"</i>
-"""
+        result_text = (
+            f"{self.i18n.get(user_id, 'reauthorize.detection_complete')}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.stats_title')}\n"
+            f"{self.i18n.get(user_id, 'reauthorize.total_files', count=len(files))}\n"
+            f"{self.i18n.get(user_id, 'reauthorize.detected_success', count=detected_count)}\n"
+            f"{self.i18n.get(user_id, 'reauthorize.not_detected', count=len(files) - detected_count)}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.empty_password_note')}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.input_new_password')}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.no_password_note')}"
+        )
         
         self.safe_edit_message(query, result_text, parse_mode='HTML')
         
@@ -20381,12 +20349,11 @@ admin3</code>
         task = self.pending_reauthorize[user_id]
         task['password_mode'] = 'manual'
         
-        text = """📝 <b>手动输入旧密码</b>
-
-请输入旧密码（如果账号有2FA密码）
-
-💡 <i>如果没有密码，请输入 \"无\" 或 \"skip\"</i>
-"""
+        text = (
+            f"{self.i18n.get(user_id, 'reauthorize.manual_input_title')}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.input_old_password')}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.no_old_password_note')}"
+        )
         
         self.safe_edit_message(query, text, parse_mode='HTML')
         
@@ -20411,7 +20378,7 @@ admin3</code>
         # 询问新密码
         msg = self.safe_send_message(
             update,
-            "✅ <b>旧密码已保存</b>\n\n请输入新密码（用于重新授权后的账号）\n\n💡 <i>如果不需要设置新密码，请输入 \"无\" 或 \"skip\"</i>",
+            self.i18n.get(user_id, 'reauthorize.old_password_saved'),
             parse_mode='HTML'
         )
         
@@ -21967,24 +21934,21 @@ admin3</code>
             }
             
             # 显示确认按钮
-            text = f"""✅ <b>找到 {len(files)} 个账号文件</b>
-
-<b>文件类型：</b>{file_type.upper()}
-
-<b>处理说明：</b>
-• 优先从@Telegram官方对话获取准确注册时间
-• 备用方案：收藏夹消息或用户ID估算
-• 按相同日期（年-月-日）分类账号
-• 生成分类报告和打包文件
-
-<b>🎯 数据准确性：</b>
-我们会使用多种方法确保获取最准确的注册时间：
-1. Telegram官方对话第一条消息（最准确）
-2. 收藏夹第一条消息（较准确）
-3. 用户ID估算（仅作后备）
-
-准备开始查询吗？
-"""
+            text = (
+                f"{self.i18n.get(user_id, 'reg_check.found_files', count=len(files))}\n\n"
+                f"{self.i18n.get(user_id, 'reg_check.file_type', type=file_type.upper())}\n\n"
+                f"{self.i18n.get(user_id, 'reg_check.process_note')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.priority_telegram')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.backup_method')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.classify_by_date')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.generate_report')}\n\n"
+                f"{self.i18n.get(user_id, 'reg_check.accuracy_title')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.accuracy_note')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.method1')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.method2')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.method3')}\n\n"
+                f"{self.i18n.get(user_id, 'reg_check.ready_to_query')}"
+            )
             
             keyboard = InlineKeyboardMarkup([
                 [
@@ -22043,7 +22007,7 @@ admin3</code>
         # 更新消息
         self.safe_edit_message(
             query,
-            f"🔄 <b>正在查询 {len(files)} 个账号...</b>\n\n请稍候，这可能需要几分钟",
+            self.i18n.get(user_id, 'reg_check.querying_accounts', count=len(files)),
             parse_mode='HTML'
         )
     
@@ -22082,15 +22046,14 @@ admin3</code>
                     # 每处理10个更新一次进度
                     if processed % 10 == 0 or processed == total:
                         try:
-                            progress_text = f"""🔄 <b>查询进度</b>
-
-• 总数：{total}
-• 已处理：{processed}
-• 成功：{len(results['success'])}
-• 失败：{len(results['error']) + len(results['frozen']) + len(results['banned'])}
-
-⏳ 请稍候...
-"""
+                            progress_text = (
+                                f"{self.i18n.get(user_id, 'reg_check.query_progress')}\n\n"
+                                f"{self.i18n.get(user_id, 'reg_check.progress_total', total=total)}\n"
+                                f"{self.i18n.get(user_id, 'reg_check.progress_processed', processed=processed)}\n"
+                                f"{self.i18n.get(user_id, 'reg_check.progress_success', success=len(results['success']))}\n"
+                                f"{self.i18n.get(user_id, 'reg_check.progress_failed', failed=len(results['error']) + len(results['frozen']) + len(results['banned']))}\n\n"
+                                f"{self.i18n.get(user_id, 'reg_check.please_wait')}"
+                            )
                             context.bot.edit_message_text(
                                 chat_id=user_id,
                                 message_id=progress_msg.message_id,
