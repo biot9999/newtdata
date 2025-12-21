@@ -14508,14 +14508,13 @@ class EnhancedBot:
             )
             query.answer()
             try:
+                upload_text = (
+                    f"{self.i18n.get(user_id, 'classify.upload_file_prompt')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.upload_file_formats')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.upload_file_limits')}"
+                )
                 query.edit_message_text(
-                    "📤 <b>请上传账号文件</b>\n\n"
-                    "支持格式：\n"
-                    "• Session 文件的ZIP包 (.session)\n"
-                    "• Session+JSON 文件的ZIP包 (.session + .json)\n"
-                    "• TData 文件夹的ZIP包\n\n"
-                    "⚠️ 文件大小限制100MB\n"
-                    "⏰ 5分钟超时",
+                    upload_text,
                     parse_mode='HTML'
                 )
             except:
@@ -14542,12 +14541,13 @@ class EnhancedBot:
             # 按数量拆分 - 询问模式
             query.answer()
             try:
+                quantity_text = (
+                    f"{self.i18n.get(user_id, 'classify.choose_quantity_mode')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.quantity_single_desc')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.quantity_multi_desc')}"
+                )
                 query.edit_message_text(
-                    "🔢 <b>选择数量模式：</b>\n\n"
-                    "1️⃣ <b>单个数量</b>\n"
-                    "   按固定数量切分，例如每包10个\n\n"
-                    "🔢 <b>多个数量</b>\n"
-                    "   按多个数量依次切分，例如 10 20 30",
+                    quantity_text,
                     parse_mode='HTML',
                     reply_markup=self._classify_buttons_qty_mode(user_id)
                 )
@@ -14564,11 +14564,13 @@ class EnhancedBot:
             )
             query.answer()
             try:
+                single_text = (
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_single')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_single_example')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_single_note')}"
+                )
                 query.edit_message_text(
-                    "🔢 <b>请输入每包的账号数量</b>\n\n"
-                    "例如: <code>10</code>\n\n"
-                    "系统将按此数量切分，最后一包为余数\n"
-                    "⏰ 5分钟超时",
+                    single_text,
                     parse_mode='HTML'
                 )
             except:
@@ -14584,12 +14586,13 @@ class EnhancedBot:
             )
             query.answer()
             try:
+                multi_text = (
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_multi')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_multi_example')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.input_quantity_multi_note')}"
+                )
                 query.edit_message_text(
-                    "🔢 <b>请输入多个数量（空格分隔）</b>\n\n"
-                    "例如: <code>10 20 30</code>\n\n"
-                    "系统将依次切分：第1包10个，第2包20个，第3包30个\n"
-                    "余数将提示但不打包\n"
-                    "⏰ 5分钟超时",
+                    multi_text,
                     parse_mode='HTML'
                 )
             except:
@@ -14609,8 +14612,12 @@ class EnhancedBot:
         try:
             # 更新提示
             try:
+                splitting_text = (
+                    f"{self.i18n.get(user_id, 'classify.splitting_by_country')}\n\n"
+                    f"{self.i18n.get(user_id, 'classify.grouping_and_packing')}"
+                )
                 progress_msg.edit_text(
-                    "🔄 <b>开始按国家拆分...</b>\n\n正在分组并打包...",
+                    splitting_text,
                     parse_mode='HTML'
                 )
             except:
@@ -14628,13 +14635,16 @@ class EnhancedBot:
             sent = await self._classify_send_bundles(update, context, bundles)
             
             # 完成提示
+            complete_text = (
+                f"{self.i18n.get(user_id, 'classify.complete_title')}\n\n"
+                f"{self.i18n.get(user_id, 'classify.total_accounts', count=len(metas))}\n"
+                f"{self.i18n.get(user_id, 'classify.files_sent_count', count=sent)}\n"
+                f"{self.i18n.get(user_id, 'classify.classification_method_country')}\n\n"
+                f"{self.i18n.get(user_id, 'classify.use_start_again')}"
+            )
             self.safe_send_message(
                 update,
-                f"✅ <b>分类完成！</b>\n\n"
-                f"• 总账号: {len(metas)} 个\n"
-                f"• 已发送: {sent} 个文件\n"
-                f"• 分类方式: 按国家区号\n\n"
-                f"如需再次使用，请点击 /start",
+                complete_text,
                 'HTML'
             )
             
