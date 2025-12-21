@@ -9688,8 +9688,10 @@ class EnhancedBot:
     
     def show_proxy_detailed_status(self, update: Update):
         """显示代理详细状态"""
+        user_id = update.effective_user.id if update and update.effective_user else 0
+        
         if self.proxy_manager.proxies:
-            status_text = "<b>📡 代理详细状态</b>\n\n"
+            status_text = self.i18n.get(user_id, 'proxy.detailed_status_title')
             # 隐藏代理详细地址，只显示数量和类型
             proxy_count = len(self.proxy_manager.proxies)
             proxy_types = {}
@@ -10094,8 +10096,10 @@ class EnhancedBot:
     
     def show_proxy_status_popup(self, query):
         """显示代理状态弹窗"""
+        user_id = query.from_user.id if query and query.from_user else 0
+        
         if self.proxy_manager.proxies:
-            status_text = f"📡 可用代理: {len(self.proxy_manager.proxies)}个\n"
+            status_text = self.i18n.get(user_id, 'proxy.available_proxies', count=len(self.proxy_manager.proxies))
             enabled, updated_time, updated_by = self.db.get_proxy_setting_info()
             status_text += f"🔧 代理开关: {'启用' if enabled else '禁用'}\n"
             status_text += f"⏰ 更新时间: {updated_time}"
@@ -10120,6 +10124,8 @@ class EnhancedBot:
     
     def show_proxy_statistics(self, query):
         """显示代理统计信息"""
+        user_id = query.from_user.id if query and query.from_user else 0
+        
         proxies = self.proxy_manager.proxies
         if not proxies:
             query.answer(self.i18n.get(user_id, 'proxy.no_proxy_data'), show_alert=True)
@@ -10131,7 +10137,7 @@ class EnhancedBot:
             proxy_type = proxy['type']
             type_count[proxy_type] = type_count.get(proxy_type, 0) + 1
         
-        stats_text = f"📊 代理统计\n总数: {len(proxies)}个\n\n"
+        stats_text = self.i18n.get(user_id, 'proxy.stats_title', count=len(proxies))
         for proxy_type, count in type_count.items():
             stats_text += f"{proxy_type.upper()}: {count}个\n"
         
@@ -10912,7 +10918,7 @@ class EnhancedBot:
         # 获取活跃用户列表
         active_users = self.db.get_active_users(days=7, limit=15)
         
-        text = "<b>👥 用户管理</b>\n\n<b>📋 最近活跃用户（7天内）</b>\n\n"
+        text = self.i18n.get(user_id, 'admin.user_management_title')
         
         if active_users:
             for i, (uid, username, first_name, register_time, last_active, status) in enumerate(active_users[:10], 1):
@@ -11022,7 +11028,7 @@ class EnhancedBot:
         # 获取管理员列表
         admins = self.db.get_all_admins()
         
-        text = "<b>👑 管理员管理</b>\n\n<b>📋 当前管理员列表</b>\n\n"
+        text = self.i18n.get(user_id, 'admin.admin_management_title')
         
         if admins:
             for i, (admin_id, username, first_name, added_time) in enumerate(admins, 1):
@@ -11104,7 +11110,7 @@ class EnhancedBot:
         
         recent_users = self.db.get_recent_users(limit=15)
         
-        text = "<b>📋 最近注册用户</b>\n\n"
+        text = self.i18n.get(user_id, 'admin.recent_users_title')
         
         if recent_users:
             for i, (uid, username, first_name, register_time, last_active, status) in enumerate(recent_users, 1):

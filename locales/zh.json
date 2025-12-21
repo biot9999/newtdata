@@ -744,7 +744,10 @@
     "redeem_again": "🔄 重新兑换",
     "back_to_vip_center": "🔙 返回会员中心",
     "continue_generate": "🔄 继续生成",
-    "activate_membership": "💳 开通会员"
+    "activate_membership": "💳 开通会员",
+    "activation_failed": "❌ <b>开通失败</b>\n\n请稍后重试",
+    "revoke_failed": "❌ <b>撤销失败</b>\n\n该用户可能没有会员权限，或撤销操作失败。",
+    "revoke_cancelled": "❌ <b>已取消撤销操作</b>"
   },
   "admin": {
     "title": "👑 <b>管理员面板</b>",
@@ -835,7 +838,12 @@
     "admin_access_only": "❌ 仅管理员可访问",
     "set_failed": "❌ 设置失败",
     "back_to_user_mgmt": "🔙 返回用户管理",
-    "user_details": "📋 {name} 详情"
+    "user_details": "📋 {name} 详情",
+    "user_management_title": "<b>👥 用户管理</b>\n\n<b>📋 最近活跃用户（7天内）</b>\n\n",
+    "admin_management_title": "<b>👑 管理员管理</b>\n\n<b>📋 当前管理员列表</b>\n\n",
+    "recent_users_title": "<b>📋 最近注册用户</b>\n\n",
+    "search_result": "🔍 <b>搜索结果：'{query}'</b>\n\n",
+    "member_type": "会员"
   },
   "proxy": {
     "title": "📡 <b>代理管理</b>",
@@ -919,7 +927,10 @@
     "cleanup_failed_proxies": "🧹 清理失效代理",
     "admin_only": "❌ 仅管理员可以操作",
     "get_test_proxy_failed": "❌ 获取测试代理失败",
-    "test_proxy_type": "🧪 测试代理: {type}代理"
+    "test_proxy_type": "🧪 测试代理: {type}代理",
+    "detailed_status_title": "<b>📡 代理详细状态</b>\n\n",
+    "available_proxies": "📡 可用代理: {count}个\n",
+    "stats_title": "📊 代理统计\n总数: {count}个\n\n"
   },
   "settings": {
     "title": "⚙️ <b>设置</b>",
@@ -1010,7 +1021,14 @@
     "modify_success_bracket": "✅ 修改成功 ({count}个)",
     "failed_details_bracket": "❌ 失败详情 ({count}个)",
     "proxy_type_test": "🧪 测试代理: {type}代理",
-    "session_expired_reupload": "❌ 会话已过期，请重新上传文件"
+    "session_expired_reupload": "❌ 会话已过期，请重新上传文件",
+    "type_group": "群组",
+    "type_channel": "频道",
+    "mode_random": "随机生成",
+    "mode_custom": "自定义配置",
+    "status_success": "成功",
+    "status_frozen": "冻结",
+    "count_members": "{count} 个"
   },
   "file": {
     "uploading": "⬆️ 正在上传文件...",
@@ -1076,7 +1094,7 @@
   "broadcast": {
     "title": "<b>📢 群发通知管理</b>",
     "description": "<b>💡 功能说明</b>\n• 支持HTML格式内容（粗体、斜体、链接等）\n• 支持单张图片 + 文本组合\n• 可添加自定义按钮（URL或回调）\n• 智能节流避免触发限制",
-    "history_title": "<b>📜 广播历史记录</b>",
+    "history_title": "<b>📜 广播历史记录</b>\n\n",
     "no_history": "暂无广播记录",
     "set_media": "<b>📸 设置广播媒体</b>\n\n<b>📋 请上传一张图片</b>\n\n• 支持格式：JPG、PNG、GIF\n• 图片将与文本一起发送\n• 单次广播只支持一张图片\n\n⏰ <i>5分钟内未上传将自动取消</i>",
     "no_pending": "❌ 没有待处理的广播任务",
@@ -1111,7 +1129,9 @@
     "back_to_history": "🔙 返回历史",
     "all_users_count": "👥 全部用户 ({count})",
     "new_users_7days": "🆕 新用户(7天) ({count})",
-    "preview_title": "📢 预览"
+    "preview_title": "📢 预览",
+    "button_list_title": "<b>🔘 按钮列表</b>\n\n",
+    "create_cancelled": "❌ <b>已取消创建广播</b>"
   },
   "admin_ext": {
     "msg_6": "获取所有管理员",
@@ -1497,5 +1517,27 @@
     "proxy_mode": "代理模式",
     "local_mode": "本地模式",
     "using_device": "使用 {device} | {connection} | 超时={timeout}s"
+  },
+  "reg_check": {
+    "found_files": "✅ <b>找到 {count} 个账号文件</b>",
+    "file_type": "<b>文件类型：</b>{type}",
+    "process_note": "<b>处理说明：</b>",
+    "priority_telegram": "• 优先从@Telegram官方对话获取准确注册时间",
+    "backup_method": "• 备用方案：收藏夹消息或用户ID估算",
+    "classify_by_date": "• 按相同日期（年-月-日）分类账号",
+    "generate_report": "• 生成分类报告和打包文件",
+    "accuracy_title": "<b>🎯 数据准确性：</b>",
+    "accuracy_note": "我们会使用多种方法确保获取最准确的注册时间：",
+    "method1": "1. Telegram官方对话第一条消息（最准确）",
+    "method2": "2. 收藏夹第一条消息（较准确）",
+    "method3": "3. 用户ID估算（仅作后备）",
+    "ready_to_query": "准备开始查询吗？",
+    "query_progress": "🔄 <b>查询进度</b>",
+    "progress_total": "• 总数：{total}",
+    "progress_processed": "• 已处理：{processed}",
+    "progress_success": "• 成功：{success}",
+    "progress_failed": "• 失败：{failed}",
+    "please_wait": "⏳ 请稍候...",
+    "querying_accounts": "🔄 <b>正在查询 {count} 个账号...</b>\n\n请稍候，这可能需要几分钟"
   }
 }

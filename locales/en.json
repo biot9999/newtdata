@@ -744,7 +744,10 @@
     "redeem_again": "🔄 Redeem Again",
     "back_to_vip_center": "🔙 Back to VIP Center",
     "continue_generate": "🔄 Continue Generating",
-    "activate_membership": "💳 Activate Membership"
+    "activate_membership": "💳 Activate Membership",
+    "activation_failed": "❌ <b>Activation Failed</b>\n\nPlease try again later",
+    "revoke_failed": "❌ <b>Revocation Failed</b>\n\nThe user may not have membership, or the revocation operation failed.",
+    "revoke_cancelled": "❌ <b>Revocation Cancelled</b>"
   },
   "admin": {
     "title": "👑 <b>Admin Panel</b>",
@@ -835,7 +838,12 @@
     "admin_access_only": "❌ Admin access only",
     "set_failed": "❌ Setting failed",
     "back_to_user_mgmt": "🔙 Back to User Management",
-    "user_details": "📋 {name} Details"
+    "user_details": "📋 {name} Details",
+    "user_management_title": "<b>👥 User Management</b>\n\n<b>📋 Recently Active Users (Last 7 Days)</b>\n\n",
+    "admin_management_title": "<b>👑 Administrator Management</b>\n\n<b>📋 Current Admin List</b>\n\n",
+    "recent_users_title": "<b>📋 Recently Registered Users</b>\n\n",
+    "search_result": "🔍 <b>Search Results: '{query}'</b>\n\n",
+    "member_type": "Member"
   },
   "proxy": {
     "title": "📡 <b>Proxy Management</b>",
@@ -919,7 +927,10 @@
     "cleanup_failed_proxies": "🧹 Cleanup Failed Proxies",
     "admin_only": "❌ Admin only",
     "get_test_proxy_failed": "❌ Failed to get test proxy",
-    "test_proxy_type": "🧪 Test proxy: {type} proxy"
+    "test_proxy_type": "🧪 Test proxy: {type} proxy",
+    "detailed_status_title": "<b>📡 Proxy Detailed Status</b>\n\n",
+    "available_proxies": "📡 Available Proxies: {count}\n",
+    "stats_title": "📊 Proxy Statistics\nTotal: {count}\n\n"
   },
   "settings": {
     "title": "⚙️ <b>Settings</b>",
@@ -1010,7 +1021,14 @@
     "modify_success_bracket": "✅ Modification success ({count})",
     "failed_details_bracket": "❌ Failed Details ({count})",
     "proxy_type_test": "🧪 Test proxy: {type} proxy",
-    "session_expired_reupload": "❌ Session expired, please re-upload files"
+    "session_expired_reupload": "❌ Session expired, please re-upload files",
+    "type_group": "Group",
+    "type_channel": "Channel",
+    "mode_random": "Random Generate",
+    "mode_custom": "Custom Config",
+    "status_success": "Success",
+    "status_frozen": "Frozen",
+    "count_members": "{count}"
   },
   "file": {
     "uploading": "⬆️ Uploading file...",
@@ -1076,7 +1094,7 @@
   "broadcast": {
     "title": "<b>📢 Broadcast Management</b>",
     "description": "<b>💡 Features</b>\n• HTML format support (bold, italic, links)\n• Image + text combination\n• Custom buttons (URL or callback)\n• Smart throttling",
-    "history_title": "<b>📜 Broadcast History</b>",
+    "history_title": "<b>📜 Broadcast History</b>\n\n",
     "no_history": "No broadcast history",
     "set_media": "<b>📸 Set Broadcast Media</b>\n\n<b>📋 Upload an image</b>\n\n• Formats: JPG, PNG, GIF\n• Image sent with text\n• Single image per broadcast\n\n⏰ <i>Expires in 5 minutes</i>",
     "no_pending": "❌ No pending broadcast task",
@@ -1111,7 +1129,9 @@
     "back_to_history": "🔙 Back to History",
     "all_users_count": "👥 All Users ({count})",
     "new_users_7days": "🆕 New Users (7 days) ({count})",
-    "preview_title": "📢 Preview"
+    "preview_title": "📢 Preview",
+    "button_list_title": "<b>🔘 Button List</b>\n\n",
+    "create_cancelled": "❌ <b>Broadcast Creation Cancelled</b>"
   },
   "admin_ext": {
     "msg_6": "Get all admins",
@@ -1497,5 +1517,27 @@
     "proxy_mode": "Proxy Mode",
     "local_mode": "Local Mode",
     "using_device": "Using {device} | {connection} | Timeout={timeout}s"
+  },
+  "reg_check": {
+    "found_files": "✅ <b>Found {count} account files</b>",
+    "file_type": "<b>File Type:</b> {type}",
+    "process_note": "<b>Process Description:</b>",
+    "priority_telegram": "• Priority: Get accurate registration time from @Telegram official chat",
+    "backup_method": "• Backup: Saved messages or user ID estimation",
+    "classify_by_date": "• Classify accounts by same date (year-month-day)",
+    "generate_report": "• Generate classification report and package files",
+    "accuracy_title": "<b>🎯 Data Accuracy:</b>",
+    "accuracy_note": "We use multiple methods to ensure the most accurate registration time:",
+    "method1": "1. First message in Telegram official chat (most accurate)",
+    "method2": "2. First saved message (fairly accurate)",
+    "method3": "3. User ID estimation (backup only)",
+    "ready_to_query": "Ready to start query?",
+    "query_progress": "🔄 <b>Query Progress</b>",
+    "progress_total": "• Total: {total}",
+    "progress_processed": "• Processed: {processed}",
+    "progress_success": "• Success: {success}",
+    "progress_failed": "• Failed: {failed}",
+    "please_wait": "⏳ Please wait...",
+    "querying_accounts": "🔄 <b>Querying {count} accounts...</b>\n\nPlease wait, this may take a few minutes"
   }
 }
