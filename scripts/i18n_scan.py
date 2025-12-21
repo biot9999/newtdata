@@ -1,36 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-中文硬编码扫描工具
-扫描用户可见路径中的中文硬编码，用于 i18n 迁移验证
+中文硬编码扫描工具（改进版）
+扫描用户可见路径中的中文硬编码，包括多行字符串，用于 i18n 迁移验证
 """
 
 import re
 import sys
 import os
-
-# 目标函数和模式 - 用户可见文本的输出位置
-TARGET_FUNCS = (
-    'reply_text',
-    'edit_message_text',
-    'safe_edit_message',
-    'safe_send_message',
-    'send_message',
-    'InlineKeyboardButton(',
-    'web.Response(',
-    'query.answer(',
-    'update.message.reply_text',
-    'context.bot.send_message'
-)
+import ast
 
 # 中文字符正则
 CN = re.compile(r'[\u4e00-\u9fff]')
 
 # 排除目录
-EXCLUDE_DIRS = {'venv', '.git', 'node_modules', '__pycache__', '.pytest_cache', 'build', 'dist'}
+EXCLUDE_DIRS = {'venv', '.git', 'node_modules', '__pycache__', '.pytest_cache', 'build', 'dist', 'locales'}
 
 # 排除文件（资源文件本身包含中文是正常的）
-EXCLUDE_FILES = {'i18n_zh.json', 'zh.json', 'i18n_scan.py', 'README.md', 'README_CN.md'}
+EXCLUDE_FILES = {'i18n_zh.json', 'zh.json', 'i18n_scan.py', 'README.md', 'README_CN.md', 'en.json'}
 
 def should_check(path):
     """判断文件是否需要检查"""
@@ -43,34 +30,95 @@ def should_check(path):
         return False
     
     # 只检查代码文件
-    return path.endswith(('.py', '.html', '.txt', '.json')) and not path.endswith('_zh.json')
+    return path.endswith(('.py',)) and not path.endswith('_zh.py')
 
-def scan(path):
-    """扫描单个文件中的中文硬编码"""
-    found = False
+def scan_multiline_strings(path):
+    """扫描文件中包含中文的多行字符串"""
+    found_issues = []
+    
     try:
         with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-            for i, line in enumerate(f, 1):
-                # 跳过注释行（Python #）
-                stripped = line.strip()
-                if stripped.startswith('#'):
-                    continue
-                
-                # 跳过 print 语句（调试输出）
-                if 'print(' in line or 'logger.' in line:
-                    continue
-                
-                # 移除行内注释以避免误报
-                code_part = line.split('#')[0]
-                
-                # 检查是否包含目标函数调用且包含中文
-                if any(t in code_part for t in TARGET_FUNCS) and CN.search(code_part):
-                    print(f"{path}:{i}: {line.strip()}")
-                    found = True
+            content = f.read()
+            lines = content.split('\n')
+        
+        # 方法1：检查多行字符串块（三引号）
+        in_string = False
+        string_start = 0
+        string_lines = []
+        
+        for i, line in enumerate(lines, 1):
+            # 检查是否有三引号
+            if '"""' in line or "'''" in line:
+                if not in_string:
+                    # 开始多行字符串
+                    in_string = True
+                    string_start = i
+                    string_lines = [line]
+                else:
+                    # 结束多行字符串
+                    in_string = False
+                    string_lines.append(line)
+                    
+                    # 检查这个字符串块是否包含中文
+                    block_text = '\n'.join(string_lines)
+                    if CN.search(block_text):
+                        # 检查是否是用户可见的（不是注释，不是print/logger）
+                        # 向前查找变量赋值或函数调用
+                        context_start = max(0, string_start - 5)
+                        context_end = min(len(lines), i + 5)
+                        context = '\n'.join(lines[context_start:context_end])
+                        
+                        # 跳过纯注释块
+                        if not all(l.strip().startswith('#') for l in string_lines if l.strip()):
+                            # 检查是否可能是用户可见的
+                            is_user_visible = any(keyword in context for keyword in [
+                                'text =', 'message =', 'reply_text', 'edit_message', 
+                                'send_message', 'safe_edit', 'safe_send', 
+                                'InlineKeyboardButton', 'web.Response'
+                            ])
+                            
+                            # 排除明确的调试输出
+                            is_debug = 'print(' in context or 'logger.' in context
+                            
+                            if is_user_visible and not is_debug:
+                                found_issues.append({
+                                    'line_start': string_start,
+                                    'line_end': i,
+                                    'preview': string_lines[0][:60] + '...' if len(string_lines[0]) > 60 else string_lines[0]
+                                })
+                    
+                    string_lines = []
+            elif in_string:
+                string_lines.append(line)
+        
+        # 方法2：检查单行字符串中的中文（原有逻辑）
+        for i, line in enumerate(lines, 1):
+            # 跳过注释
+            if line.strip().startswith('#'):
+                continue
+            
+            # 跳过 print 和 logger
+            if 'print(' in line or 'logger.' in line:
+                continue
+            
+            code = line.split('#')[0]
+            
+            # 检查单行调用
+            if any(keyword in code for keyword in [
+                'reply_text', 'edit_message_text', 'safe_edit_message', 
+                'safe_send_message', 'send_message', 'InlineKeyboardButton(',
+                'query.answer(', 'web.Response('
+            ]) and CN.search(code):
+                found_issues.append({
+                    'line_start': i,
+                    'line_end': i,
+                    'preview': line.strip()[:80]
+                })
+        
     except Exception as e:
         print(f"⚠️ 无法扫描文件 {path}: {e}", file=sys.stderr)
     
-    return found
+    return found_issues
 
 def main():
     """主函数"""
