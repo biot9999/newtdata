@@ -18444,22 +18444,16 @@ class EnhancedBot:
             query.answer()
             if user_id in self.pending_batch_create:
                 self.pending_batch_create[user_id]['username_mode'] = 'custom'
-                type_name = "群组" if self.pending_batch_create[user_id]['creation_type'] == 'group' else "频道"
-                text = f"""
-<b>上传自定义用户名</b>
-
-请上传包含用户名的TXT文件，或直接输入：
-
-<b>格式：</b>每行一个用户名
-
-<b>示例：</b>
-<code>tech_community_001
-programming_hub
-game_lovers_group</code>
-
-💡 <i>可以带或不带@符号</i>
-💡 <i>如用户名已存在将自动跳过</i>
-"""
+                type_name = self.i18n.get(user_id, 'batch.type_group') if task['creation_type'] == 'group' else self.i18n.get(user_id, 'batch.type_channel')
+                text = (
+                    f"{self.i18n.get(user_id, 'batch.custom_username_title')}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.username_prompt')}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.username_format_title')}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.username_example_title')}\n"
+                    f"{self.i18n.get(user_id, 'batch.username_example')}\n\n"
+                    f"{self.i18n.get(user_id, 'batch.username_note1')}\n"
+                    f"{self.i18n.get(user_id, 'batch.username_note2')}"
+                )
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]
                 ])
@@ -18491,22 +18485,18 @@ game_lovers_group</code>
         task = self.pending_batch_create[user_id]
         task['creation_type'] = creation_type
         
-        type_name = "群组" if creation_type == "group" else "频道"
+        type_name = self.i18n.get(user_id, 'batch.type_group') if creation_type == "group" else self.i18n.get(user_id, 'batch.type_channel')
         
-        text = f"""
-📦 <b>批量创建{type_name}</b>
-
-<b>账号信息：</b>
-• 总账号数：{task['total_accounts']}
-• 有效账号：{task['valid_accounts']}
-• 今日可创建：{task['total_remaining']} 个
-
-<b>步骤 1/4：设置创建数量</b>
-
-请输入每个账号创建的数量（1-10）：
-
-💡 <i>例如：输入 5 表示每个有效账号创建5个{type_name}</i>
-"""
+        text = (
+            f"{self.i18n.get(user_id, 'batch.select_type', type_name=type_name)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.account_info_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.total_accounts', count=task['total_accounts'])}\n"
+            f"{self.i18n.get(user_id, 'batch.valid_accounts', count=task['valid_accounts'])}\n"
+            f"{self.i18n.get(user_id, 'batch.today_can_create', count=task['total_remaining'])}\n\n"
+            f"{self.i18n.get(user_id, 'batch.step1_set_count')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.input_count_per_account')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.count_example', type_name=type_name)}"
+        )
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]
