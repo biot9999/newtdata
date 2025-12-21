@@ -20240,19 +20240,17 @@ class EnhancedBot:
             }
             
             # 显示选择密码输入方式的按钮
-            text = f"""✅ <b>找到 {len(files)} 个账号文件</b>
-
-<b>文件类型：</b>{file_type.upper()}
-
-<b>请选择旧密码输入方式：</b>
-• 自动识别：从文件中自动查找密码
-• 手动输入：手动输入旧密码
-
-💡 <i>自动识别支持：</i>
-- Session格式：JSON中的twofa/password/2fa字段
-- TData格式：任何包含2fa/twofa/password的.txt文件（不区分大小写）
-  例如：2FA.txt, twoFA.TXT, password.txt, 两步验证.txt 等
-"""
+            text = (
+                f"{self.i18n.get(user_id, 'reauthorize.found_files', count=len(files))}\n\n"
+                f"{self.i18n.get(user_id, 'reauthorize.file_type_label', type=file_type.upper())}\n\n"
+                f"{self.i18n.get(user_id, 'reauthorize.choose_password_method')}\n"
+                f"{self.i18n.get(user_id, 'reauthorize.auto_detect_desc')}\n"
+                f"{self.i18n.get(user_id, 'reauthorize.manual_input_desc')}\n\n"
+                f"{self.i18n.get(user_id, 'reauthorize.auto_detect_support')}\n"
+                f"{self.i18n.get(user_id, 'reauthorize.session_format')}\n"
+                f"{self.i18n.get(user_id, 'reauthorize.tdata_format')}\n"
+                f"{self.i18n.get(user_id, 'reauthorize.file_examples')}"
+            )
             
             keyboard = InlineKeyboardMarkup([
                 [
@@ -20276,7 +20274,7 @@ class EnhancedBot:
             
             self.safe_edit_message_text(
                 progress_msg,
-                f"❌ <b>处理失败</b>\n\n错误: {str(e)}",
+                self.i18n.get(user_id, 'reauthorize.processing_failed', error=str(e)),
                 parse_mode='HTML'
             )
             
@@ -20297,7 +20295,7 @@ class EnhancedBot:
         file_type = task['file_type']
         
         # 自动检测每个文件的密码
-        progress_text = f"🔍 <b>正在自动识别密码...</b>\n\n处理中..."
+        progress_text = self.i18n.get(user_id, 'reauthorize.detecting_password')
         self.safe_edit_message(query, progress_text, parse_mode='HTML')
         
         detected_count = 0
@@ -20317,19 +20315,16 @@ class EnhancedBot:
         task['password_mode'] = 'auto'
         
         # 显示检测结果
-        result_text = f"""✅ <b>密码自动识别完成</b>
-
-<b>统计：</b>
-• 总文件数：{len(files)} 个
-• 识别成功：{detected_count} 个
-• 未识别：{len(files) - detected_count} 个
-
-💡 <i>未识别到密码的账号将使用空密码处理</i>
-
-<b>请输入新密码（用于重新授权后的账号）</b>
-
-💡 <i>如果不需要设置新密码，请输入 \"无\" 或 \"skip\"</i>
-"""
+        result_text = (
+            f"{self.i18n.get(user_id, 'reauthorize.detection_complete')}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.stats_title')}\n"
+            f"{self.i18n.get(user_id, 'reauthorize.total_files', count=len(files))}\n"
+            f"{self.i18n.get(user_id, 'reauthorize.detected_success', count=detected_count)}\n"
+            f"{self.i18n.get(user_id, 'reauthorize.not_detected', count=len(files) - detected_count)}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.empty_password_note')}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.input_new_password')}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.no_password_note')}"
+        )
         
         self.safe_edit_message(query, result_text, parse_mode='HTML')
         
@@ -20347,12 +20342,11 @@ class EnhancedBot:
         task = self.pending_reauthorize[user_id]
         task['password_mode'] = 'manual'
         
-        text = """📝 <b>手动输入旧密码</b>
-
-请输入旧密码（如果账号有2FA密码）
-
-💡 <i>如果没有密码，请输入 \"无\" 或 \"skip\"</i>
-"""
+        text = (
+            f"{self.i18n.get(user_id, 'reauthorize.manual_input_title')}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.input_old_password')}\n\n"
+            f"{self.i18n.get(user_id, 'reauthorize.no_old_password_note')}"
+        )
         
         self.safe_edit_message(query, text, parse_mode='HTML')
         
@@ -20377,7 +20371,7 @@ class EnhancedBot:
         # 询问新密码
         msg = self.safe_send_message(
             update,
-            "✅ <b>旧密码已保存</b>\n\n请输入新密码（用于重新授权后的账号）\n\n💡 <i>如果不需要设置新密码，请输入 \"无\" 或 \"skip\"</i>",
+            self.i18n.get(user_id, 'reauthorize.old_password_saved'),
             parse_mode='HTML'
         )
         
