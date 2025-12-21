@@ -14194,20 +14194,29 @@ class EnhancedBot:
         start_time = time.time()
         task_id = f"{user_id}_{int(start_time)}"
         
+        print(f"📥 [Classify] 开始处理文件上传 - 用户: {user_id}", flush=True)
+        
         progress_msg = self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_b8d1dfeb"), 'HTML')
         if not progress_msg:
+            print(f"❌ [Classify] 无法发送进度消息", flush=True)
             return
         
         temp_zip = None
         try:
+            print(f"📦 [Classify] 创建临时目录", flush=True)
             temp_dir = tempfile.mkdtemp(prefix="temp_classify_")
             temp_zip = os.path.join(temp_dir, document.file_name)
+            
+            print(f"⬇️ [Classify] 下载文件: {document.file_name}", flush=True)
             document.get_file().download(temp_zip)
             
             # 使用FileProcessor扫描
+            print(f"🔍 [Classify] 扫描ZIP文件", flush=True)
             files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, task_id)
+            print(f"✅ [Classify] 扫描完成: 找到 {len(files)} 个文件, 类型: {file_type}", flush=True)
             
             if not files:
+                print(f"❌ [Classify] 未找到有效文件", flush=True)
                 try:
                     progress_msg.edit_text(
                         "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的账号文件",
@@ -14218,14 +14227,18 @@ class EnhancedBot:
                 return
             
             # 构建元数据
+            print(f"📋 [Classify] 构建元数据", flush=True)
             metas = self.classifier.build_meta_from_pairs(files, file_type)
             total_count = len(metas)
+            print(f"✅ [Classify] 元数据构建完成: {total_count} 个账号", flush=True)
             
             # 统计识别情况
             recognized = sum(1 for m in metas if m.phone)
             unknown = total_count - recognized
+            print(f"📊 [Classify] 统计: 已识别={recognized}, 未识别={unknown}", flush=True)
             
             # 保存任务信息
+            print(f"💾 [Classify] 保存任务信息", flush=True)
             self.pending_classify_tasks[user_id] = {
                 'metas': metas,
                 'file_type': file_type,
@@ -14249,17 +14262,20 @@ class EnhancedBot:
 🎯 <b>请选择拆分方式：</b>
             """
             
+            print(f"📤 [Classify] 发送选择界面", flush=True)
             try:
                 progress_msg.edit_text(
                     text,
                     parse_mode='HTML',
                     reply_markup=self._classify_buttons_split_type()
                 )
-            except:
+                print(f"✅ [Classify] 阶段1完成 - 等待用户选择", flush=True)
+            except Exception as edit_error:
+                print(f"❌ [Classify] 更新消息失败: {edit_error}", flush=True)
                 pass
         
         except Exception as e:
-            print(f"❌ 分类阶段1失败: {e}")
+            print(f"❌ [Classify] 分类阶段1失败: {e}", flush=True)
             import traceback
             traceback.print_exc()
             try:
