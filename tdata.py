@@ -18653,21 +18653,17 @@ class EnhancedBot:
             task['group_names'] = group_names
             task['group_descriptions'] = group_descriptions
             
-            type_name = "群组" if task['creation_type'] == 'group' else "频道"
+            type_name = self.i18n.get(user_id, 'batch.type_group') if task['creation_type'] == 'group' else self.i18n.get(user_id, 'batch.type_channel')
             
-            text = f"""
-✅ <b>已保存 {len(group_names)} 个{type_name}名称</b>
-
-<b>步骤 4/4：设置{type_name}链接</b>
-
-请选择{type_name}链接设置方式：
-
-• <b>自定义上传</b>：上传包含自定义用户名的TXT文件
-• <b>自动生成</b>：系统自动随机生成唯一的用户名
-
-💡 <i>自定义用户名格式：一行一个，可带或不带@</i>
-💡 <i>如果用户名已存在或不可用，将自动跳过</i>
-"""
+            text = (
+                f"{self.i18n.get(user_id, 'batch.names_saved_title', count=len(group_names), type_name=type_name)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.step4_link_setup', type_name=type_name)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.link_setup_prompt', type_name=type_name)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.link_custom_desc')}\n"
+                f"{self.i18n.get(user_id, 'batch.link_auto_desc')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.link_username_format')}\n"
+                f"{self.i18n.get(user_id, 'batch.link_username_skip')}"
+            )
             
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(self.i18n.get(user_id, 'batch.custom_upload'), callback_data="batch_create_username_custom")],
@@ -18720,45 +18716,39 @@ class EnhancedBot:
             return
         
         task = self.pending_batch_create[user_id]
-        type_name = "群组" if task['creation_type'] == 'group' else "频道"
+        type_name = self.i18n.get(user_id, 'batch.type_group') if task['creation_type'] == 'group' else self.i18n.get(user_id, 'batch.type_channel')
         
         total_to_create = task['valid_accounts'] * task['count_per_account']
         
-        username_mode_text = "自动生成" if task.get('username_mode', 'auto') == 'auto' else f"自定义（已提供{len(task.get('custom_usernames', []))}个）"
+        username_mode_text = self.i18n.get(user_id, 'batch.username_mode_auto_gen') if task.get('username_mode', 'auto') == 'auto' else self.i18n.get(user_id, 'batch.username_mode_custom_provided', count=len(task.get('custom_usernames', [])))
         
         admin_usernames = task.get('admin_usernames', [])
         if admin_usernames:
             admin_text = f"{len(admin_usernames)} 个 ({', '.join([f'@{u}' for u in admin_usernames[:3]])}{'...' if len(admin_usernames) > 3 else ''})"
         else:
-            admin_text = "无"
+            admin_text = self.i18n.get(user_id, 'batch.admin_none')
         
-        text = f"""
-📋 <b>最终确认</b>
-
-<b>创建类型：</b>{type_name}
-
-<b>账号统计：</b>
-• 有效账号数：{task['valid_accounts']} 个
-• 每账号创建：{task['count_per_account']} 个
-• 预计创建总数：{total_to_create} 个
-
-<b>配置信息：</b>
-• 管理员：{admin_text}
-• 名称数量：{len(task.get('group_names', []))} 个
-• 链接模式：{username_mode_text}
-
-<b>并发设置：</b>
-• 并发账号数：{min(task['valid_accounts'], 10)} 个
-• 线程数：10
-
-⚠️ <b>重要提示：</b>
-• 创建操作不可撤销
-• 将自动处理创建间隔避免频率限制
-• 如用户名已存在将自动跳过
-• 完成后将生成详细报告
-
-<b>确认开始创建？</b>
-"""
+        text = (
+            f"{self.i18n.get(user_id, 'batch.final_confirmation')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.create_type', type_name=type_name)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.account_stats_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.valid_account_count', count=task['valid_accounts'])}\n"
+            f"{self.i18n.get(user_id, 'batch.per_account_create', count=task['count_per_account'])}\n"
+            f"{self.i18n.get(user_id, 'batch.total_to_create', count=total_to_create)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.config_info_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.admin_label', admin=admin_text)}\n"
+            f"{self.i18n.get(user_id, 'batch.names_count_label', count=len(task.get('group_names', [])))}\n"
+            f"{self.i18n.get(user_id, 'batch.link_mode_label', mode=username_mode_text)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.concurrent_settings_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.concurrent_accounts', count=min(task['valid_accounts'], 10))}\n"
+            f"{self.i18n.get(user_id, 'batch.thread_count')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.important_notes_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_irreversible')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_auto_delay')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_skip_existing')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_detail_report')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.confirm_start_create')}"
+        )
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'batch.confirm_create'), callback_data="batch_create_confirm")],
