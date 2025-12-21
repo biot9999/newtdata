@@ -8767,6 +8767,21 @@ class EnhancedBot:
         self.dp.add_handler(MessageHandler(Filters.photo, self.handle_photo))
         self.dp.add_handler(MessageHandler(Filters.text & ~Filters.command, self.handle_text))
     
+    def _uid(self, update=None, query=None) -> int:
+        """
+        统一提取当前交互用户 ID。
+        优先使用 callback query 的 from_user.id，其次使用 update.effective_user.id。
+        如果无法提取，返回 0 作为系统/兜底用户（与 _temp_i18n 约定一致）。
+        """
+        try:
+            if query and getattr(query, "from_user", None):
+                return query.from_user.id
+            if update and getattr(update, "effective_user", None):
+                return update.effective_user.id
+        except Exception:
+            pass
+        return 0
+    
     def translate_status_code(self, status_code: str, user_id: int) -> str:
         """
         Translate status code to localized display text.
@@ -13239,7 +13254,7 @@ class EnhancedBot:
                 pass
             # 使用统一方法渲染主菜单（包含“📦 账号分类”按钮）
             self.show_main_menu(update, query.from_user.id)        
-    def _classify_buttons_split_type(self) -> InlineKeyboardMarkup:
+    def _classify_buttons_split_type(self, user_id: int) -> InlineKeyboardMarkup:
         """生成拆分方式选择按钮"""
         return InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'classify.by_country'), callback_data="classify_split_country")],
@@ -13247,7 +13262,7 @@ class EnhancedBot:
             [InlineKeyboardButton(self.i18n.get(user_id, 'common.cancel'), callback_data="back_to_main")]
         ])
     
-    def _classify_buttons_qty_mode(self) -> InlineKeyboardMarkup:
+    def _classify_buttons_qty_mode(self, user_id: int) -> InlineKeyboardMarkup:
         """生成数量模式选择按钮"""
         return InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'classify.single_quantity'), callback_data="classify_qty_single")],
@@ -14267,7 +14282,7 @@ class EnhancedBot:
                 progress_msg.edit_text(
                     text,
                     parse_mode='HTML',
-                    reply_markup=self._classify_buttons_split_type()
+                    reply_markup=self._classify_buttons_split_type(user_id)
                 )
                 print(f"✅ [Classify] 阶段1完成 - 等待用户选择", flush=True)
             except Exception as edit_error:
@@ -14534,7 +14549,7 @@ class EnhancedBot:
                     "🔢 <b>多个数量</b>\n"
                     "   按多个数量依次切分，例如 10 20 30",
                     parse_mode='HTML',
-                    reply_markup=self._classify_buttons_qty_mode()
+                    reply_markup=self._classify_buttons_qty_mode(user_id)
                 )
             except:
                 pass
