@@ -13114,7 +13114,7 @@ class EnhancedBot:
                 return
             
             # 显示搜索结果
-            result_text = f"🔍 <b>搜索结果：'{search_query}'</b>\n\n"
+            result_text = self.i18n.get(user_id, 'admin.search_result', query=search_query) + "\n\n"
             
             for i, (uid, username, first_name, register_time, last_active, status) in enumerate(search_results[:10], 1):
                 is_member, level, _ = self.db.check_membership(uid)
@@ -14846,7 +14846,7 @@ class EnhancedBot:
         query.answer()
         
         # 生成卡密
-        success, code, message = self.db.create_redeem_code("会员", days, None, user_id)
+        success, code, message = self.db.create_redeem_code(self.i18n.get(user_id, 'admin.member_type'), days, None, user_id)
         
         if success:
             text = f"""
@@ -15068,7 +15068,7 @@ class EnhancedBot:
             except:
                 pass
         else:
-            text = "❌ <b>开通失败</b>\n\n请稍后重试"
+            text = self.i18n.get(user_id, 'vip.activation_failed')
             query.answer(self.i18n.get(user_id, 'error.activation_failed'))
         
         # 清理待处理任务
@@ -15249,7 +15249,7 @@ class EnhancedBot:
             except:
                 pass
         else:
-            text = "❌ <b>撤销失败</b>\n\n该用户可能没有会员权限，或撤销操作失败。"
+            text = self.i18n.get(user_id, 'vip.revoke_failed')
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.continue_revoke'), callback_data="admin_revoke_menu")],
@@ -15260,9 +15260,10 @@ class EnhancedBot:
     
     def handle_admin_revoke_cancel(self, query):
         """取消撤销会员"""
+        user_id = query.from_user.id if query and query.from_user else 0
         query.answer()
         
-        text = "❌ <b>已取消撤销操作</b>"
+        text = self.i18n.get(user_id, 'vip.revoke_cancelled')
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'proxy.back_to_panel'), callback_data="admin_panel")]
         ])
@@ -15658,7 +15659,7 @@ class EnhancedBot:
             return
         
         # 显示按钮列表
-        text = "<b>🔘 按钮列表</b>\n\n"
+        text = self.i18n.get(user_id, 'broadcast.button_list_title')
         for i, btn in enumerate(task['buttons'], 1):
             if btn['type'] == 'url':
                 text += f"{i}. {btn['text']} → {btn['url']}\n"
@@ -16350,7 +16351,7 @@ class EnhancedBot:
             self.safe_edit_message(query, text, 'HTML', keyboard)
             return
         
-        text = "<b>📜 广播历史记录</b>\n\n"
+        text = self.i18n.get(user_id, 'broadcast.history_title')
         
         buttons = []
         for record in history:
@@ -16466,7 +16467,7 @@ class EnhancedBot:
         
         self.db.save_user(user_id, "", "", "")
         
-        text = "❌ <b>已取消创建广播</b>"
+        text = self.i18n.get(user_id, 'broadcast.create_cancelled')
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'common.back'), callback_data="broadcast_menu")]
         ])
@@ -21933,24 +21934,21 @@ class EnhancedBot:
             }
             
             # 显示确认按钮
-            text = f"""✅ <b>找到 {len(files)} 个账号文件</b>
-
-<b>文件类型：</b>{file_type.upper()}
-
-<b>处理说明：</b>
-• 优先从@Telegram官方对话获取准确注册时间
-• 备用方案：收藏夹消息或用户ID估算
-• 按相同日期（年-月-日）分类账号
-• 生成分类报告和打包文件
-
-<b>🎯 数据准确性：</b>
-我们会使用多种方法确保获取最准确的注册时间：
-1. Telegram官方对话第一条消息（最准确）
-2. 收藏夹第一条消息（较准确）
-3. 用户ID估算（仅作后备）
-
-准备开始查询吗？
-"""
+            text = (
+                f"{self.i18n.get(user_id, 'reg_check.found_files', count=len(files))}\n\n"
+                f"{self.i18n.get(user_id, 'reg_check.file_type', type=file_type.upper())}\n\n"
+                f"{self.i18n.get(user_id, 'reg_check.process_note')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.priority_telegram')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.backup_method')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.classify_by_date')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.generate_report')}\n\n"
+                f"{self.i18n.get(user_id, 'reg_check.accuracy_title')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.accuracy_note')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.method1')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.method2')}\n"
+                f"{self.i18n.get(user_id, 'reg_check.method3')}\n\n"
+                f"{self.i18n.get(user_id, 'reg_check.ready_to_query')}"
+            )
             
             keyboard = InlineKeyboardMarkup([
                 [
@@ -22009,7 +22007,7 @@ class EnhancedBot:
         # 更新消息
         self.safe_edit_message(
             query,
-            f"🔄 <b>正在查询 {len(files)} 个账号...</b>\n\n请稍候，这可能需要几分钟",
+            self.i18n.get(user_id, 'reg_check.querying_accounts', count=len(files)),
             parse_mode='HTML'
         )
     
@@ -22048,15 +22046,14 @@ class EnhancedBot:
                     # 每处理10个更新一次进度
                     if processed % 10 == 0 or processed == total:
                         try:
-                            progress_text = f"""🔄 <b>查询进度</b>
-
-• 总数：{total}
-• 已处理：{processed}
-• 成功：{len(results['success'])}
-• 失败：{len(results['error']) + len(results['frozen']) + len(results['banned'])}
-
-⏳ 请稍候...
-"""
+                            progress_text = (
+                                f"{self.i18n.get(user_id, 'reg_check.query_progress')}\n\n"
+                                f"{self.i18n.get(user_id, 'reg_check.progress_total', total=total)}\n"
+                                f"{self.i18n.get(user_id, 'reg_check.progress_processed', processed=processed)}\n"
+                                f"{self.i18n.get(user_id, 'reg_check.progress_success', success=len(results['success']))}\n"
+                                f"{self.i18n.get(user_id, 'reg_check.progress_failed', failed=len(results['error']) + len(results['frozen']) + len(results['banned']))}\n\n"
+                                f"{self.i18n.get(user_id, 'reg_check.please_wait')}"
+                            )
                             context.bot.edit_message_text(
                                 chat_id=user_id,
                                 message_id=progress_msg.message_id,
