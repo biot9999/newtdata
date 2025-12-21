@@ -2943,6 +2943,24 @@ class FileProcessor:
         self.db = db
         self.i18n = i18n
     
+    @staticmethod
+    def unpack_file_item(item):
+        """
+        安全地解包文件项，支持2元组和3元组格式
+        
+        Args:
+            item: 文件项，可以是 (path, name) 或 (path, name, type)
+            
+        Returns:
+            tuple: (path, name) 如果成功，否则返回 (None, None)
+        """
+        if len(item) == 2:
+            return item[0], item[1]
+        elif len(item) == 3:
+            return item[0], item[1]
+        else:
+            return None, None
+    
     def translate_status(self, status: str, user_id: int) -> str:
         """
         Translate status code to localized string
@@ -5845,11 +5863,17 @@ class APIFormatConverter:
         return api_accounts
 
     def create_api_result_files(self, api_accounts: List[dict], task_id: str) -> List[str]:
+        """创建API结果文件，如果没有账号则返回空列表"""
+        # 如果没有账号，不创建文件
+        if not api_accounts or len(api_accounts) == 0:
+            print("⚠️ 没有成功转换的账号，跳过创建TXT文件")
+            return []
+        
         out_dir = os.path.join(os.getcwd(), "api_results")
         os.makedirs(out_dir, exist_ok=True)
         out_txt = os.path.join(out_dir, f"TG_API_{len(api_accounts)}个账号.txt")
         with open(out_txt, "w", encoding="utf-8") as f:
-            for it in (api_accounts or []):
+            for it in api_accounts:
                 f.write("%s\t%s\n" % (it["phone"], it["verification_url"]))
         return [out_txt]
 
@@ -7502,8 +7526,15 @@ class Forget2FAManager:
             'failed': ('失败', '❌')
         }
         
-        # 创建文件路径映射
-        file_path_map = {name: path for path, name in files}
+        # 创建文件路径映射 - 处理2元组或3元组格式
+        file_path_map = {}
+        for item in files:
+            if len(item) == 2:
+                path, name = item
+                file_path_map[name] = path
+            elif len(item) == 3:
+                path, name, _ = item
+                file_path_map[name] = path
         
         for status_key, items in results.items():
             if not items:
@@ -8575,6 +8606,20 @@ class EnhancedBot:
         'PHONENUMBERBANNED'
     ]
     
+    # 状态码到翻译键的映射
+    STATUS_TRANSLATION_MAP = {
+        'unlimited': 'check_status.unlimited',
+        'spam': 'check_status.spam',
+        'frozen': 'check_status.frozen',
+        'banned': 'check_status.banned',
+        'connection_error': 'check_status.connection_error',
+        'deactivated': 'check_status.deactivated',
+        'invalid': 'check_status.invalid',
+        'restricted': 'check_status.restricted',
+        'limited': 'check_status.limited',
+        'normal': 'check_status.normal'
+    }
+    
     # 消息发送重试相关常量
     MESSAGE_RETRY_MAX = 3       # 默认最大重试次数
     MESSAGE_RETRY_BACKOFF = 2   # 指数退避基数
@@ -8721,6 +8766,23 @@ class EnhancedBot:
         # 新增：广播媒体上传处理
         self.dp.add_handler(MessageHandler(Filters.photo, self.handle_photo))
         self.dp.add_handler(MessageHandler(Filters.text & ~Filters.command, self.handle_text))
+    
+    def translate_status_code(self, status_code: str, user_id: int) -> str:
+        """
+        Translate status code to localized display text.
+        
+        Args:
+            status_code: Status code like 'unlimited', 'spam', 'frozen', 'banned', 'connection_error'
+            user_id: User ID for language preference
+            
+        Returns:
+            Localized status text
+        """
+        # Get translation key from class constant mapping
+        translation_key = self.STATUS_TRANSLATION_MAP.get(status_code)
+        
+        # Use i18n to get translated text, fallback to status code if not found
+        return self.i18n.get(user_id, translation_key) if translation_key else status_code
     
     def safe_send_message(self, update, text, parse_mode=None, reply_markup=None, max_retries=None):
         """安全发送消息（带网络错误重试机制）
@@ -9439,14 +9501,14 @@ class EnhancedBot:
             target = target.replace("@", "")
             user_info = self.db.get_user_by_username(target)
             if not user_info:
-                self.safe_send_message(update, fself.i18n.get(user_id, "admin.user_not_found_target"))
+                self.safe_send_message(update, self.i18n.get(user_id, "admin.user_not_found_target"))
                 return
             
             target_user_id, target_username, target_first_name = user_info
         
         # 检查是否已经是管理员
         if self.db.is_admin(target_user_id):
-            self.safe_send_message(update, fself.i18n.get(user_id, "admin.already_admin"))
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.already_admin"))
             return
         
         # 添加管理员
@@ -9495,11 +9557,11 @@ class EnhancedBot:
             return
         
         if not self.db.is_admin(target_user_id):
-            self.safe_send_message(update, fself.i18n.get(user_id, "admin.not_admin"))
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.not_admin"))
             return
         
         if self.db.remove_admin(target_user_id):
-            self.safe_send_message(update, fself.i18n.get(user_id, "admin.removed_success"))
+            self.safe_send_message(update, self.i18n.get(user_id, "admin.removed_success"))
         else:
             self.safe_send_message(update, self.i18n.get(user_id, "admin.remove_failed"))
     
@@ -9601,7 +9663,7 @@ class EnhancedBot:
         if context.args:
             if context.args[0] == "reload":
                 self.proxy_manager.load_proxies()
-                self.safe_send_message(update, fself.i18n.get(user_id, "proxy.reloaded_count"))
+                self.safe_send_message(update, self.i18n.get(user_id, "proxy.reloaded_count"))
                 return
             elif context.args[0] == "status":
                 self.show_proxy_detailed_status(update)
@@ -9730,7 +9792,7 @@ class EnhancedBot:
                     pass
             
         except Exception as e:
-            self.safe_send_message(update, fself.i18n.get(user_id, "proxy.test_failed_error"))
+            self.safe_send_message(update, self.i18n.get(user_id, "proxy.test_failed_error"))
     
     def clean_proxy_command(self, update: Update, context: CallbackContext):
         """清理代理命令"""
@@ -11797,20 +11859,28 @@ class EnhancedBot:
                 pass
 
             for file_path in result_files:
-                if os.path.exists(file_path):
-                    try:
-                        with open(file_path, 'rb') as f:
-                            caption = self.i18n.get(user_id, 'api.api_link_caption')
-                            context.bot.send_document(
-                                chat_id=update.effective_chat.id,
-                                document=f,
-                                filename=os.path.basename(file_path),
-                                caption=caption,
-                                parse_mode='HTML'
-                            )
-                        print(f"📤 已发送TXT: {os.path.basename(file_path)}")
-                        await asyncio.sleep(0.5)
-                    except Exception as e:
+                if not os.path.exists(file_path):
+                    print(f"⚠️ 文件不存在，跳过: {os.path.basename(file_path)}")
+                    continue
+                
+                # 检查文件是否为空
+                if os.path.getsize(file_path) == 0:
+                    print(f"⚠️ 文件为空，跳过发送: {os.path.basename(file_path)}")
+                    continue
+                
+                try:
+                    with open(file_path, 'rb') as f:
+                        caption = self.i18n.get(user_id, 'api.api_link_caption')
+                        context.bot.send_document(
+                            chat_id=update.effective_chat.id,
+                            document=f,
+                            filename=os.path.basename(file_path),
+                            caption=caption,
+                            parse_mode='HTML'
+                        )
+                    print(f"📤 已发送TXT: {os.path.basename(file_path)}")
+                    await asyncio.sleep(0.5)
+                except Exception as e:
                         print(f"❌ 发送TXT失败: {e}")
 
             # 完成提示
@@ -12047,13 +12117,15 @@ class EnhancedBot:
                         
                         # 检查实际的代理模式状态
                         actual_proxy_mode = self.proxy_manager.is_proxy_mode_active(self.db)
+                        # Translate status code to localized text
+                        status_display = self.translate_status_code(status, user_id)
                         with open(file_path, 'rb') as f:
                             mode_text = self.i18n.get(user_id, 'check_result.mode_proxy' if actual_proxy_mode else 'check_result.mode_local')
                             context.bot.send_document(
                                 chat_id=update.effective_chat.id,
                                 document=f,
                                 filename=f"{status}_{count}个.zip",
-                                caption=f"{self.i18n.get(user_id, 'file_ops.status_with_count', status=status, count=count)}\n\n"
+                                caption=f"{self.i18n.get(user_id, 'file_ops.status_with_count', status=status_display, count=count)}\n\n"
                                        f"{self.i18n.get(user_id, 'check_result.checking_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}\n"
                                        f"🔧 {self.i18n.get(user_id, 'check_result.detection_mode', mode=mode_text)}",
                                 parse_mode='HTML'
@@ -12070,12 +12142,14 @@ class EnhancedBot:
                         await asyncio.sleep(e.retry_after + 1)
                         # 重试发送
                         try:
+                            # Translate status code to localized text
+                            status_display = self.translate_status_code(status, user_id)
                             with open(file_path, 'rb') as f:
                                 context.bot.send_document(
                                     chat_id=update.effective_chat.id,
                                     document=f,
                                     filename=f"{status}_{count}个.zip",
-                                    caption=self.i18n.get(user_id, 'file_ops.status_with_count', status=status, count=count),
+                                    caption=self.i18n.get(user_id, 'file_ops.status_with_count', status=status_display, count=count),
                                     parse_mode='HTML'
                                 )
                             sent_count += 1
@@ -12286,7 +12360,9 @@ class EnhancedBot:
                     # 2. 发送 TXT 报告
                     if os.path.exists(txt_path):
                         with open(txt_path, 'rb') as f:
-                            caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status, count=count)
+                            # Translate status code to localized text
+                            status_display = self.translate_status_code(status, user_id)
+                            caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status_display, count=count)
                             update.message.reply_document(
                                 document=f,
                                 filename=os.path.basename(txt_path),
@@ -12582,7 +12658,9 @@ class EnhancedBot:
                     if os.path.exists(txt_path):
                         try:
                             with open(txt_path, 'rb') as f:
-                                caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status, count=count)
+                                # Translate status code to localized text
+                                status_display = self.translate_status_code(status, user_id)
+                                caption = self.i18n.get(user_id, 'file_ops.detailed_report', status=status_display, count=count)
                                 context.bot.send_document(
                                     chat_id=update.effective_chat.id,
                                     document=f,
@@ -14116,20 +14194,29 @@ class EnhancedBot:
         start_time = time.time()
         task_id = f"{user_id}_{int(start_time)}"
         
+        print(f"📥 [Classify] 开始处理文件上传 - 用户: {user_id}", flush=True)
+        
         progress_msg = self.safe_send_message(update, self.i18n.get(user_id, "dynamic.msg_b8d1dfeb"), 'HTML')
         if not progress_msg:
+            print(f"❌ [Classify] 无法发送进度消息", flush=True)
             return
         
         temp_zip = None
         try:
+            print(f"📦 [Classify] 创建临时目录", flush=True)
             temp_dir = tempfile.mkdtemp(prefix="temp_classify_")
             temp_zip = os.path.join(temp_dir, document.file_name)
+            
+            print(f"⬇️ [Classify] 下载文件: {document.file_name}", flush=True)
             document.get_file().download(temp_zip)
             
             # 使用FileProcessor扫描
+            print(f"🔍 [Classify] 扫描ZIP文件", flush=True)
             files, extract_dir, file_type = self.processor.scan_zip_file(temp_zip, user_id, task_id)
+            print(f"✅ [Classify] 扫描完成: 找到 {len(files)} 个文件, 类型: {file_type}", flush=True)
             
             if not files:
+                print(f"❌ [Classify] 未找到有效文件", flush=True)
                 try:
                     progress_msg.edit_text(
                         "❌ <b>未找到有效文件</b>\n\n请确保ZIP包含Session或TData格式的账号文件",
@@ -14140,14 +14227,18 @@ class EnhancedBot:
                 return
             
             # 构建元数据
+            print(f"📋 [Classify] 构建元数据", flush=True)
             metas = self.classifier.build_meta_from_pairs(files, file_type)
             total_count = len(metas)
+            print(f"✅ [Classify] 元数据构建完成: {total_count} 个账号", flush=True)
             
             # 统计识别情况
             recognized = sum(1 for m in metas if m.phone)
             unknown = total_count - recognized
+            print(f"📊 [Classify] 统计: 已识别={recognized}, 未识别={unknown}", flush=True)
             
             # 保存任务信息
+            print(f"💾 [Classify] 保存任务信息", flush=True)
             self.pending_classify_tasks[user_id] = {
                 'metas': metas,
                 'file_type': file_type,
@@ -14171,17 +14262,20 @@ class EnhancedBot:
 🎯 <b>请选择拆分方式：</b>
             """
             
+            print(f"📤 [Classify] 发送选择界面", flush=True)
             try:
                 progress_msg.edit_text(
                     text,
                     parse_mode='HTML',
                     reply_markup=self._classify_buttons_split_type()
                 )
-            except:
+                print(f"✅ [Classify] 阶段1完成 - 等待用户选择", flush=True)
+            except Exception as edit_error:
+                print(f"❌ [Classify] 更新消息失败: {edit_error}", flush=True)
                 pass
         
         except Exception as e:
-            print(f"❌ 分类阶段1失败: {e}")
+            print(f"❌ [Classify] 分类阶段1失败: {e}", flush=True)
             import traceback
             traceback.print_exc()
             try:
@@ -15601,14 +15695,14 @@ class EnhancedBot:
                 context.bot.send_photo(
                     chat_id=user_id,
                     photo=task['media_file_id'],
-                    caption=f"<b>📢 预览</b>\n\n{task['content']}",
+                    caption=f"<b>{self.i18n.get(user_id, 'broadcast.preview_title')}</b>\n\n{task['content']}",
                     parse_mode='HTML',
                     reply_markup=keyboard
                 )
             else:
                 context.bot.send_message(
                     chat_id=user_id,
-                    text=f"<b>📢 预览</b>\n\n{task['content']}",
+                    text=f"<b>{self.i18n.get(user_id, 'broadcast.preview_title')}</b>\n\n{task['content']}",
                     parse_mode='HTML',
                     reply_markup=keyboard
                 )
@@ -17532,7 +17626,8 @@ class EnhancedBot:
         thread = threading.Thread(target=execute_cleanup, daemon=True)
         thread.start()
         
-        self.safe_edit_message(query, "🧹 <b>开始清理...</b>\n\n正在初始化清理服务...", 'HTML')
+        user_id = query.from_user.id
+        self.safe_edit_message(query, self.i18n.get(user_id, 'cleanup.initializing'), 'HTML')
     
     async def _process_single_account_full(self, file_info: tuple, file_type: str, progress_msg, all_files_count: int, completed_count: dict, lock: asyncio.Lock, start_time: float) -> dict:
         """处理单个账户的完整流程（包含连接和清理）"""
@@ -18003,7 +18098,7 @@ class EnhancedBot:
                     context.bot.send_document(
                         chat_id=user_id,
                         document=f,
-                        caption=fself.i18n.get(user_id, 'cleanup.summary_report'),
+                        caption=self.i18n.get(user_id, 'cleanup.summary_report'),
                         filename=os.path.basename(summary_report_path)
                     )
             except Exception as e:
@@ -18148,7 +18243,15 @@ class EnhancedBot:
             api_id = device_config.get('api_id', config.API_ID)
             api_hash = device_config.get('api_hash', config.API_HASH)
             
-            for i, (file_path, file_name) in enumerate(files):
+            for i, item in enumerate(files):
+                # 处理2元组或3元组格式
+                if len(item) == 2:
+                    file_path, file_name = item
+                elif len(item) == 3:
+                    file_path, file_name, _ = item
+                else:
+                    continue  # 跳过格式不正确的项
+                
                 # 更新进度
                 if (i + 1) % 5 == 0:
                     self.safe_edit_message_text(
@@ -18245,7 +18348,7 @@ class EnhancedBot:
         
         # 检查功能是否启用
         if not config.ENABLE_BATCH_CREATE or self.batch_creator is None:
-            self.safe_edit_message(query, "❌ 批量创建功能未启用")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'batch.feature_disabled'))
             return
         
         # 检查会员权限
@@ -18733,7 +18836,7 @@ admin3</code>
         query.answer(self.i18n.get(user_id, 'batch.start_creating'))
         
         if user_id not in self.pending_batch_create:
-            self.safe_edit_message(query, "❌ 会话已过期")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.task_expired'))
             return
         
         task = self.pending_batch_create[user_id]
@@ -19511,7 +19614,7 @@ admin3</code>
             
         except Exception as e:
             logger.error(f"处理头像上传失败: {e}")
-            self.safe_send_message(update, fself.i18n.get(user_id, "file.upload_failed_error"))
+            self.safe_send_message(update, self.i18n.get(user_id, "file.upload_failed_error"))
     
     def handle_custom_bio_input(self, update: Update, context: CallbackContext, user_id: int, text: str):
         """处理自定义简介输入"""
@@ -19580,7 +19683,7 @@ admin3</code>
         mode = task.get('mode', 'random')
         
         if not files:
-            self.safe_edit_message(query, "❌ 没有找到文件")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'modify.no_files_found'))
             return
         
         # 启动异步任务
@@ -19589,7 +19692,7 @@ admin3</code>
         
         threading.Thread(target=run_modify_task, daemon=True).start()
         
-        self.safe_edit_message(query, "⏳ 正在初始化，请稍候...")
+        self.safe_edit_message(query, self.i18n.get(user_id, 'modify.initializing'))
     
     async def execute_modify_profile(self, user_id: int, chat_id: int, files: List[Tuple[str, str, str]], mode: str):
         """异步执行资料修改"""
@@ -20205,7 +20308,7 @@ admin3</code>
         query.answer()
         
         if user_id not in self.pending_reauthorize:
-            self.safe_edit_message(query, "❌ 会话已过期")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.task_expired'))
             return
         
         task = self.pending_reauthorize[user_id]
@@ -20257,7 +20360,7 @@ admin3</code>
         query.answer()
         
         if user_id not in self.pending_reauthorize:
-            self.safe_edit_message(query, "❌ 会话已过期")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.task_expired'))
             return
         
         task = self.pending_reauthorize[user_id]
@@ -20358,7 +20461,7 @@ admin3</code>
         query.answer(self.i18n.get(user_id, 'reauthorize.start_reauth'))
         
         if user_id not in self.pending_reauthorize:
-            self.safe_edit_message(query, "❌ 会话已过期")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.task_expired'))
             return
         
         task = self.pending_reauthorize[user_id]
@@ -20389,31 +20492,31 @@ admin3</code>
             parse_mode='HTML'
         )
     
-    def _create_reauth_progress_keyboard(self, total: int, success: int, frozen: int, wrong_pwd: int, banned: int, network_error: int) -> InlineKeyboardMarkup:
+    def _create_reauth_progress_keyboard(self, user_id: int, total: int, success: int, frozen: int, wrong_pwd: int, banned: int, network_error: int) -> InlineKeyboardMarkup:
         """创建重新授权进度按钮 - 6行2列布局"""
         return InlineKeyboardMarkup([
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'batch.account_quantity'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'batch.account_quantity'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{total}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'common.auth_success'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'common.auth_success'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{success}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'check_status.frozen_account'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'check_status.frozen_account'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{frozen}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'reauthorize.banned_account'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.banned_account'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{banned}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'reauthorize.twofa_error'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'reauthorize.twofa_error'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{wrong_pwd}", callback_data="reauthorize_noop")
             ],
             [
-                InlineKeyboardButton(fself.i18n.get(user_id, 'broadcast.network_error'), callback_data="reauthorize_noop"),
+                InlineKeyboardButton(self.i18n.get(user_id, 'broadcast.network_error'), callback_data="reauthorize_noop"),
                 InlineKeyboardButton(f"{network_error}", callback_data="reauthorize_noop")
             ]
         ])
@@ -20433,7 +20536,7 @@ admin3</code>
         total_files = len(files)
         
         # 创建初始按钮布局
-        keyboard = self._create_reauth_progress_keyboard(total_files, 0, 0, 0, 0, 0)
+        keyboard = self._create_reauth_progress_keyboard(user_id, total_files, 0, 0, 0, 0, 0)
         
         progress_msg = context.bot.send_message(
             chat_id=user_id,
@@ -20475,7 +20578,7 @@ admin3</code>
                     
                     # 创建实时统计按钮
                     keyboard = self._create_reauth_progress_keyboard(
-                        total, success_count, frozen_count, wrong_pwd_count, banned_count, network_error_count
+                        user_id, total, success_count, frozen_count, wrong_pwd_count, banned_count, network_error_count
                     )
                     
                     logger.info(f"📊 重新授权进度: {current}/{total} ({progress}%) - 成功:{success_count} 冻结:{frozen_count} 封禁:{banned_count} 密码错误:{wrong_pwd_count} 网络:{network_error_count}")
@@ -20548,10 +20651,16 @@ admin3</code>
                         await process_account_wrapper(idx, file_path, file_name)
                 
                 # 创建所有任务
-                tasks = [
-                    process_with_semaphore(idx, file_path, file_name)
-                    for idx, (file_path, file_name) in enumerate(files)
-                ]
+                tasks = []
+                for idx, item in enumerate(files):
+                    # 安全解包：处理2元组或3元组
+                    if len(item) == 2:
+                        file_path, file_name = item
+                    elif len(item) == 3:
+                        file_path, file_name, _ = item
+                    else:
+                        continue
+                    tasks.append(process_with_semaphore(idx, file_path, file_name))
                 
                 # 并发执行所有任务 - 添加总超时保护（每个账号最多3分钟，总共不超过账号数*3分钟）
                 # 但至少30分钟
@@ -21896,7 +22005,7 @@ admin3</code>
         query.answer()
         
         if user_id not in self.pending_registration_check:
-            self.safe_edit_message(query, "❌ 会话已过期，请重新上传文件")
+            self.safe_edit_message(query, self.i18n.get(user_id, 'common.session_expired_reupload'))
             return
         
         task = self.pending_registration_check[user_id]

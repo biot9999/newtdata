@@ -185,7 +185,9 @@
     "return_modify": "✏️ Return to Modify",
     "detail_modify_report": "📊 Detailed Modification Report",
     "upload_photo": "📷 Upload Photo",
-    "delete_avatar": "🚫 Delete Avatar"
+    "delete_avatar": "🚫 Delete Avatar",
+    "no_files_found": "❌ No files found",
+    "initializing": "⏳ Initializing, please wait..."
   },
   "twofa": {
     "change_title": "🔐 <b>Change 2FA Password</b>",
@@ -290,7 +292,8 @@
     "detail_report": "📊 Batch Creation Detail Report",
     "create_group": "📱 Create Group",
     "create_channel": "📢 Create Channel",
-    "account_quantity": "📊 Account Quantity"
+    "account_quantity": "📊 Account Quantity",
+    "feature_disabled": "❌ Batch creation feature is disabled"
   },
   "api": {
     "title": "🔗 <b>API Conversion</b>",
@@ -433,7 +436,8 @@
     "confirm_clear_contacts": "• Clear all contacts",
     "confirm_archive": "• Archive remaining dialogs",
     "confirm_irreversible": "<b>🔴 This operation is irreversible!</b>",
-    "summary_report": "📋 Cleanup Summary Report"
+    "summary_report": "📋 Cleanup Summary Report",
+    "initializing": "🧹 <b>Starting Cleanup...</b>\n\nInitializing cleanup service..."
   },
   "reauthorize": {
     "title": "🔑 <b>Reauthorize</b>",
@@ -846,7 +850,8 @@
     "accounts_bracket": "{count} accounts)",
     "modify_success_bracket": "✅ Modification success ({count})",
     "failed_details_bracket": "❌ Failed Details ({count})",
-    "proxy_type_test": "🧪 Test proxy: {type} proxy"
+    "proxy_type_test": "🧪 Test proxy: {type} proxy",
+    "session_expired_reupload": "❌ Session expired, please re-upload files"
   },
   "file": {
     "uploading": "⬆️ Uploading file...",
@@ -946,7 +951,8 @@
     "sending_progress": "📤 <b>Broadcasting...</b>\n\n• Target: {total} people\n• Progress: {current}/{total}\n• Success: {success}\n• Failed: {failed}",
     "back_to_history": "🔙 Back to History",
     "all_users_count": "👥 All Users ({count})",
-    "new_users_7days": "🆕 New Users (7 days) ({count})"
+    "new_users_7days": "🆕 New Users (7 days) ({count})",
+    "preview_title": "📢 Preview"
   },
   "admin_ext": {
     "msg_6": "Get all admins",

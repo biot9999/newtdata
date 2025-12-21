@@ -81,11 +81,19 @@ class AccountClassifier:
     # -------------- 元数据构造 --------------
     def build_meta_from_pairs(self, files: List[Tuple[str, str]], file_type: str) -> List[AccountMeta]:
         """
-        将 FileProcessor.scan_zip_file 返回的列表 [(path, name)] 转为 AccountMeta 列表
+        将 FileProcessor.scan_zip_file 返回的列表 [(path, name, type)] 转为 AccountMeta 列表
         file_type: 'tdata' 或 'session'
+        注意：files中的每个元素可能是2元组(path, name)或3元组(path, name, type)
         """
         metas: List[AccountMeta] = []
-        for path, display_name in files:
+        for item in files:
+            # 处理2元组或3元组格式
+            if len(item) == 2:
+                path, display_name = item
+            elif len(item) == 3:
+                path, display_name, _ = item  # 忽略第三个元素(文件类型)
+            else:
+                continue  # 跳过格式不正确的项
             phone: Optional[str] = None
 
             # 1) 从名称里推断
