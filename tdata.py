@@ -19055,19 +19055,16 @@ class EnhancedBot:
             failed = len([r for r in results if r.status == 'failed'])
             skipped = len([r for r in results if r.status == 'skipped'])
             
-            summary = f"""
-✅ <b>批量创建完成</b>
-
-<b>统计信息：</b>
-• 总数：{total}
-• 成功：{success}
-• 失败：{failed}
-• 跳过：{skipped}
-
-<b>成功率：</b> {int(success/total*100) if total > 0 else 0}%
-
-📄 详细报告见下方文件
-"""
+            summary = (
+                f"{self.i18n.get(user_id, 'batch.create_complete')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.stats_title')}\n"
+                f"{self.i18n.get(user_id, 'batch.total_label', count=total)}\n"
+                f"{self.i18n.get(user_id, 'batch.success_label', count=success)}\n"
+                f"{self.i18n.get(user_id, 'batch.failed_label', count=failed)}\n"
+                f"{self.i18n.get(user_id, 'batch.skipped_label', count=skipped)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.success_rate', rate=int(success/total*100) if total > 0 else 0)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.detail_report')}"
+            )
             
             context.bot.edit_message_text(
                 chat_id=user_id,
@@ -19093,19 +19090,19 @@ class EnhancedBot:
                 
                 with open(success_path, 'w', encoding='utf-8') as f:
                     f.write("=" * 80 + "\n")
-                    f.write("批量创建 - 成功列表\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_success_title')}\n")
                     f.write("=" * 80 + "\n")
-                    f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
-                    f.write(f"成功数量: {len(success_results)}\n\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_generated_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_success_count', count=len(success_results))}\n\n")
                     
                     for r in success_results:
                         f.write("-" * 80 + "\n")
-                        f.write(f"群昵称: {r.name}\n")
-                        f.write(f"群简介: {r.description or '无'}\n")
-                        f.write(f"群链接: {r.invite_link or '无'}\n")
-                        f.write(f"创建者账号: {r.phone}\n")
-                        f.write(f"创建者用户名: @{r.creator_username or '未知'}\n")
-                        f.write(f"管理员用户名: @{r.admin_username or '无'}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.group_nickname', name=r.name)}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.group_description', description=r.description or self.i18n.get(user_id, 'batch.no_description'))}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.group_link', link=r.invite_link or self.i18n.get(user_id, 'batch.no_description'))}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.creator_account', phone=r.phone)}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.creator_username', username=r.creator_username or self.i18n.get(user_id, 'batch.unknown'))}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.admin_username_label', username=r.admin_username or self.i18n.get(user_id, 'batch.no_description'))}\n")
                         f.write("\n")
                     
                     f.write("=" * 80 + "\n")
@@ -19126,17 +19123,17 @@ class EnhancedBot:
                 
                 with open(failure_path, 'w', encoding='utf-8') as f:
                     f.write("=" * 80 + "\n")
-                    f.write("批量创建 - 失败列表（详细原因）\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_failure_title')}\n")
                     f.write("=" * 80 + "\n")
-                    f.write(f"生成时间: {datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST')}\n")
-                    f.write(f"失败数量: {len(failed_results)}\n\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_generated_time', time=datetime.now(BEIJING_TZ).strftime('%Y-%m-%d %H:%M:%S CST'))}\n")
+                    f.write(f"{self.i18n.get(user_id, 'batch.report_failure_count', count=len(failed_results))}\n\n")
                     
                     for r in failed_results:
                         f.write("-" * 80 + "\n")
-                        f.write(f"群昵称: {r.name}\n")
-                        f.write(f"群简介: {r.description or '无'}\n")
-                        f.write(f"创建者账号: {r.phone}\n")
-                        f.write(f"失败原因: {r.error}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.group_nickname', name=r.name)}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.group_description', description=r.description or self.i18n.get(user_id, 'batch.no_description'))}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.creator_account', phone=r.phone)}\n")
+                        f.write(f"{self.i18n.get(user_id, 'batch.failure_reason', reason=r.error)}\n")
                         f.write("\n")
                     
                     f.write("=" * 80 + "\n")

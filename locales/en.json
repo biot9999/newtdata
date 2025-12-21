@@ -428,7 +428,8 @@
     "link_username_format": "�� <i>Custom username format: One per line, with or without @</i>",
     "link_username_skip": "💡 <i>Existing or unavailable usernames will be skipped</i>",
     "username_mode_auto_gen": "Auto-generate",
-    "username_mode_custom_provided": "Custom ({count} provided)"
+    "username_mode_custom_provided": "Custom ({count} provided)",
+    "realtime_progress": "📊 Real-time Progress"
   },
   "api": {
     "title": "🔗 <b>API Conversion</b>",
@@ -911,7 +912,7 @@
     "info": "📊 <b>System Information</b>\n\n• Version: V8.0\n• Uptime: {uptime}\n• Users: {users}\n• Proxy Status: {proxy_status}\n• Current Time: {current_time}"
   },
   "common": {
-    "back": "🔙 Back",
+    "back": "◀️ Back",
     "back_main": "🔙 Back to Main",
     "cancel": "❌ Cancel",
     "confirm": "✅ Confirm",
@@ -960,7 +961,7 @@
     "confirm_revoke": "✅ Confirm Revoke",
     "auth_success": "✅ Authorization successful",
     "activation_success": "✅ Activation successful",
-    "create_list_success": "✅ List created successfully",
+    "create_list_success": "✅ Success List",
     "complete_merge": "✅ Merge complete",
     "days_1": "1 day",
     "days_7": "7 days",
@@ -971,7 +972,7 @@
     "buttons_count": "{count} buttons",
     "accounts_in_parentheses": "{count} accounts)",
     "proxy_type_upper": "{type} proxy",
-    "realtime_progress": "Real-time progress updating...",
+    "realtime_progress": "📊 Real-time Progress",
     "reply_markup_desc": "Reply keyboard markup",
     "user_details_name": "📋 {name} Details",
     "detail_report_status": "📝 Detail Report - {status}",
@@ -1044,7 +1045,7 @@
     "cleanup_failed_with_error": "❌ <b>Cleanup Failed</b>\n\nError: {error}",
     "all_files_send_failed": "⚠️ All result files failed to send, please contact admin to check logs",
     "report_issue_but_complete": "⚠️ Report generation issue, but processing complete\n\nTotal: {total}\nSuccess: {success}",
-    "failed_details_list": "❌ Failed Details List",
+    "failed_details_list": "❌ Failure Details List",
     "activation_failed": "❌ Activation failed",
     "no_matching_users": "❌ No matching users found",
     "no_pending_users": "❌ No pending users"

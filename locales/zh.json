@@ -428,7 +428,8 @@
     "link_username_format": "💡 <i>自定义用户名格式：一行一个，可带或不带@</i>",
     "link_username_skip": "💡 <i>如果用户名已存在或不可用，将自动跳过</i>",
     "username_mode_auto_gen": "自动生成",
-    "username_mode_custom_provided": "自定义（已提供{count}个）"
+    "username_mode_custom_provided": "自定义（已提供{count}个）",
+    "realtime_progress": "📊 实时进度"
   },
   "api": {
     "title": "🔗 <b>API转换功能</b>",
@@ -911,7 +912,7 @@
     "info": "📊 <b>系统信息</b>\n\n• 版本: V8.0\n• 运行时间: {uptime}\n• 用户数: {users}\n• 代理状态: {proxy_status}\n• 当前时间: {current_time}"
   },
   "common": {
-    "back": "🔙 返回",
+    "back": "◀️ 返回",
     "back_main": "🔙 返回主菜单",
     "cancel": "❌ 取消",
     "confirm": "✅ 确认",
@@ -960,7 +961,7 @@
     "confirm_revoke": "✅ 确认撤销",
     "auth_success": "✅ 授权成功",
     "activation_success": "✅ 开通成功",
-    "create_list_success": "✅ 成功创建列表",
+    "create_list_success": "✅ 成功列表",
     "complete_merge": "✅ 完成合并",
     "days_1": "1天",
     "days_7": "7天",
@@ -971,7 +972,7 @@
     "buttons_count": "{count} 个按钮",
     "accounts_in_parentheses": "{count} 个账号)",
     "proxy_type_upper": "{type}代理",
-    "realtime_progress": "实时进度更新中...",
+    "realtime_progress": "📊 实时进度",
     "reply_markup_desc": "回复键盘标记",
     "user_details_name": "📋 {name} 详情",
     "detail_report_status": "📝 详细报告 - {status}",
