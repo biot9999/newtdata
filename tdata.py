@@ -18254,7 +18254,7 @@ class EnhancedBot:
             
             self.safe_edit_message_text(
                 progress_msg,
-                f"✅ <b>找到 {len(files)} 个账号文件</b>\n\n⏳ 正在验证账号...",
+                self.i18n.get(user_id, 'batch.found_accounts', count=len(files)),
                 parse_mode='HTML'
             )
             
@@ -18281,7 +18281,7 @@ class EnhancedBot:
                 if (i + 1) % 5 == 0:
                     self.safe_edit_message_text(
                         progress_msg,
-                        f"⏳ <b>验证账号中...</b>\n\n进度: {i + 1}/{len(files)}",
+                        self.i18n.get(user_id, 'batch.validating_accounts', current=i+1, total=len(files)),
                         parse_mode='HTML'
                     )
                 
@@ -18328,18 +18328,16 @@ class EnhancedBot:
             }
             
             # 显示验证结果
-            text = f"""
-✅ <b>账号验证完成</b>
-
-<b>统计信息：</b>
-• 总账号数：{len(accounts)}
-• 有效账号：{valid_count}
-• 无效账号：{len(accounts) - valid_count}
-• 今日可创建：{total_remaining} 个
-
-<b>下一步：</b>
-请选择要创建的类型
-"""
+            text = (
+                f"{self.i18n.get(user_id, 'batch.validation_complete')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.stats_title_detailed')}\n"
+                f"{self.i18n.get(user_id, 'batch.total_accounts_detailed', count=len(accounts))}\n"
+                f"{self.i18n.get(user_id, 'batch.valid_accounts_detailed', count=valid_count)}\n"
+                f"{self.i18n.get(user_id, 'batch.invalid_accounts', count=len(accounts) - valid_count)}\n"
+                f"{self.i18n.get(user_id, 'batch.today_quota', count=total_remaining)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.next_step_title')}\n"
+                f"{self.i18n.get(user_id, 'batch.select_creation_type')}"
+            )
             
             keyboard = InlineKeyboardMarkup([
                 [
@@ -18358,7 +18356,7 @@ class EnhancedBot:
             
             self.safe_edit_message_text(
                 progress_msg,
-                f"❌ <b>处理失败</b>\n\n错误: {str(e)}",
+                self.i18n.get(user_id, 'batch.processing_failed', error=str(e)),
                 parse_mode='HTML'
             )
             
@@ -18521,28 +18519,21 @@ class EnhancedBot:
             
             task['count_per_account'] = count
             
-            type_name = "群组" if task['creation_type'] == 'group' else "频道"
+            type_name = self.i18n.get(user_id, 'batch.type_group') if task['creation_type'] == 'group' else self.i18n.get(user_id, 'batch.type_channel')
             
-            text = f"""
-✅ <b>数量已设置：{count} 个/{type_name}/账号</b>
-
-<b>步骤 2/4：设置管理员（可选，支持多个）</b>
-
-请发送需要添加为管理员的用户名：
-
-<b>格式：</b>
-• 单个管理员：直接输入用户名
-• 多个管理员：<b>每行一个用户名</b>
-
-<b>示例：</b>
-<code>admin1
-admin2
-admin3</code>
-
-💡 <i>可以带或不带@符号</i>
-💡 <i>不需要添加管理员，发送 "跳过" 或 "无"</i>
-💡 <i>失败的管理员会在报告中显示详细原因</i>
-"""
+            text = (
+                f"{self.i18n.get(user_id, 'batch.count_set', count=count, type_name=type_name)}\n\n"
+                f"{self.i18n.get(user_id, 'batch.step2_set_admin')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.admin_prompt_detailed')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.admin_format_title')}\n"
+                f"{self.i18n.get(user_id, 'batch.admin_format_single_detailed')}\n"
+                f"{self.i18n.get(user_id, 'batch.admin_format_multi_detailed')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.admin_example_title')}\n"
+                f"{self.i18n.get(user_id, 'batch.admin_example_content_detailed')}\n\n"
+                f"{self.i18n.get(user_id, 'batch.admin_note_at_symbol')}\n"
+                f"{self.i18n.get(user_id, 'batch.admin_note_skip')}\n"
+                f"{self.i18n.get(user_id, 'batch.admin_note_failure')}"
+            )
             
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(self.i18n.get(user_id, 'batch.skip_short'), callback_data="batch_create_skip_admin")],
@@ -18596,35 +18587,27 @@ admin3</code>
     def _ask_for_group_names(self, update: Update, user_id: int):
         """询问群组名称和简介"""
         task = self.pending_batch_create[user_id]
-        type_name = "群组" if task['creation_type'] == 'group' else "频道"
+        type_name = self.i18n.get(user_id, 'batch.type_group') if task['creation_type'] == 'group' else self.i18n.get(user_id, 'batch.type_channel')
         
         total_to_create = task['valid_accounts'] * task['count_per_account']
         
         admin_usernames = task.get('admin_usernames', [])
-        admin_display = ', '.join([f"@{u}" for u in admin_usernames]) if admin_usernames else '无'
+        admin_display = ', '.join([f"@{u}" for u in admin_usernames]) if admin_usernames else self.i18n.get(user_id, 'batch.admin_none')
         
-        text = f"""
-✅ <b>管理员已设置：{admin_display}</b>
-<i>（共 {len(admin_usernames)} 个）</i>
-
-<b>步骤 3/4：设置{type_name}名称和简介</b>
-
-请上传包含{type_name}名称和简介的TXT文件，或直接手动输入（少量）
-
-<b>格式：</b>
-<code>{type_name}名称|{type_name}简介</code>
-
-<b>示例：</b>
-<code>科技交流群|欢迎讨论最新科技资讯
-编程学习|一起学习编程技术
-游戏爱好者|</code>
-
-💡 <i>简介可以为空（如第3行）</i>
-💡 <i>需要准备至少 {total_to_create} 行</i>
-💡 <i>如果行数不足，将循环使用已有的名称</i>
-
-<b>请上传TXT文件或直接输入：</b>
-"""
+        text = (
+            f"{self.i18n.get(user_id, 'batch.admin_set', admin_display=admin_display)}\n"
+            f"{self.i18n.get(user_id, 'batch.admin_count', count=len(admin_usernames))}\n\n"
+            f"{self.i18n.get(user_id, 'batch.step3_names_detailed', type_name=type_name)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.names_upload_prompt', type_name=type_name)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.names_format_label')}\n"
+            f"{self.i18n.get(user_id, 'batch.names_format_detail', type_name=type_name)}\n\n"
+            f"{self.i18n.get(user_id, 'batch.names_example_label')}\n"
+            f"{self.i18n.get(user_id, 'batch.names_example_content')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.names_note_empty_desc')}\n"
+            f"{self.i18n.get(user_id, 'batch.names_note_min_lines', count=total_to_create)}\n"
+            f"{self.i18n.get(user_id, 'batch.names_note_循环')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.names_input_prompt')}"
+        )
         
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="batch_create_cancel")]

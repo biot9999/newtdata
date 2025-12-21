@@ -415,7 +415,9 @@
     "button_auto_generate": "🎲 Auto-generate",
     "button_custom": "📝 Custom",
     "button_create_group": "👥 Create Group",
-    "button_create_channel": "📢 Create Channel"
+    "button_create_channel": "📢 Create Channel",
+    "create_group": "👥 Create Group",
+    "create_channel": "📢 Create Channel"
   },
   "api": {
     "title": "🔗 <b>API Conversion</b>",

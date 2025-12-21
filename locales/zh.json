@@ -415,7 +415,9 @@
     "button_auto_generate": "🎲 自动生成",
     "button_custom": "📝 自定义",
     "button_create_group": "👥 创建群组",
-    "button_create_channel": "📢 创建频道"
+    "button_create_channel": "📢 创建频道",
+    "create_group": "👥 创建群组",
+    "create_channel": "📢 创建频道"
   },
   "api": {
     "title": "🔗 <b>API转换功能</b>",
