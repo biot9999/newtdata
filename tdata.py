@@ -18381,7 +18381,7 @@ class EnhancedBot:
         if not is_member and not self.db.is_admin(user_id):
             self.safe_edit_message(
                 query,
-                "⚠️ 批量创建功能需要会员权限\n\n请先开通会员",
+                self.i18n.get(user_id, 'batch.require_membership'),
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton(self.i18n.get(user_id, 'vip.activate_membership'), callback_data="vip_menu"),
                     InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="back_to_main")
@@ -18389,33 +18389,29 @@ class EnhancedBot:
             )
             return
         
-        text = """
-📦 <b>批量创建群组/频道</b>
-
-<b>功能说明：</b>
-• 批量创建 Telegram 群组和频道
-• 支持随机设备参数和代理登录
-• 自动校验账号有效性
-• 每日创建数量限制：{} 个/账号
-• 支持自定义命名规则和简介
-• 支持用户名自定义或随机生成
-• 最多同时处理 10 个账号
-
-<b>使用步骤：</b>
-1. 上传 Session 或 TData 文件（支持 ZIP 压缩包）
-2. 系统自动验证账号并显示可用数量
-3. 配置创建参数（类型、命名规则等）
-4. 确认后开始批量创建
-5. 完成后接收详细报告和链接列表
-
-<b>注意事项：</b>
-⚠️ 请合理使用，避免触发 Telegram 限制
-⚠️ 建议分批次创建，不要一次性创建过多
-⚠️ 创建的群组/频道归属于对应账号
-
-📤 <b>请上传账号文件</b>
-支持格式：.session / TData文件夹 / .zip压缩包
-""".format(config.BATCH_CREATE_DAILY_LIMIT)
+        text = (
+            f"{self.i18n.get(user_id, 'batch.title')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.features_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_bulk_create')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_random_device')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_validate')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_daily_limit', limit=config.BATCH_CREATE_DAILY_LIMIT)}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_custom_naming')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_username')}\n"
+            f"{self.i18n.get(user_id, 'batch.feature_concurrent')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.steps_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.step1')}\n"
+            f"{self.i18n.get(user_id, 'batch.step2')}\n"
+            f"{self.i18n.get(user_id, 'batch.step3')}\n"
+            f"{self.i18n.get(user_id, 'batch.step4')}\n"
+            f"{self.i18n.get(user_id, 'batch.step5')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.notes_title')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_reasonable')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_batch')}\n"
+            f"{self.i18n.get(user_id, 'batch.note_ownership')}\n\n"
+            f"{self.i18n.get(user_id, 'batch.upload_prompt')}\n"
+            f"{self.i18n.get(user_id, 'batch.upload_formats')}"
+        )
         
         keyboard = InlineKeyboardMarkup([[
             InlineKeyboardButton(self.i18n.get(user_id, 'classify.return'), callback_data="back_to_main")
